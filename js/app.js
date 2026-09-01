@@ -78,7 +78,6 @@ const App = (() => {
           <!-- ── LEFT VISUAL PANEL (50% SCREEN) ── -->
           <div class="auth-visual-panel">
             <div class="auth-visual-top">
-              <div class="auth-brand-badge">✦ Plataforma Científica Gratuita</div>
               <div class="auth-visual-logo">✳ Gisa</div>
               <h1 class="auth-visual-headline">
                 Acelere sua Revisão Sistemática de Semanas para Dias.
