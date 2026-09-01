@@ -198,8 +198,8 @@ img, svg, video, iframe, canvas {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: calc(100vh - 140px);
-  padding: clamp(16px, 3vw, 40px) 12px;
+  min-height: 100vh;
+  padding: clamp(16px, 3vw, 40px) 16px;
 }
 
 .auth-dual-card {

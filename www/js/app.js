@@ -43,10 +43,16 @@ const App = (() => {
 
   // ─── Main Render ──────────────────────────────────────
   function render() {
-    if (state.view === 'auth') renderAuthScreen();
-    else if (state.view === 'home') renderHome();
-    else if (state.view === 'project') renderProject();
-    else if (state.view === 'wizard') renderWizard();
+    const navbar = $('navbar');
+    if (state.view === 'auth') {
+      if (navbar) navbar.style.display = 'none';
+      renderAuthScreen();
+    } else {
+      if (navbar) navbar.style.display = 'flex';
+      if (state.view === 'home') renderHome();
+      else if (state.view === 'project') renderProject();
+      else if (state.view === 'wizard') renderWizard();
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
