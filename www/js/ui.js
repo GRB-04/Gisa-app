@@ -722,7 +722,7 @@ const UI = (() => {
 
           <div class="prisma-phase" style="border-left:4px solid var(--cyan);padding-left:16px;">
             <span style="font-size:0.75rem;font-weight:700;color:var(--cyan);text-transform:uppercase;letter-spacing:0.05em">3. Triagem</span>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px;">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 240px), 1fr));gap:16px;margin-top:8px;">
               <div class="prisma-box" style="padding:16px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md)">
                 <strong>Registros triados por título e resumo (n = ${recordsScreened})</strong>
               </div>
@@ -753,7 +753,7 @@ const UI = (() => {
     const analysis = AIAssistant.analyzeArticle(article);
     
     const picoHtml = `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 180px), 1fr));gap:10px;margin-bottom:16px;">
         <div style="padding:10px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);">
           <strong style="color:var(--purple);font-size:0.78rem;">P - População:</strong>
           <div style="font-size:0.82rem;color:var(--text-primary);margin-top:2px;">${analysis.population}</div>
@@ -1233,7 +1233,7 @@ const UI = (() => {
           <label style="font-size:0.82rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:10px;">
             2. Critérios de Correspondência (Duplicates resolving criteria):
           </label>
-          <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:10px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 130px), 1fr));gap:10px;">
             <label style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);cursor:pointer;font-size:0.82rem;">
               <input type="checkbox" id="crit-title" checked /> <span>Title (Título)</span>
             </label>
@@ -1498,7 +1498,7 @@ const UI = (() => {
         </div>
 
         <!-- Estatísticas do Pesquisador -->
-        <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:10px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 75px), 1fr));gap:10px;">
           <div style="background:var(--bg-card2);padding:10px 8px;border-radius:var(--radius-md);border:1px solid var(--border);text-align:center;">
             <div style="font-size:1.25rem;font-weight:800;color:var(--purple);">${stats.totalProjects}</div>
             <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Projetos</div>
@@ -1526,7 +1526,7 @@ const UI = (() => {
             </div>
           </div>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 200px), 1fr));gap:12px;">
             <div>
               <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Seu Nome:</label>
               <input id="prof-input-name" class="input" style="width:100%;font-size:0.88rem;" value="${escapeHtml(profile.name || '')}" placeholder="Ex: Dra. Giselle Silva" />
@@ -1537,7 +1537,7 @@ const UI = (() => {
             </div>
           </div>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 200px), 1fr));gap:12px;">
             <div>
               <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Instituição / Universidade:</label>
               <input id="prof-input-inst" class="input" style="width:100%;font-size:0.88rem;" value="${escapeHtml(profile.institution || '')}" placeholder="Ex: USP, UFRJ, Fiocruz, UnB" />
@@ -1636,7 +1636,7 @@ const UI = (() => {
           O <strong>Gisa</strong> foi desenvolvido para você utilizar onde quiser: no <strong>computador</strong> (aplicativo desktop instalado), no <strong>celular Android</strong> (arquivo APK nativo) ou direto no seu <strong>navegador web</strong>.
         </p>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 240px), 1fr));gap:14px;">
           
           <!-- Card 1: Instalar no Computador / Desktop -->
           <div style="background:var(--bg-card2);border:1px solid rgba(99,102,241,0.3);border-radius:var(--radius-lg);padding:18px;display:flex;flex-direction:column;gap:12px;box-shadow:0 4px 14px rgba(0,0,0,0.2);">
