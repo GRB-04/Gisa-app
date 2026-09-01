@@ -1221,7 +1221,7 @@ const UI = (() => {
               
               <div>
                 <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Seu Nome:</label>
-                <input id="auth-signup-name" class="input" placeholder="Ex: Dra. Giselle Silva" style="width:100%;font-size:0.9rem;" />
+                <input id="auth-signup-name" class="input" placeholder="Ex: Dra. Giselle Corrêa" style="width:100%;font-size:0.9rem;" />
               </div>
 
               <div>
@@ -1854,7 +1854,7 @@ const UI = (() => {
           <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 200px), 1fr));gap:12px;">
             <div>
               <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Seu Nome:</label>
-              <input id="prof-input-name" class="input" style="width:100%;font-size:0.88rem;" value="${escapeHtml(profile.name || '')}" placeholder="Ex: Dra. Giselle Silva" />
+              <input id="prof-input-name" class="input" style="width:100%;font-size:0.88rem;" value="${escapeHtml(profile.name || '')}" placeholder="Ex: Dra. Giselle Corrêa" />
             </div>
             <div>
               <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">E-mail:</label>

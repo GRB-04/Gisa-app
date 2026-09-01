@@ -141,7 +141,7 @@ const App = (() => {
                   <div class="auth-field-group" id="group-name">
                     <label class="auth-field-label">Seu nome completo</label>
                     <div class="auth-input-wrapper">
-                      <input id="auth-input-name" type="text" placeholder="Ex: Dra. Giselle Silva" autocomplete="name" required />
+                      <input id="auth-input-name" type="text" placeholder="Ex: Dra. Giselle Corrêa" autocomplete="name" required />
                     </div>
                   </div>
                 ` : ''}
