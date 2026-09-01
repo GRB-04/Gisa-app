@@ -1797,22 +1797,20 @@ const UI = (() => {
     const profile = Storage.getProfile();
     const stats = Storage.getUserStats();
     const isCloud = typeof SupabaseSync !== 'undefined' && SupabaseSync.isConfigured();
-    const avatarOptions = ['👩‍🔬', '👨‍🔬', '🧑‍💻', '🎓', '📚', '🔬', '🧬', '💡', '👤', '⭐'];
 
-    const avatarsHtml = avatarOptions.map(av => `
-      <button type="button" class="avatar-option-btn ${profile.avatar === av ? 'active' : ''}" data-avatar="${av}" style="font-size:1.35rem;padding:6px 10px;border-radius:var(--radius-md);border:1px solid ${profile.avatar === av ? 'var(--purple)' : 'var(--border)'};background:${profile.avatar === av ? 'var(--purple-glow)' : 'var(--bg-card2)'};cursor:pointer;transition:all 0.2s;">
-        ${av}
-      </button>
-    `).join('');
+    // Build avatar display for modal header
+    const photoUrl = profile.avatar && profile.avatar.startsWith('http') ? profile.avatar
+      : (profile.picture && profile.picture.startsWith('http') ? profile.picture : null);
+    const headerAvatarHtml = photoUrl
+      ? `<img src="${photoUrl}" alt="Foto" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid var(--purple);box-shadow:0 4px 14px var(--purple-glow);flex-shrink:0;">`
+      : `<div style="font-size:1.5rem;font-weight:800;background:linear-gradient(135deg,#7c3aed,#4f46e5);border:2px solid var(--purple);border-radius:50%;width:64px;height:64px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px var(--purple-glow);flex-shrink:0;color:#fff;">${(profile.name||'P').split(' ').map(w=>w[0]).filter(Boolean).slice(0,2).join('').toUpperCase()}</div>`;
 
     const bodyHtml = `
       <div class="user-profile-dialog" style="display:flex;flex-direction:column;gap:18px;">
         
         <!-- Header / Banner do Perfil -->
         <div style="background:linear-gradient(135deg, rgba(99,102,241,0.15), rgba(168,85,247,0.1));border:1px solid rgba(99,102,241,0.25);border-radius:var(--radius-lg);padding:16px 20px;display:flex;align-items:center;gap:16px;">
-          <div id="prof-current-avatar" style="font-size:2.6rem;background:var(--bg-card);border:2px solid var(--purple);border-radius:50%;width:64px;height:64px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px var(--purple-glow);flex-shrink:0;">
-            ${profile.avatar || '👩‍🔬'}
-          </div>
+          ${headerAvatarHtml}
           <div style="flex:1;overflow:hidden;">
             <h3 style="color:var(--text-primary);margin:0 0 4px 0;font-size:1.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="prof-display-name">${escapeHtml(profile.name || 'Pesquisador(a)')}</h3>
             <div style="font-size:0.8rem;color:var(--text-secondary);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -1823,7 +1821,7 @@ const UI = (() => {
         </div>
 
         <!-- Estatísticas do Pesquisador -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 75px), 1fr));gap:10px;">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
           <div style="background:var(--bg-card2);padding:10px 8px;border-radius:var(--radius-md);border:1px solid var(--border);text-align:center;">
             <div style="font-size:1.25rem;font-weight:800;color:var(--purple);">${stats.totalProjects}</div>
             <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Projetos</div>
@@ -1836,21 +1834,10 @@ const UI = (() => {
             <div style="font-size:1.25rem;font-weight:800;color:var(--green);">${stats.included}</div>
             <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Incluídos</div>
           </div>
-          <div style="background:var(--bg-card2);padding:10px 8px;border-radius:var(--radius-md);border:1px solid var(--border);text-align:center;">
-            <div style="font-size:1.25rem;font-weight:800;color:var(--violet);">${stats.withPdf}</div>
-            <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Com PDF</div>
-          </div>
         </div>
 
         <!-- Formulário de Edição -->
         <div style="display:flex;flex-direction:column;gap:12px;">
-          <div>
-            <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;display:block;">Avatar / Ícone do Perfil:</label>
-            <div id="prof-avatar-grid" style="display:flex;gap:8px;flex-wrap:wrap;">
-              ${avatarsHtml}
-            </div>
-          </div>
-
           <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 200px), 1fr));gap:12px;">
             <div>
               <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Seu Nome:</label>
@@ -1858,7 +1845,7 @@ const UI = (() => {
             </div>
             <div>
               <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">E-mail:</label>
-              <input id="prof-input-email" type="email" class="input" style="width:100%;font-size:0.88rem;" value="${escapeHtml(profile.email || '')}" placeholder="seu.email@pesquisa.br" />
+              <input id="prof-input-email" type="email" class="input" style="width:100%;font-size:0.88rem;" value="${escapeHtml(profile.email || '')}" placeholder="seu.email@pesquisa.br" readonly style="opacity:0.7;cursor:default;"/>
             </div>
           </div>
 
@@ -1878,43 +1865,34 @@ const UI = (() => {
               </select>
             </div>
           </div>
-
-          <div>
-            <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Bio / Linha de Pesquisa:</label>
-            <textarea id="prof-input-bio" class="input" rows="2" style="width:100%;font-size:0.85rem;resize:vertical;" placeholder="Ex: Pesquisa em Saúde Coletiva, Epidemiologia, Revisão Sistemática PRISMA...">${escapeHtml(profile.bio || '')}</textarea>
-          </div>
         </div>
       </div>
     `;
 
-    let selectedAvatar = profile.avatar || '👩‍🔬';
-
     modal(
-      '👤 Perfil do Pesquisador',
+      'Perfil do Pesquisador',
       bodyHtml,
       [
         { label: 'Fechar', style: 'btn-ghost' },
         {
-          label: '💾 Salvar Perfil',
+          label: 'Salvar Perfil',
           style: 'btn-primary',
           cb: () => {
             const name = document.getElementById('prof-input-name')?.value?.trim() || 'Pesquisador(a)';
-            const email = document.getElementById('prof-input-email')?.value?.trim() || '';
+            const email = document.getElementById('prof-input-email')?.value?.trim() || profile.email || '';
             const institution = document.getElementById('prof-input-inst')?.value?.trim() || '';
             const role = document.getElementById('prof-input-role')?.value || 'Pesquisador(a) Principal';
-            const bio = document.getElementById('prof-input-bio')?.value?.trim() || '';
 
             const updated = Storage.saveProfile({
+              ...profile,
               name,
               email,
-              avatar: selectedAvatar,
               institution,
-              role,
-              bio
+              role
             });
 
             if (typeof SupabaseSync !== 'undefined' && SupabaseSync.isConfigured()) {
-              SupabaseSync.updateUserMetadata({ full_name: name, avatar: selectedAvatar, institution, role });
+              SupabaseSync.updateUserMetadata({ full_name: name, institution, role });
             }
 
             updateUserProfileNavbarUI();
@@ -1926,20 +1904,6 @@ const UI = (() => {
     );
 
     setTimeout(() => {
-      document.querySelectorAll('.avatar-option-btn').forEach(btn => {
-        btn.onclick = () => {
-          document.querySelectorAll('.avatar-option-btn').forEach(b => {
-            b.style.borderColor = 'var(--border)';
-            b.style.background = 'var(--bg-card2)';
-          });
-          btn.style.borderColor = 'var(--purple)';
-          btn.style.background = 'var(--purple-glow)';
-          selectedAvatar = btn.dataset.avatar;
-          const currentAvEl = document.getElementById('prof-current-avatar');
-          if (currentAvEl) currentAvEl.textContent = selectedAvatar;
-        };
-      });
-
       const nameInput = document.getElementById('prof-input-name');
       const displayName = document.getElementById('prof-display-name');
       if (nameInput && displayName) {
