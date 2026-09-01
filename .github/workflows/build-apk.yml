@@ -17,7 +17,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 20
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -28,6 +28,9 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Set up Gradle Cache
+        uses: gradle/actions/setup-gradle@v3
+
       - name: Install Node Dependencies
         run: npm install
 
@@ -37,15 +40,18 @@ jobs:
       - name: Sync Capacitor Android
         run: npx cap sync android
 
-      - name: Accept Android Licenses & Set Permissions
-        run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-          chmod +x android/gradlew
+      - name: Make Gradle Executable
+        run: chmod +x android/gradlew
 
       - name: Build Android APK with Gradle
         run: |
           cd android
           ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Verify APK Generated
+        run: |
+          ls -la android/app/build/outputs/apk/debug/
+          test -f android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
@@ -54,20 +60,16 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
-      - name: Create Release with APK
-        if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'
+      - name: Create GitHub Release
+        continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
           files: android/app/build/outputs/apk/debug/app-debug.apk
-          tag_name: apk-build-${{ github.run_number }}
+          tag_name: apk-v1.0.${{ github.run_number }}
           name: Gisa APK v1.0.${{ github.run_number }}
           body: |
             ## 📱 Gisa — Aplicativo Android (APK)
             
-            Baixe o arquivo **`app-debug.apk`** abaixo para instalar no seu celular Android.
-            
-            - **Versão:** 1.0.${{ github.run_number }}
-            - **Arquitetura:** Universal APK (ARM64 / ARMv7 / x86_64)
-            - **Requisitos:** Android 8.0+
+            Baixe o arquivo **`app-debug.apk`** para instalar no seu celular Android.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
