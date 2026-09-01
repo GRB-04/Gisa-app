@@ -2590,6 +2590,9 @@ Gerado por Gisa · ${date}
 
   // ─── Init ─────────────────────────────────────────────
   async function init() {
+    // FIRST: Wait for IndexedDB to fully load settings & profile before anything
+    await Storage.initAsync();
+
     let isLoggedIn = false;
 
     // Check for direct Google OAuth 2.0 Access Token in URL Hash
@@ -2634,7 +2637,7 @@ Gerado por Gisa · ${date}
       });
     }
 
-    // Check if we have an active profile with email
+    // Check if we have an active profile with email (IndexedDB already loaded above)
     const existingProfile = Storage.getProfile();
     if (existingProfile && existingProfile.email && existingProfile.email.includes('@')) {
       isLoggedIn = true;
