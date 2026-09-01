@@ -279,7 +279,13 @@ const App = (() => {
       const googleBtn = $('btn-google-login');
       if (googleBtn) {
         googleBtn.onclick = () => {
-          renderGoogleSignInDialogue();
+          const settings = Storage.getSettings();
+          const clientId = settings.google_client_id;
+          if (clientId && clientId.trim()) {
+            triggerGoogleOAuth2(clientId.trim());
+          } else {
+            renderGoogleConfigModal();
+          }
         };
       }
     }
@@ -289,196 +295,151 @@ const App = (() => {
   }
 
   // ─────────────────────────────────────────────────────
-  // MODAL: AUTHENTIC GOOGLE SIGN-IN MATERIAL DIALOGUE
+  // OFFICIAL GOOGLE OAUTH 2.0 DIRECT API INTEGRATION
   // ─────────────────────────────────────────────────────
-  function renderGoogleSignInDialogue() {
-    const existing = $('google-modal-dialog');
-    if (existing) existing.remove();
-
-    let step = 'account_select'; // 'account_select' | 'input_email'
-
-    function getDialogHtml() {
-      if (step === 'account_select') {
-        return `
-          <div class="google-modal-overlay" id="google-modal-dialog">
-            <div class="google-dialog-card">
-              
-              <div class="google-dialog-header">
-                <div class="google-dialog-logo">
-                  <svg viewBox="0 0 24 24" style="width:38px;height:38px;">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                  </svg>
-                </div>
-                <h2 class="google-dialog-title">Fazer login com o Google</h2>
-                <p class="google-dialog-subtitle">Escolha uma conta para continuar no app <strong>Gisa</strong></p>
-              </div>
-
-              <div class="google-account-list">
-                
-                <!-- Active Account 1 -->
-                <div class="google-account-item" id="google-acc-primary">
-                  <div class="google-account-avatar" style="background:#7c3aed;">
-                    G
-                  </div>
-                  <div class="google-account-info">
-                    <div class="google-account-name">Dra. Giselle Silva</div>
-                    <div class="google-account-email">pesquisa.giselle@gmail.com</div>
-                  </div>
-                </div>
-
-                <!-- Active Account 2 -->
-                <div class="google-account-item" id="google-acc-secondary">
-                  <div class="google-account-avatar" style="background:#0284c7;">
-                    P
-                  </div>
-                  <div class="google-account-info">
-                    <div class="google-account-name">Pesquisador(a) Acadêmico(a)</div>
-                    <div class="google-account-email">pesquisador@gmail.com</div>
-                  </div>
-                </div>
-
-                <!-- Add Another Account -->
-                <button type="button" class="google-use-other-btn" id="google-use-other-btn">
-                  <span style="font-size:1.2rem;line-height:1;margin-left:4px;">➕</span>
-                  <span>Usar outra conta do Google</span>
-                </button>
-
-              </div>
-
-              <div class="google-dialog-footer">
-                <span>Português (Brasil)</span>
-                <div style="display:flex;gap:12px;">
-                  <a href="#" style="color:#5f6368;text-decoration:none;">Ajuda</a>
-                  <a href="#" style="color:#5f6368;text-decoration:none;">Privacidade</a>
-                  <a href="#" style="color:#5f6368;text-decoration:none;">Termos</a>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        `;
-      } else {
-        return `
-          <div class="google-modal-overlay" id="google-modal-dialog">
-            <div class="google-dialog-card">
-              
-              <div class="google-dialog-header">
-                <div class="google-dialog-logo">
-                  <svg viewBox="0 0 24 24" style="width:38px;height:38px;">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                  </svg>
-                </div>
-                <h2 class="google-dialog-title">Fazer login</h2>
-                <p class="google-dialog-subtitle">Prosseguir para o app <strong>Gisa</strong></p>
-              </div>
-
-              <form id="google-email-form" style="display:flex;flex-direction:column;gap:18px;margin-bottom:28px;" onsubmit="return false;">
-                <div>
-                  <input id="google-custom-email" type="email" placeholder="E-mail ou telefone" autocomplete="email" required style="width:100%;padding:14px 16px;border:1px solid #dadce0;border-radius:8px;font-size:1rem;outline:none;box-sizing:border-box;transition:border-color 0.2s;" />
-                </div>
-
-                <div style="font-size:0.82rem;color:#5f6368;line-height:1.4;">
-                  Não está no seu computador? Use o modo visitante para fazer login com privacidade.
-                </div>
-
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
-                  <button type="button" class="google-btn-text" id="google-back-btn">Voltar</button>
-                  <button type="submit" class="google-btn-blue" id="google-next-btn">Próxima</button>
-                </div>
-              </form>
-
-              <div class="google-dialog-footer">
-                <span>Português (Brasil)</span>
-                <div style="display:flex;gap:12px;">
-                  <a href="#" style="color:#5f6368;text-decoration:none;">Ajuda</a>
-                  <a href="#" style="color:#5f6368;text-decoration:none;">Privacidade</a>
-                  <a href="#" style="color:#5f6368;text-decoration:none;">Termos</a>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        `;
+  function triggerGoogleOAuth2(clientId) {
+    // 1. If Google Identity Services (GSI) Token Client is available in browser
+    if (window.google && window.google.accounts && window.google.accounts.oauth2) {
+      try {
+        const tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: 'email profile openid',
+          prompt: 'select_account',
+          callback: async (tokenResponse) => {
+            if (tokenResponse && tokenResponse.access_token) {
+              await handleGoogleAccessToken(tokenResponse.access_token);
+            } else if (tokenResponse && tokenResponse.error) {
+              UI.toast('Erro no Google OAuth: ' + tokenResponse.error, 'error');
+            }
+          }
+        });
+        tokenClient.requestAccessToken({ prompt: 'select_account' });
+        return;
+      } catch (e) {
+        console.warn('GSI TokenClient falhou, usando redirecionamento:', e);
       }
     }
 
-    function completeGoogleLogin(name, email) {
+    // 2. Direct Google OAuth 2.0 Redirect Fallback
+    const redirectUri = window.location.origin + window.location.pathname;
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+      `client_id=${encodeURIComponent(clientId)}&` +
+      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+      `response_type=token&` +
+      `scope=email%20profile%20openid&` +
+      `prompt=select_account`;
+    window.location.href = authUrl;
+  }
+
+  async function handleGoogleAccessToken(accessToken) {
+    try {
+      UI.toast('Autenticando conta Google...', 'info');
+      const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      if (!res.ok) throw new Error('Não foi possível obter os dados do perfil Google.');
+      const user = await res.json();
+      
       const profile = Storage.getProfile();
       Storage.saveProfile({
         ...profile,
-        name: name,
-        email: email,
-        avatar: 'https://lh3.googleusercontent.com/a/default-user=s96-c'
+        name: user.name || user.given_name || 'Pesquisador(a)',
+        email: user.email,
+        avatar: user.picture || 'https://lh3.googleusercontent.com/a/default-user=s96-c'
       });
-      const modal = $('google-modal-dialog');
-      if (modal) modal.remove();
+
+      // If Supabase is configured, also link to Supabase session
+      if (typeof SupabaseSync !== 'undefined' && SupabaseSync.isConfigured()) {
+        try { await SupabaseSync.syncAll(); } catch {}
+      }
+
       state.view = 'home';
       render();
-      UI.toast(`Autenticado com sucesso via Google (${email})!`, 'success');
+      UI.toast(`Bem-vindo(a), ${user.name}! Login com Google realizado.`, 'success');
       UI.updateUserProfileNavbarUI();
       UI.updateCloudStatusUI();
+    } catch (err) {
+      UI.toast('Erro ao autenticar com o Google: ' + err.message, 'error');
     }
+  }
 
-    function renderAndAttach() {
-      const existing = $('google-modal-dialog');
-      if (existing) existing.remove();
+  function renderGoogleConfigModal() {
+    const existing = $('google-config-modal');
+    if (existing) existing.remove();
 
-      document.body.insertAdjacentHTML('beforeend', getDialogHtml());
+    const settings = Storage.getSettings();
+    const currentClientId = settings.google_client_id || '';
+    const redirectUri = window.location.origin + window.location.pathname;
+    const jsOrigin = window.location.origin;
 
-      const modal = $('google-modal-dialog');
-      modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+    const html = `
+      <div class="google-modal-overlay" id="google-config-modal">
+        <div class="google-dialog-card" style="max-width:540px;">
+          
+          <div class="google-dialog-header" style="text-align:left;display:flex;align-items:center;gap:14px;margin-bottom:18px;">
+            <div class="google-dialog-logo" style="margin:0;width:40px;height:40px;">
+              <svg viewBox="0 0 24 24" style="width:36px;height:36px;">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+              </svg>
+            </div>
+            <div>
+              <h2 class="google-dialog-title" style="font-size:1.25rem;margin:0;">Conectar API do Google OAuth 2.0</h2>
+              <p class="google-dialog-subtitle" style="font-size:0.85rem;">Insira o seu Google Client ID para abrir a janela oficial do Google</p>
+            </div>
+          </div>
 
-      if (step === 'account_select') {
-        const acc1 = $('google-acc-primary');
-        if (acc1) {
-          acc1.onclick = () => completeGoogleLogin('Dra. Giselle Silva', 'pesquisa.giselle@gmail.com');
-        }
+          <form id="google-client-form" style="display:flex;flex-direction:column;gap:14px;margin-bottom:18px;" onsubmit="return false;">
+            <div>
+              <label style="display:block;font-size:0.8rem;font-weight:600;color:#3c4043;margin-bottom:6px;">Google OAuth Client ID</label>
+              <input id="input-google-client-id" type="text" placeholder="ex: 123456789-abcdef.apps.googleusercontent.com" value="${currentClientId}" required style="width:100%;padding:12px 14px;border:1px solid #dadce0;border-radius:8px;font-size:0.92rem;outline:none;box-sizing:border-box;font-family:monospace;" />
+            </div>
 
-        const acc2 = $('google-acc-secondary');
-        if (acc2) {
-          acc2.onclick = () => completeGoogleLogin('Pesquisador(a)', 'pesquisador@gmail.com');
-        }
+            <div style="background:#f8f9fa;border:1px solid #e8eaed;border-radius:10px;padding:12px;font-size:0.78rem;color:#5f6368;line-height:1.45;">
+              <strong>📋 Configuração no Google Cloud Console:</strong>
+              <ol style="margin:6px 0 0 16px;padding:0;">
+                <li>Acesse o <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:#1a73e8;font-weight:600;">Google Cloud Console (Credenciais)</a></li>
+                <li>Crie um <strong>ID do cliente OAuth</strong> do tipo <em>Aplicativo da Web</em></li>
+                <li>Em <strong>Origens JavaScript autorizadas</strong>, adicione:<br><code style="background:#e8eaed;padding:2px 4px;border-radius:4px;color:#202124;">${jsOrigin}</code></li>
+                <li>Em <strong>URIs de redirecionamento autorizados</strong>, adicione:<br><code style="background:#e8eaed;padding:2px 4px;border-radius:4px;color:#202124;">${redirectUri}</code></li>
+              </ol>
+            </div>
 
-        const useOther = $('google-use-other-btn');
-        if (useOther) {
-          useOther.onclick = () => {
-            step = 'input_email';
-            renderAndAttach();
-            setTimeout(() => $('google-custom-email')?.focus(), 100);
-          };
-        }
-      } else {
-        const backBtn = $('google-back-btn');
-        if (backBtn) {
-          backBtn.onclick = () => {
-            step = 'account_select';
-            renderAndAttach();
-          };
-        }
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+              <button type="button" class="google-btn-text" id="btn-cancel-google-modal">Cancelar</button>
+              <button type="submit" class="google-btn-blue" id="btn-save-google-oauth">Salvar e Abrir Login Google</button>
+            </div>
+          </form>
 
-        const form = $('google-email-form');
-        if (form) {
-          form.onsubmit = (e) => {
-            e.preventDefault();
-            const email = $('google-custom-email')?.value?.trim();
-            if (!email || !email.includes('@')) {
-              UI.toast('Informe um e-mail do Google válido.', 'error');
-              return;
-            }
-            const name = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-            completeGoogleLogin(name, email);
-          };
-        }
+          <div class="google-dialog-footer" style="padding-top:12px;">
+            <span>API Google Identity Services v2</span>
+            <a href="https://developers.google.com/identity/gsi/web/guides/overview" target="_blank" style="color:#5f6368;text-decoration:none;">Documentação Oficial</a>
+          </div>
+
+        </div>
+      </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', html);
+
+    const modal = $('google-config-modal');
+    $('btn-cancel-google-modal').onclick = () => modal.remove();
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+    $('google-client-form').onsubmit = (e) => {
+      e.preventDefault();
+      const id = $('input-google-client-id').value.trim();
+      if (!id || !id.includes('.apps.googleusercontent.com')) {
+        UI.toast('Informe um Google Client ID válido (terminado em .apps.googleusercontent.com)', 'error');
+        return;
       }
-    }
-
-    renderAndAttach();
+      Storage.saveSetting('google_client_id', id);
+      modal.remove();
+      UI.toast('Google Client ID salvo! Abrindo login oficial do Google...', 'info');
+      triggerGoogleOAuth2(id);
+    };
   }
 
   // ─────────────────────────────────────────────────────
@@ -2590,7 +2551,24 @@ Gerado por Gisa · ${date}
   // ─── Init ─────────────────────────────────────────────
   async function init() {
     let isLoggedIn = false;
-    if (typeof SupabaseSync !== 'undefined' && SupabaseSync.isConfigured()) {
+
+    // Check for direct Google OAuth 2.0 Access Token in URL Hash
+    const hash = window.location.hash.substring(1);
+    if (hash && hash.includes('access_token=')) {
+      const params = new URLSearchParams(hash);
+      const accessToken = params.get('access_token');
+      if (accessToken) {
+        try {
+          await handleGoogleAccessToken(accessToken);
+          window.history.replaceState(null, null, window.location.pathname + window.location.search);
+          isLoggedIn = true;
+        } catch (err) {
+          console.warn('Erro ao processar Google OAuth token:', err);
+        }
+      }
+    }
+
+    if (!isLoggedIn && typeof SupabaseSync !== 'undefined' && SupabaseSync.isConfigured()) {
       try {
         const user = await SupabaseSync.getUser();
         if (user) isLoggedIn = true;
@@ -2614,6 +2592,12 @@ Gerado por Gisa · ${date}
           UI.updateCloudStatusUI();
         }
       });
+    }
+
+    // Check if we have an active profile with email
+    const existingProfile = Storage.getProfile();
+    if (existingProfile && existingProfile.email && existingProfile.email.includes('@')) {
+      isLoggedIn = true;
     }
 
     if (!isLoggedIn) {
