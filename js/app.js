@@ -74,30 +74,58 @@ const App = (() => {
     function getHtml() {
       return `
         <div class="auth-hero-container">
-          <div class="auth-dual-card">
-            
-            <!-- ── LEFT VISUAL PANEL ── -->
-            <div class="auth-visual-panel">
-              <div class="auth-visual-top">
-                <div class="auth-visual-logo">✳ Gisa</div>
-                <div class="auth-visual-tagline">Plataforma de Revisão Sistemática</div>
+          
+          <!-- ── LEFT VISUAL PANEL (50% SCREEN) ── -->
+          <div class="auth-visual-panel">
+            <div class="auth-visual-top">
+              <div class="auth-brand-badge">✦ Plataforma Científica Gratuita</div>
+              <div class="auth-visual-logo">✳ Gisa</div>
+              <h1 class="auth-visual-headline">
+                Acelere sua Revisão Sistemática de Semanas para Dias.
+              </h1>
+              <p class="auth-visual-sub">
+                A plataforma moderna para triar artigos científicos com rigor metodológico, eliminar viés e publicar mais rápido.
+              </p>
+            </div>
+
+            <!-- 3 FEATURE SHOWCASE CARDS -->
+            <div class="auth-feature-showcase">
+              <div class="auth-feature-card">
+                <div class="auth-feature-icon">⚡</div>
+                <div>
+                  <div class="auth-feature-title">Triagem 10x Mais Rápida</div>
+                  <div class="auth-feature-desc">Atalhos de teclado ágeis (I: Incluir, E: Excluir, M: Talvez) e leitura otimizada de resumos.</div>
+                </div>
               </div>
 
-              <div class="auth-visual-bottom">
-                <div class="auth-visual-kicker">Você pode facilmente</div>
-                <h1 class="auth-visual-headline">
-                  Acessar seu centro pessoal para clareza, rigor e produtividade científica.
-                </h1>
-                <div class="auth-visual-pills">
-                  <span class="auth-visual-pill">⚡ Atalhos de Triagem</span>
-                  <span class="auth-visual-pill">👁️ Modo Cego Cochrane</span>
-                  <span class="auth-visual-pill">📊 PRISMA 2020</span>
-                  <span class="auth-visual-pill">🔄 Desduplicação IA</span>
+              <div class="auth-feature-card">
+                <div class="auth-feature-icon">👁️</div>
+                <div>
+                  <div class="auth-feature-title">Modo Cego Cochrane (Blind Screening)</div>
+                  <div class="auth-feature-desc">Oculte autores e periódicos para garantir total neutralidade e conformidade científica.</div>
+                </div>
+              </div>
+
+              <div class="auth-feature-card">
+                <div class="auth-feature-icon">📊</div>
+                <div>
+                  <div class="auth-feature-title">Deduplicação Inteligente & PRISMA 2020</div>
+                  <div class="auth-feature-desc">Detecte duplicatas por similaridade e exporte fluxogramas PRISMA prontos para submissão.</div>
                 </div>
               </div>
             </div>
 
-            <!-- ── RIGHT FORM PANEL ── -->
+            <div class="auth-visual-footer">
+              <span>🔒 Dados Criptografados</span>
+              <span>•</span>
+              <span>☁️ Nuvem & Local</span>
+              <span>•</span>
+              <span>📲 App Web & Android</span>
+            </div>
+          </div>
+
+          <!-- ── RIGHT FORM WRAPPER (50% SCREEN) ── -->
+          <div class="auth-form-wrapper">
             <div class="auth-form-panel">
               <div class="auth-form-header-icon">✳</div>
               <h2 class="auth-form-title" id="auth-view-title">${isSignupMode ? 'Criar uma conta' : 'Entrar na sua conta'}</h2>
@@ -134,7 +162,7 @@ const App = (() => {
                 </div>
 
                 <button type="submit" class="btn-auth-primary" id="btn-submit-auth">
-                  ${isSignupMode ? 'Começar Agora' : 'Entrar no Gisa'}
+                  ${isSignupMode ? 'Começar Gratuitamente' : 'Entrar no Gisa'}
                 </button>
               </form>
 
@@ -157,15 +185,9 @@ const App = (() => {
                   : 'Não tem uma conta? <a id="auth-switch-mode-btn">Cadastre-se</a>'}
               </div>
 
-              <div style="text-align:center;margin-top:2px;">
-                <button type="button" class="btn btn-ghost btn-sm" id="btn-guest-mode-link" style="color:var(--text-muted);font-size:0.78rem;">
-                  👤 Continuar como visitante (Modo Offline / Sem Login)
-                </button>
-              </div>
-
             </div>
-
           </div>
+
         </div>
       `;
     }
@@ -248,7 +270,7 @@ const App = (() => {
             UI.toast('Erro: ' + (err.message || 'Falha na autenticação'), 'error');
           } finally {
             submitBtn.disabled = false;
-            submitBtn.textContent = isSignupMode ? 'Começar Agora' : 'Entrar no Gisa';
+            submitBtn.textContent = isSignupMode ? 'Começar Gratuitamente' : 'Entrar no Gisa';
           }
         };
       }
@@ -274,16 +296,6 @@ const App = (() => {
               <span>Entrar com Google</span>
             `;
           }
-        };
-      }
-
-      // Guest / Offline Mode
-      const guestBtn = $('btn-guest-mode-link');
-      if (guestBtn) {
-        guestBtn.onclick = () => {
-          sessionStorage.setItem('gisa_guest_mode', '1');
-          state.view = 'home';
-          render();
         };
       }
     }
