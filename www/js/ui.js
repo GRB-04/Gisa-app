@@ -2055,10 +2055,28 @@ const UI = (() => {
     const profile = Storage.getProfile();
     const avatarEl = document.getElementById('nav-user-avatar');
     const nameEl = document.getElementById('nav-user-name');
-    if (avatarEl) avatarEl.textContent = profile.avatar || '👩‍🔬';
-    if (nameEl) {
+
+    if (!avatarEl || !nameEl) return;
+
+    const hasEmail = profile.email && profile.email.includes('@');
+
+    if (hasEmail) {
+      // Show real Google photo if available
+      const avatarSrc = profile.avatar;
+      if (avatarSrc && (avatarSrc.startsWith('http') || avatarSrc.startsWith('data:'))) {
+        avatarEl.innerHTML = `<img src="${avatarSrc}" alt="Avatar" style="width:22px;height:22px;border-radius:50%;vertical-align:middle;object-fit:cover;" onerror="this.parentElement.textContent='${(profile.name || 'U').charAt(0).toUpperCase()}'">`;
+      } else {
+        // Show initials
+        const initials = (profile.name || 'P').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+        avatarEl.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;font-size:0.68rem;font-weight:700;vertical-align:middle;';
+        avatarEl.textContent = initials;
+      }
+
       const firstName = (profile.name || 'Perfil').split(' ')[0];
-      nameEl.textContent = firstName.length > 12 ? firstName.substring(0, 10) + '...' : firstName;
+      nameEl.textContent = firstName.length > 12 ? firstName.substring(0, 10) + '…' : firstName;
+    } else {
+      avatarEl.textContent = '👤';
+      nameEl.textContent = 'Entrar';
     }
   }
 

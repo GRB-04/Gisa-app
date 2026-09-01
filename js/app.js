@@ -2650,6 +2650,8 @@ Gerado por Gisa · ${date}
     }
 
     render();
+    UI.updateUserProfileNavbarUI();
+    UI.updateCloudStatusUI();
 
     // Listen for PWA Install Prompt on Desktop / Mobile
     window.addEventListener('beforeinstallprompt', (e) => {

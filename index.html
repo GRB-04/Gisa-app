@@ -53,13 +53,14 @@
       </button>
 
       <!-- Supabase Cloud Sync & Auth Button -->
-      <button class="btn btn-sm btn-ghost" id="cloud-sync-status-btn" title="Status da Nuvem">
-        ☁️ Entrar
+      <button class="btn btn-sm btn-ghost" id="cloud-sync-status-btn" title="Status da Nuvem" style="display:none;">
+        ☁️ Sincronizar
       </button>
 
       <!-- User Profile Navbar Pill -->
       <button class="btn btn-sm btn-ghost user-profile-btn" id="user-profile-btn" title="Perfil do Pesquisador">
-        👤 Pesquisado...
+        <span id="nav-user-avatar">👤</span>
+        <span id="nav-user-name">Pesquisado...</span>
       </button>
 
       <!-- Keyboard Shortcuts -->
