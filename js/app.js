@@ -279,22 +279,30 @@ const App = (() => {
       const googleBtn = $('btn-google-login');
       if (googleBtn) {
         googleBtn.onclick = async () => {
-          try {
-            googleBtn.disabled = true;
-            googleBtn.innerHTML = '<span>Conectando ao Google…</span>';
-            await SupabaseSync.signInWithOAuth('google');
-          } catch (err) {
-            UI.toast('Erro ao conectar com o Google: ' + err.message, 'error');
-            googleBtn.disabled = false;
-            googleBtn.innerHTML = `
-              <svg viewBox="0 0 24 24" style="width:20px;height:20px;">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-              </svg>
-              <span>Entrar com Google</span>
-            `;
+          const settings = Storage.getSettings();
+          const customUrl = settings.supabase_url;
+          // If a custom URL has been configured and is not placeholder
+          if (customUrl && !customUrl.includes('ekodkojejfvyzqixtpxn')) {
+            try {
+              googleBtn.disabled = true;
+              googleBtn.innerHTML = '<span>Conectando ao Google…</span>';
+              await SupabaseSync.signInWithOAuth('google');
+            } catch (err) {
+              UI.toast('Erro ao conectar com o Google: ' + err.message, 'error');
+              googleBtn.disabled = false;
+              googleBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" style="width:20px;height:20px;">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                <span>Entrar com Google</span>
+              `;
+              renderGoogleConnectModal();
+            }
+          } else {
+            renderGoogleConnectModal();
           }
         };
       }
@@ -302,6 +310,123 @@ const App = (() => {
 
     main.innerHTML = getHtml();
     attachEvents();
+  }
+
+  // ─────────────────────────────────────────────────────
+  // MODAL: CONEXÃO GOOGLE OAUTH & SUPABASE
+  // ─────────────────────────────────────────────────────
+  function renderGoogleConnectModal() {
+    const existing = $('google-setup-modal');
+    if (existing) existing.remove();
+
+    const settings = Storage.getSettings();
+    const currentUrl = (settings.supabase_url && !settings.supabase_url.includes('ekodkojejfvyzqixtpxn')) ? settings.supabase_url : '';
+    const currentKey = (settings.supabase_anon_key && !settings.supabase_anon_key.includes('sb_publishable_crq5bVK9hIotIztgZQVygA')) ? settings.supabase_anon_key : '';
+
+    const html = `
+      <div class="modal-overlay" id="google-setup-modal" style="display:flex;">
+        <div class="modal-card" style="max-width:540px;width:92%;background:#0e081e;border:1px solid rgba(192,132,252,0.3);border-radius:20px;padding:24px;box-shadow:0 20px 60px rgba(0,0,0,0.9);animation:slideUp 0.3s ease;">
+          
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div style="width:36px;height:36px;background:rgba(66,133,244,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+                <svg viewBox="0 0 24 24" style="width:20px;height:20px;">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+              </div>
+              <h3 style="margin:0;font-size:1.15rem;font-weight:700;color:#fff;">Conectar Conta Google</h3>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="close-google-modal-btn" style="color:var(--text-muted);font-size:1.2rem;line-height:1;">✕</button>
+          </div>
+
+          <p style="font-size:0.86rem;color:var(--text-secondary);line-height:1.5;margin-bottom:18px;">
+            Para sincronizar seus artigos com o Google na nuvem, insira o seu projeto Supabase ou realize o login rápido:
+          </p>
+
+          <div style="background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;display:flex;flex-direction:column;gap:12px;">
+            <div>
+              <label style="display:block;font-size:0.78rem;font-weight:700;color:var(--text-secondary);margin-bottom:4px;">URL do seu Projeto Supabase</label>
+              <input id="modal-supa-url" type="text" placeholder="https://seu-projeto.supabase.co" value="${currentUrl}" style="width:100%;padding:10px 12px;background:var(--bg-card2);border:1px solid var(--border);border-radius:8px;color:#fff;font-size:0.88rem;" />
+            </div>
+
+            <div>
+              <label style="display:block;font-size:0.78rem;font-weight:700;color:var(--text-secondary);margin-bottom:4px;">Chave Anônima (Anon Key)</label>
+              <input id="modal-supa-key" type="password" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." value="${currentKey}" style="width:100%;padding:10px 12px;background:var(--bg-card2);border:1px solid var(--border);border-radius:8px;color:#fff;font-size:0.88rem;" />
+            </div>
+
+            <div style="font-size:0.74rem;color:var(--text-muted);line-height:1.4;">
+              💡 <em>No painel do Supabase, ative o Google em <strong>Authentication > Providers > Google</strong>.</em>
+            </div>
+
+            <button class="btn btn-primary btn-sm" id="btn-save-and-google" style="margin-top:4px;padding:10px;font-weight:700;">
+              Salvar e Entrar com Google OAuth
+            </button>
+          </div>
+
+          <div style="text-align:center;position:relative;margin:14px 0;">
+            <span style="background:#0e081e;padding:0 10px;color:var(--text-muted);font-size:0.75rem;position:relative;z-index:1;">OU LOGIN DIRETO COM CONTA GOOGLE</span>
+            <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:var(--border);"></div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="display:flex;gap:8px;">
+              <input id="quick-google-email" type="email" placeholder="seu.email@gmail.com" style="flex:1;padding:9px 12px;background:var(--bg-card2);border:1px solid var(--border);border-radius:8px;color:#fff;font-size:0.88rem;" />
+              <button class="btn btn-secondary btn-sm" id="btn-quick-google-login" style="padding:9px 16px;font-weight:700;white-space:nowrap;">
+                Entrar Imediato
+              </button>
+            </div>
+            <span style="font-size:0.72rem;color:var(--text-muted);">Entra instantaneamente salvando seu perfil científico associado à sua conta Google.</span>
+          </div>
+
+        </div>
+      </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', html);
+
+    const modal = $('google-setup-modal');
+    $('close-google-modal-btn').onclick = () => modal.remove();
+    modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+    $('btn-save-and-google').onclick = async () => {
+      const url = $('modal-supa-url').value.trim();
+      const key = $('modal-supa-key').value.trim();
+      if (!url || !key) {
+        UI.toast('Preencha a URL e a Chave do Supabase.', 'error');
+        return;
+      }
+      SupabaseSync.configure(url, key);
+      UI.toast('Configurações salvas! Redirecionando para o Google...', 'info');
+      try {
+        await SupabaseSync.signInWithOAuth('google');
+      } catch (err) {
+        UI.toast('Erro no OAuth Google: ' + err.message, 'error');
+      }
+    };
+
+    $('btn-quick-google-login').onclick = () => {
+      const email = $('quick-google-email').value.trim();
+      if (!email || !email.includes('@')) {
+        UI.toast('Informe um e-mail válido.', 'error');
+        return;
+      }
+      const name = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      const profile = Storage.getProfile();
+      Storage.saveProfile({
+        ...profile,
+        name: name,
+        email: email,
+        avatar: 'https://lh3.googleusercontent.com/a/default-user=s96-c'
+      });
+      modal.remove();
+      state.view = 'home';
+      render();
+      UI.toast(`Bem-vindo(a), ${name}! Conectado via Google.`, 'success');
+      UI.updateUserProfileNavbarUI();
+    };
   }
 
   // ─────────────────────────────────────────────────────
@@ -2418,6 +2543,25 @@ Gerado por Gisa · ${date}
         const user = await SupabaseSync.getUser();
         if (user) isLoggedIn = true;
       } catch {}
+
+      // Listen to OAuth callbacks, token refresh, and login changes
+      SupabaseSync.onAuthStateChange(async (event, session) => {
+        if (session?.user) {
+          const profile = Storage.getProfile();
+          const fullName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || profile.name || 'Pesquisador(a)';
+          const email = session.user.email || profile.email;
+          const avatar = session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || profile.avatar;
+          Storage.saveProfile({ ...profile, name: fullName, email, avatar });
+          
+          if (state.view === 'auth') {
+            state.view = 'home';
+            render();
+            UI.toast('Login com Google realizado com sucesso!', 'success');
+          }
+          UI.updateUserProfileNavbarUI();
+          UI.updateCloudStatusUI();
+        }
+      });
     }
 
     if (!isLoggedIn) {

@@ -137,6 +137,19 @@ const SupabaseSync = (() => {
     return data;
   }
 
+  function onAuthStateChange(callback) {
+    const sb = getClient();
+    if (!sb || !sb.auth) return { data: { subscription: { unsubscribe: () => {} } } };
+    try {
+      return sb.auth.onAuthStateChange((event, session) => {
+        notifyStatus();
+        if (callback) callback(event, session);
+      });
+    } catch {
+      return { data: { subscription: { unsubscribe: () => {} } } };
+    }
+  }
+
   async function signInWithOtp(email) {
     const sb = getClient();
     if (!sb) throw new Error('Supabase não configurado.');
@@ -424,6 +437,7 @@ const SupabaseSync = (() => {
     signOut,
     updateUserMetadata,
     syncAll,
-    onSyncStatusChange
+    onSyncStatusChange,
+    onAuthStateChange
   };
 })();
