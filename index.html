@@ -24,7 +24,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&display=swap" rel="stylesheet"/>
 
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=28"/>
+  <link rel="stylesheet" href="css/style.css?v=29"/>
 
   <!-- App Icons -->
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg"/>
@@ -34,54 +34,52 @@
 
 <div id="app">
 
-  <!-- ── TOP NAVBAR ─────────────────────────────────────── -->
-  <header class="navbar">
-    <div class="navbar-brand" id="navbar-brand-btn" title="Ir para a página inicial">
-      <div class="navbar-logo">G</div>
-      <div>
-        <div class="navbar-name">Gisa</div>
-        <div class="navbar-tagline">Revisão Sistemática</div>
+  <!-- ── HEADER / TOP NAVBAR ───────────────────────────────── -->
+  <header id="navbar">
+    <div class="navbar-left">
+      <div class="navbar-brand" id="navbar-brand-btn">
+        <div class="brand-icon">G</div>
+        <div class="brand-text">
+          <span class="brand-title">Gisa</span>
+          <span class="brand-sub">Revisão Sistemática</span>
+        </div>
       </div>
     </div>
-    <div class="navbar-spacer"></div>
 
-      <!-- Install / Download APK & Desktop App Button -->
-      <button class="btn btn-sm btn-ghost install-app-nav-btn" id="install-app-btn" title="Baixar APK ou Instalar no Computador">
-        📲 <span class="nav-btn-text">Baixar App</span>
+    <div class="navbar-actions">
+      <!-- Direct APK / Desktop App Download Trigger -->
+      <button class="btn btn-sm btn-ghost" id="install-app-btn" title="Instalar aplicativo ou Baixar APK">
+        📲 Baixar App
       </button>
 
-      <!-- Supabase Cloud Sync Button -->
-      <button class="btn btn-sm btn-ghost cloud-sync-nav-btn" id="cloud-sync-btn" title="Configurar e Sincronizar Supabase">
-        ☁️ <span id="cloud-status-text">Nuvem</span>
-        <span id="cloud-status-dot" class="status-dot"></span>
+      <!-- Supabase Cloud Sync & Auth Button -->
+      <button class="btn btn-sm btn-ghost" id="cloud-sync-status-btn" title="Status da Nuvem">
+        ☁️ Entrar
       </button>
 
-      <!-- User Profile Button -->
-      <button class="btn btn-sm btn-ghost user-profile-nav-btn" id="user-profile-btn" title="Meu Perfil de Pesquisador">
-        <span class="user-avatar-badge" id="nav-user-avatar">👤</span>
-        <span class="nav-user-name" id="nav-user-name">Perfil</span>
+      <!-- User Profile Navbar Pill -->
+      <button class="btn btn-sm btn-ghost user-profile-btn" id="user-profile-btn" title="Perfil do Pesquisador">
+        👤 Pesquisado...
       </button>
 
-      <!-- Dynamic Gisa Controls (Blind mode toggle, Hotkeys button) injected by App -->
-      <button class="btn btn-sm btn-ghost hotkeys-help-btn" id="hotkeys-btn" title="Ver atalhos de teclado (?)">
-        ⌨️ Atalhos <kbd>?</kbd>
+      <!-- Keyboard Shortcuts -->
+      <button class="btn btn-sm btn-ghost" id="shortcuts-btn" title="Atalhos do Teclado (Pressione ?)">
+        ⌨️ Atalhos ?
       </button>
-      <button class="btn btn-sm blind-toggle-btn" id="blind-mode-btn" title="Alternar Modo Cego (Blind Mode)">
+
+      <!-- Blind Mode Toggle -->
+      <button class="btn btn-sm btn-outline blind-mode-btn" id="blind-mode-btn" title="Modo Cego — Oculte autores e periódicos durante a triagem para evitar viés (Cochrane)">
         👁️ Modo Cego: <span id="blind-status-text">OFF</span>
       </button>
     </div>
   </header>
 
-  <!-- ── MAIN CONTENT ───────────────────────────────────── -->
-  <main id="main-content" aria-live="polite">
-    <!-- Rendered dynamically by app.js -->
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:50vh;gap:16px;">
-      <div class="spinner"></div>
-      <p style="color:var(--text-secondary);font-size:0.95rem;">Carregando Gisa…</p>
-    </div>
+  <!-- ── MAIN CONTENT (ROUTER OUTLET) ─────────────────────── -->
+  <main id="main-content" class="container">
+    <!-- Populated by App.render() -->
   </main>
 
-  <!-- ── FOOTER ─────────────────────────────────────────── -->
+  <!-- ── FOOTER ────────────────────────────────────────────── -->
   <footer style="text-align:center;padding:32px;border-top:1px solid var(--border);color:var(--text-muted);font-size:0.78rem;margin-top:auto;">
     Gisa · Plataforma de revisão sistemática · Arquitetura Híbrida (IndexedDB Local-First + Supabase Cloud)
   </footer>
@@ -90,13 +88,13 @@
 
 <!-- ── SCRIPTS ─────────────────────────────────────────────── -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="console.warn('Supabase CDN indisponível ou bloqueado. A aplicação funcionará em modo Local-First.')"></script>
-<script src="js/storage.js?v=28"></script>
-<script src="js/supabase_client.js?v=28"></script>
-<script src="js/similarity.js?v=28"></script>
-<script src="js/parsers.js?v=28"></script>
-<script src="js/ai_assistant.js?v=28"></script>
-<script src="js/ui.js?v=28"></script>
-<script src="js/app.js?v=28"></script>
+<script src="js/storage.js?v=29"></script>
+<script src="js/supabase_client.js?v=29"></script>
+<script src="js/similarity.js?v=29"></script>
+<script src="js/parsers.js?v=29"></script>
+<script src="js/ai_assistant.js?v=29"></script>
+<script src="js/ui.js?v=29"></script>
+<script src="js/app.js?v=29"></script>
 
 <!-- Service Worker Registration for PWA / Offline Support -->
 <script>
@@ -111,9 +109,18 @@
   }
 
   // Navbar brand click → home
-  document.getElementById('navbar-brand-btn').addEventListener('click', () => {
+  document.getElementById('navbar-brand-btn')?.addEventListener('click', () => {
     if (typeof App !== 'undefined') App.navigate('home');
   });
+
+  // Direct boot check
+  if (typeof App !== 'undefined' && App.init) {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => App.init());
+    } else {
+      App.init();
+    }
+  }
 </script>
 
 </body>

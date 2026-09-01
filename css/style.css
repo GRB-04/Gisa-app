@@ -193,27 +193,39 @@ img, svg, video, iframe, canvas {
   width: 100%;
 }
 
+#main-content.auth-mode {
+  padding: 0 !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 100vh !important;
+  width: 100% !important;
+}
+
 /* ─── AUTH / ONBOARDING DUAL CARD (REFERENCE STYLE) ────────── */
 .auth-hero-container {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
   min-height: 100vh;
-  padding: clamp(16px, 3vw, 40px) 16px;
+  padding: clamp(12px, 2.5vw, 24px);
+  box-sizing: border-box;
 }
 
 .auth-dual-card {
-  background: rgba(18, 12, 32, 0.95);
-  backdrop-filter: blur(30px);
+  background: #0f0a1d;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: clamp(20px, 3vw, 32px);
+  border-radius: clamp(20px, 3vw, 30px);
   width: 100%;
-  max-width: 980px;
-  box-shadow: 0 30px 80px rgba(0,0,0,0.8), 0 0 60px rgba(168, 85, 247, 0.2);
+  max-width: 920px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.8), 0 0 60px rgba(124, 58, 237, 0.18);
   display: grid;
   grid-template-columns: 0.95fr 1.05fr;
-  padding: clamp(14px, 2vw, 20px);
-  gap: clamp(16px, 2.5vw, 32px);
+  padding: clamp(12px, 1.8vw, 18px);
+  gap: clamp(14px, 2vw, 28px);
   position: relative;
   overflow: hidden;
   animation: slideUp 0.35s var(--ease-out);

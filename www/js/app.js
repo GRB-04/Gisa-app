@@ -44,11 +44,19 @@ const App = (() => {
   // ─── Main Render ──────────────────────────────────────
   function render() {
     const navbar = $('navbar');
+    const footer = document.querySelector('footer');
+    const main = $('main-content');
+    if (!main) return;
+
     if (state.view === 'auth') {
       if (navbar) navbar.style.display = 'none';
+      if (footer) footer.style.display = 'none';
+      main.className = 'auth-mode';
       renderAuthScreen();
     } else {
       if (navbar) navbar.style.display = 'flex';
+      if (footer) footer.style.display = 'block';
+      main.className = 'container';
       if (state.view === 'home') renderHome();
       else if (state.view === 'project') renderProject();
       else if (state.view === 'wizard') renderWizard();
@@ -2609,4 +2617,8 @@ Gerado por Gisa · ${date}
 })();
 
 // Boot
-document.addEventListener('DOMContentLoaded', () => App.init());
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => App.init());
+} else {
+  App.init();
+}
