@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Gisa</string>
+    <string name="title_activity_main">Gisa</string>
+    <string name="package_name">com.gisa.revisao</string>
+    <string name="custom_url_scheme">com.gisa.revisao</string>
+</resources>

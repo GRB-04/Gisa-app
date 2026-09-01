@@ -1,0 +1,37 @@
+{
+  "name": "gisa-app",
+  "version": "1.0.0",
+  "description": "Gisa — Plataforma de Revisão Sistemática Inteligente",
+  "main": "index.html",
+  "scripts": {
+    "build": "node prepare-www.js",
+    "start": "npx serve .",
+    "cap:add:android": "npm run build && npx cap add android",
+    "cap:sync": "npm run build && npx cap sync",
+    "cap:open": "npx cap open android",
+    "build:apk": "npm run build && npx cap sync && cd android && gradlew.bat assembleDebug"
+  },
+  "keywords": [
+    "revisao-sistematica",
+    "rayyan",
+    "prisma",
+    "artigos-cientificos",
+    "capacitor",
+    "android",
+    "apk"
+  ],
+  "author": "Gisa Team",
+  "license": "MIT",
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/app": "^6.0.2",
+    "@capacitor/cli": "^6.2.0",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/haptics": "^6.0.2",
+    "@capacitor/keyboard": "^6.0.3",
+    "@capacitor/status-bar": "^6.0.2"
+  },
+  "devDependencies": {
+    "serve": "^14.2.4"
+  }
+}

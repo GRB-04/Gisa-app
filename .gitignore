@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Environment variables
+.env
+.env.local
+
+# Android build outputs & local caches
+android/.gradle
+android/app/build
+android/build
+android/captures
+android/local.properties
+android/.idea
+android/*.iml
+
+# Temporary files & logs
+*.log
+.DS_Store
+Thumbs.db
