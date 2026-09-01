@@ -51,282 +51,231 @@ const App = (() => {
   }
 
   // ─────────────────────────────────────────────────────
-  // AUTH SCREEN (LANDING ONBOARDING + INTEGRATED AUTH)
+  // AUTH SCREEN (DUAL-CARD HERO WITH GOOGLE LOGIN & ONBOARDING)
   // ─────────────────────────────────────────────────────
   function renderAuthScreen() {
+    let isSignupMode = true;
     const main = $('main-content');
-    main.innerHTML = `
-      <div class="landing-page-wrapper">
-        
-        <!-- ── HERO + AUTH INTEGRATED GRID ── -->
-        <div class="landing-hero-grid">
-          
-          <!-- LEFT: INTRO & BENEFITS -->
-          <div class="landing-intro-col">
-            <div class="landing-badge">✨ Plataforma 100% Gratuita para Pesquisadores</div>
-            <h1 class="landing-title">
-              Acelere sua <span class="gradient-text">Revisão Sistemática</span> de Semanas para Dias
-            </h1>
-            <p class="landing-sub">
-              A plataforma inteligente para triar artigos científicos sem viés, eliminar duplicatas com IA e gerar relatórios PRISMA automatizados.
-            </p>
 
-            <div class="landing-benefits-list">
-              <div class="landing-benefit-item">
-                <div class="landing-benefit-icon">⚡</div>
-                <div class="landing-benefit-text">
-                  <strong>Triagem 10x Mais Rápida</strong>
-                  Atalhos de teclado ágeis (I: Incluir, E: Excluir, M: Talvez) e leitura otimizada de resumos.
-                </div>
+    function getHtml() {
+      return `
+        <div class="auth-hero-container">
+          <div class="auth-dual-card">
+            
+            <!-- ── LEFT VISUAL PANEL ── -->
+            <div class="auth-visual-panel">
+              <div class="auth-visual-top">
+                <div class="auth-visual-logo">✳ Gisa</div>
+                <div class="auth-visual-tagline">Plataforma de Revisão Sistemática</div>
               </div>
 
-              <div class="landing-benefit-item">
-                <div class="landing-benefit-icon">👁️</div>
-                <div class="landing-benefit-text">
-                  <strong>Modo Cego Cochrane (Blind Screening)</strong>
-                  Oculte autores e periódicos durante a triagem para garantir rigor científico e neutralidade.
-                </div>
-              </div>
-
-              <div class="landing-benefit-item">
-                <div class="landing-benefit-icon">☁️</div>
-                <div class="landing-benefit-text">
-                  <strong>Nuvem Segura & Multiplataforma</strong>
-                  Acesse suas pesquisas do computador, tablet ou celular (App Android APK) com sincronização automática.
+              <div class="auth-visual-bottom">
+                <div class="auth-visual-kicker">Você pode facilmente</div>
+                <h1 class="auth-visual-headline">
+                  Acessar seu centro pessoal para clareza, rigor e produtividade científica.
+                </h1>
+                <div class="auth-visual-pills">
+                  <span class="auth-visual-pill">⚡ Atalhos de Triagem</span>
+                  <span class="auth-visual-pill">👁️ Modo Cego Cochrane</span>
+                  <span class="auth-visual-pill">📊 PRISMA 2020</span>
+                  <span class="auth-visual-pill">🔄 Desduplicação IA</span>
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- RIGHT: AUTH CARD (SIGNUP & LOGIN TABS) -->
-          <div class="landing-auth-col">
-            <div class="auth-card-box">
-              <div class="auth-header">
-                <div class="auth-header-logo">G</div>
-                <h2>Comece Agora no <span class="gradient-text">Gisa</span></h2>
-                <p>Crie sua conta gratuita ou entre para salvar suas pesquisas</p>
+            <!-- ── RIGHT FORM PANEL ── -->
+            <div class="auth-form-panel">
+              <div class="auth-form-header-icon">✳</div>
+              <h2 class="auth-form-title" id="auth-view-title">${isSignupMode ? 'Criar uma conta' : 'Entrar na sua conta'}</h2>
+              <p class="auth-form-sub" id="auth-view-sub">
+                ${isSignupMode 
+                  ? 'Acesse seus artigos, notas e projetos a qualquer hora, em qualquer dispositivo.' 
+                  : 'Bem-vindo(a) de volta! Acesse suas revisões sistemáticas e projetos em andamento.'}
+              </p>
+
+              <form id="auth-main-form" style="display:flex;flex-direction:column;gap:14px;" onsubmit="return false;">
+                
+                ${isSignupMode ? `
+                  <div class="auth-field-group" id="group-name">
+                    <label class="auth-field-label">Seu nome completo</label>
+                    <div class="auth-input-wrapper">
+                      <input id="auth-input-name" type="text" placeholder="Ex: Dra. Giselle Silva" autocomplete="name" required />
+                    </div>
+                  </div>
+                ` : ''}
+
+                <div class="auth-field-group">
+                  <label class="auth-field-label">Seu e-mail</label>
+                  <div class="auth-input-wrapper">
+                    <input id="auth-input-email" type="email" placeholder="seu.email@pesquisa.br" autocomplete="email" required />
+                  </div>
+                </div>
+
+                <div class="auth-field-group">
+                  <label class="auth-field-label">Senha</label>
+                  <div class="auth-input-wrapper">
+                    <input id="auth-input-password" type="password" placeholder="••••••••••••" autocomplete="${isSignupMode ? 'new-password' : 'current-password'}" required />
+                    <button type="button" class="auth-pwd-toggle" id="auth-toggle-pwd-btn" title="Mostrar/Ocultar senha">👁️</button>
+                  </div>
+                </div>
+
+                <button type="submit" class="btn-auth-primary" id="btn-submit-auth">
+                  ${isSignupMode ? 'Começar Agora' : 'Entrar no Gisa'}
+                </button>
+              </form>
+
+              <div class="auth-divider">ou continue com</div>
+
+              <!-- GOOGLE LOGIN BUTTON -->
+              <button type="button" class="btn-google-auth" id="btn-google-login">
+                <svg viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                <span>Entrar com Google</span>
+              </button>
+
+              <div class="auth-switch-footer">
+                ${isSignupMode 
+                  ? 'Já tem uma conta? <a id="auth-switch-mode-btn">Entrar</a>' 
+                  : 'Não tem uma conta? <a id="auth-switch-mode-btn">Cadastre-se</a>'}
               </div>
 
-              <div style="display:flex;gap:6px;background:var(--bg-card2);padding:4px;border-radius:var(--radius-md);border:1px solid var(--border);">
-                <button id="auth-screen-tab-signup" class="btn btn-sm btn-primary" style="flex:1;border-radius:var(--radius-sm);font-weight:700;">
-                  ✨ Criar Conta
-                </button>
-                <button id="auth-screen-tab-login" class="btn btn-sm btn-ghost" style="flex:1;border-radius:var(--radius-sm);font-weight:700;">
-                  🔑 Entrar
+              <div style="text-align:center;margin-top:2px;">
+                <button type="button" class="btn btn-ghost btn-sm" id="btn-guest-mode-link" style="color:var(--text-muted);font-size:0.78rem;">
+                  👤 Continuar como visitante (Modo Offline / Sem Login)
                 </button>
               </div>
 
-              <!-- TAB 1: SIGNUP (DEFAULT) -->
-              <div id="auth-screen-signup-view" style="display:flex;flex-direction:column;gap:12px;">
-                <div>
-                  <label style="font-size:0.78rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Seu Nome Completo:</label>
-                  <input id="screen-signup-name" class="input" placeholder="Ex: Dra. Giselle Silva" style="width:100%;font-size:0.9rem;padding:10px 12px;" />
-                </div>
-
-                <div>
-                  <label style="font-size:0.78rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Seu E-mail:</label>
-                  <input id="screen-signup-email" type="email" class="input" placeholder="seu.email@pesquisa.br" style="width:100%;font-size:0.9rem;padding:10px 12px;" />
-                </div>
-
-                <div>
-                  <label style="font-size:0.78rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Crie uma Senha (mín. 6 caracteres):</label>
-                  <input id="screen-signup-password" type="password" class="input" placeholder="••••••••" style="width:100%;font-size:0.9rem;padding:10px 12px;" />
-                </div>
-
-                <button class="btn btn-primary btn-lg" id="btn-screen-signup" style="width:100%;font-size:0.95rem;padding:12px;margin-top:2px;background:linear-gradient(135deg, var(--purple), var(--violet));">
-                  🚀 Criar Minha Conta Gratuita
-                </button>
-              </div>
-
-              <!-- TAB 2: LOGIN -->
-              <div id="auth-screen-login-view" style="display:none;flex-direction:column;gap:12px;">
-                <div>
-                  <label style="font-size:0.78rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Seu E-mail:</label>
-                  <input id="screen-login-email" type="email" class="input" placeholder="seu.email@pesquisa.br" style="width:100%;font-size:0.9rem;padding:10px 12px;" />
-                </div>
-
-                <div>
-                  <label style="font-size:0.78rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Sua Senha:</label>
-                  <input id="screen-login-password" type="password" class="input" placeholder="Digite sua senha" style="width:100%;font-size:0.9rem;padding:10px 12px;" />
-                </div>
-
-                <button class="btn btn-primary btn-lg" id="btn-screen-login" style="width:100%;font-size:0.95rem;padding:12px;margin-top:2px;">
-                  ⚡ Entrar na Conta
-                </button>
-
-                <div style="text-align:center;margin-top:2px;">
-                  <button id="btn-screen-magic" style="background:none;border:none;color:var(--purple);cursor:pointer;font-size:0.8rem;text-decoration:underline;">
-                    Entrar sem senha (enviar link no e-mail)
-                  </button>
-                </div>
-              </div>
-
-              <!-- GUEST / OFFLINE OPTION -->
-              <div style="border-top:1px solid var(--border);padding-top:12px;text-align:center;">
-                <button class="btn btn-ghost btn-sm" id="btn-continue-guest" style="color:var(--text-muted);font-size:0.8rem;padding:6px 10px;">
-                  👤 Continuar sem conta (Modo Convidado / Offline)
-                </button>
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- ── HOW IT WORKS IN 3 STEPS ── -->
-        <div class="landing-steps-section">
-          <h2 class="landing-section-title">Como o Gisa Funciona em 3 Passos</h2>
-          <p class="landing-section-sub">Do upload das bases ao relatório PRISMA final pronto para publicação</p>
-
-          <div class="landing-steps-grid">
-            <div class="landing-step-card">
-              <span class="landing-step-num">Passo 01</span>
-              <h3>📥 1. Importe seus Artigos</h3>
-              <p>Importe arquivos <strong>RIS, BibTeX, CSV ou PDFs</strong> exportados do PubMed, Scopus, Web of Science, Embase ou SciELO.</p>
             </div>
 
-            <div class="landing-step-card">
-              <span class="landing-step-num">Passo 02</span>
-              <h3>⚡ 2. Trie com Agilidade</h3>
-              <p>Avalie resumos usando <strong>atalhos do teclado</strong>, destaque automático de termos de inclusão/exclusão e <strong>Modo Cego</strong>.</p>
-            </div>
-
-            <div class="landing-step-card">
-              <span class="landing-step-num">Passo 03</span>
-              <h3>📊 3. Desduplique & Exporte</h3>
-              <p>Identifique duplicatas automaticamente por % de similaridade e exporte a tabela final e o <strong>fluxograma PRISMA</strong>.</p>
-            </div>
           </div>
         </div>
-
-        <!-- ── 6 PILARES DA PLATAFORMA GISA ── -->
-        <div>
-          <h2 class="landing-section-title" style="text-align:center;margin-bottom:8px;">Recursos Projetados para a Ciência</h2>
-          <p class="landing-section-sub" style="text-align:center;margin-bottom:24px;">Tudo o que sua equipe precisa em um só lugar</p>
-
-          <div class="features-strip">
-            <div class="feature-item"><span>🔒</span><p><strong>Auditabilidade</strong><br>Registro completo de decisões</p></div>
-            <div class="feature-item"><span>👁️</span><p><strong>Modo Cego</strong><br>Triagem sem viés de seleção</p></div>
-            <div class="feature-item"><span>📊</span><p><strong>Fluxo PRISMA</strong><br>Gráficos % e tabela automatizada</p></div>
-            <div class="feature-item"><span>🔄</span><p><strong>Auto-Deduplicação</strong><br>Detecção por % de similaridade</p></div>
-            <div class="feature-item"><span>⌨️</span><p><strong>Atalhos (Hotkeys)</strong><br>Triagem rápida via teclas I, E, M</p></div>
-            <div class="feature-item"><span>🤖</span><p><strong>Assistente de IA</strong><br>Destaque de termos no resumo</p></div>
-          </div>
-        </div>
-
-      </div>
-    `;
-
-    // Tab switcher
-    const tabLogin = $('auth-screen-tab-login');
-    const tabSignup = $('auth-screen-tab-signup');
-    const loginView = $('auth-screen-login-view');
-    const signupView = $('auth-screen-signup-view');
-
-    if (tabLogin && tabSignup && loginView && signupView) {
-      tabLogin.onclick = () => {
-        tabLogin.className = 'btn btn-sm btn-primary';
-        tabSignup.className = 'btn btn-sm btn-ghost';
-        loginView.style.display = 'flex';
-        signupView.style.display = 'none';
-      };
-      tabSignup.onclick = () => {
-        tabSignup.className = 'btn btn-sm btn-primary';
-        tabLogin.className = 'btn btn-sm btn-ghost';
-        signupView.style.display = 'flex';
-        loginView.style.display = 'none';
-      };
+      `;
     }
 
-    // Login action
-    $('btn-screen-login').onclick = async () => {
-      const email = $('screen-login-email')?.value?.trim();
-      const pass = $('screen-login-password')?.value;
-      if (!email || !pass) {
-        UI.toast('Preencha e-mail e senha.', 'error');
-        return;
-      }
-      const btn = $('btn-screen-login');
-      btn.disabled = true;
-      btn.textContent = 'Entrando…';
-      try {
-        await SupabaseSync.signIn(email, pass);
-        const user = await SupabaseSync.getUser();
-        if (user) {
-          const profile = Storage.getProfile();
-          if (user.user_metadata?.full_name && !profile.name) {
-            Storage.saveProfile({ ...profile, name: user.user_metadata.full_name, email: user.email });
+    function attachEvents() {
+      // Toggle password visibility
+      const pwdInput = $('auth-input-password');
+      const togglePwdBtn = $('auth-toggle-pwd-btn');
+      if (pwdInput && togglePwdBtn) {
+        togglePwdBtn.onclick = () => {
+          if (pwdInput.type === 'password') {
+            pwdInput.type = 'text';
+            togglePwdBtn.textContent = '🙈';
+          } else {
+            pwdInput.type = 'password';
+            togglePwdBtn.textContent = '👁️';
           }
-        }
-        UI.toast('Bem-vindo(a) de volta! Sincronizando...', 'success');
-        await SupabaseSync.syncAll();
-        UI.updateCloudStatusUI();
-        UI.updateUserProfileNavbarUI();
-        state.view = 'home';
-        render();
-      } catch (err) {
-        UI.toast('Erro ao entrar: ' + (err.message || 'Credenciais inválidas'), 'error');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = '⚡ Entrar no Gisa';
+        };
       }
-    };
 
-    // Signup action
-    $('btn-screen-signup').onclick = async () => {
-      const name = $('screen-signup-name')?.value?.trim() || 'Pesquisador(a)';
-      const email = $('screen-signup-email')?.value?.trim();
-      const pass = $('screen-signup-password')?.value;
-      if (!email || !pass) {
-        UI.toast('Preencha e-mail e senha.', 'error');
-        return;
+      // Switch between Signup and Login
+      const switchBtn = $('auth-switch-mode-btn');
+      if (switchBtn) {
+        switchBtn.onclick = (e) => {
+          e.preventDefault();
+          isSignupMode = !isSignupMode;
+          main.innerHTML = getHtml();
+          attachEvents();
+        };
       }
-      if (pass.length < 6) {
-        UI.toast('A senha deve ter pelo menos 6 caracteres.', 'error');
-        return;
-      }
-      const btn = $('btn-screen-signup');
-      btn.disabled = true;
-      btn.textContent = 'Criando conta…';
-      try {
-        await SupabaseSync.signUp(email, pass);
-        await SupabaseSync.updateUserMetadata({ full_name: name });
-        const profile = Storage.getProfile();
-        Storage.saveProfile({ ...profile, name, email });
-        UI.toast('Conta criada com sucesso! Sincronizando...', 'success');
-        await SupabaseSync.syncAll();
-        UI.updateCloudStatusUI();
-        UI.updateUserProfileNavbarUI();
-        state.view = 'home';
-        render();
-      } catch (err) {
-        UI.toast('Erro ao criar conta: ' + (err.message || 'Erro inesperado'), 'error');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = '✨ Criar Conta Gratuita';
-      }
-    };
 
-    // Magic link action
-    $('btn-screen-magic').onclick = async () => {
-      const email = $('screen-login-email')?.value?.trim();
-      if (!email) {
-        UI.toast('Digite seu e-mail para receber o link de acesso.', 'error');
-        return;
-      }
-      try {
-        await SupabaseSync.signInWithOtp(email);
-        UI.toast('Link de acesso enviado para o seu e-mail!', 'success');
-      } catch (err) {
-        UI.toast('Erro ao enviar link: ' + err.message, 'error');
-      }
-    };
+      // Submit Form (Signup or Login)
+      const form = $('auth-main-form');
+      const submitBtn = $('btn-submit-auth');
+      if (form && submitBtn) {
+        form.onsubmit = async (e) => {
+          e.preventDefault();
+          const email = $('auth-input-email')?.value?.trim();
+          const pass = $('auth-input-password')?.value;
+          const name = isSignupMode ? ($('auth-input-name')?.value?.trim() || 'Pesquisador(a)') : '';
 
-    // Continue as guest
-    $('btn-continue-guest').onclick = () => {
-      sessionStorage.setItem('gisa_guest_mode', '1');
-      state.view = 'home';
-      render();
-    };
+          if (!email || !pass) {
+            UI.toast('Preencha seu e-mail e senha.', 'error');
+            return;
+          }
+
+          if (isSignupMode && pass.length < 6) {
+            UI.toast('A senha deve ter pelo menos 6 caracteres.', 'error');
+            return;
+          }
+
+          submitBtn.disabled = true;
+          submitBtn.textContent = isSignupMode ? 'Criando conta…' : 'Entrando…';
+
+          try {
+            if (isSignupMode) {
+              await SupabaseSync.signUp(email, pass);
+              await SupabaseSync.updateUserMetadata({ full_name: name });
+              const profile = Storage.getProfile();
+              Storage.saveProfile({ ...profile, name, email });
+              UI.toast('Conta criada com sucesso! Sincronizando...', 'success');
+            } else {
+              await SupabaseSync.signIn(email, pass);
+              const user = await SupabaseSync.getUser();
+              if (user) {
+                const profile = Storage.getProfile();
+                if (user.user_metadata?.full_name && !profile.name) {
+                  Storage.saveProfile({ ...profile, name: user.user_metadata.full_name, email: user.email });
+                }
+              }
+              UI.toast('Bem-vindo(a) de volta! Sincronizando...', 'success');
+            }
+
+            await SupabaseSync.syncAll();
+            UI.updateCloudStatusUI();
+            UI.updateUserProfileNavbarUI();
+            state.view = 'home';
+            render();
+          } catch (err) {
+            UI.toast('Erro: ' + (err.message || 'Falha na autenticação'), 'error');
+          } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = isSignupMode ? 'Começar Agora' : 'Entrar no Gisa';
+          }
+        };
+      }
+
+      // Google OAuth Button
+      const googleBtn = $('btn-google-login');
+      if (googleBtn) {
+        googleBtn.onclick = async () => {
+          try {
+            googleBtn.disabled = true;
+            googleBtn.innerHTML = '<span>Conectando ao Google…</span>';
+            await SupabaseSync.signInWithOAuth('google');
+          } catch (err) {
+            UI.toast('Erro ao conectar com o Google: ' + err.message, 'error');
+            googleBtn.disabled = false;
+            googleBtn.innerHTML = `
+              <svg viewBox="0 0 24 24" style="width:20px;height:20px;">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+              </svg>
+              <span>Entrar com Google</span>
+            `;
+          }
+        };
+      }
+
+      // Guest / Offline Mode
+      const guestBtn = $('btn-guest-mode-link');
+      if (guestBtn) {
+        guestBtn.onclick = () => {
+          sessionStorage.setItem('gisa_guest_mode', '1');
+          state.view = 'home';
+          render();
+        };
+      }
+    }
+
+    main.innerHTML = getHtml();
+    attachEvents();
   }
 
   // ─────────────────────────────────────────────────────

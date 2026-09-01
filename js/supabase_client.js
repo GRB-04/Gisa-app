@@ -124,6 +124,19 @@ const SupabaseSync = (() => {
     notifyStatus();
   }
 
+  async function signInWithOAuth(provider = 'google') {
+    const sb = getClient();
+    if (!sb) throw new Error('Supabase não configurado.');
+    const { data, error } = await sb.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: window.location.origin + window.location.pathname
+      }
+    });
+    if (error) throw error;
+    return data;
+  }
+
   async function signInWithOtp(email) {
     const sb = getClient();
     if (!sb) throw new Error('Supabase não configurado.');
@@ -405,6 +418,7 @@ const SupabaseSync = (() => {
     getSession,
     getUser,
     signIn,
+    signInWithOAuth,
     signInWithOtp,
     signUp,
     signOut,
