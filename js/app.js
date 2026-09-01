@@ -2400,8 +2400,6 @@ Gerado por Gisa · ${date}
 
   // ─── Init ─────────────────────────────────────────────
   async function init() {
-    // Check initial authentication state or guest mode
-    const isGuest = sessionStorage.getItem('gisa_guest_mode') === '1';
     let isLoggedIn = false;
     if (typeof SupabaseSync !== 'undefined' && SupabaseSync.isConfigured()) {
       try {
@@ -2410,7 +2408,7 @@ Gerado por Gisa · ${date}
       } catch {}
     }
 
-    if (!isLoggedIn && !isGuest) {
+    if (!isLoggedIn) {
       state.view = 'auth';
     } else {
       state.view = 'home';
