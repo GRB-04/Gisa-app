@@ -2848,7 +2848,29 @@ Gerado por Gisa · ${date}
     });
   }
 
-  return { init, navigate };
+  // ─── Logout / Sign Out ─────────────────────────────────
+  async function logout() {
+    Storage.saveProfile({
+      name: 'Pesquisador(a)',
+      email: '',
+      avatar: '👩‍🔬',
+      picture: '',
+      institution: '',
+      role: 'Pesquisador(a) Principal',
+      bio: '',
+      theme: 'dark'
+    });
+    if (typeof SupabaseSync !== 'undefined' && SupabaseSync.isConfigured()) {
+      try { await SupabaseSync.signOut(); } catch {}
+    }
+    state.view = 'auth';
+    render();
+    UI.updateUserProfileNavbarUI();
+    UI.updateCloudStatusUI();
+    UI.toast('Você saiu da sua conta com sucesso.', 'info');
+  }
+
+  return { init, navigate, render, logout };
 })();
 
 // Boot
