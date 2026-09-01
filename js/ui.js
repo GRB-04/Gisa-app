@@ -1933,7 +1933,8 @@ const UI = (() => {
 
   // ─── INSTALL & DOWNLOAD MODAL ─────────────────────────
   function showInstallDownloadModal() {
-    const GITHUB_RELEASES_URL = 'https://github.com/GRB-04/Gisa-app/releases';
+    const DIRECT_APK_DOWNLOAD_URL = 'https://github.com/GRB-04/Gisa-app/releases/latest/download/app-debug.apk';
+    const GITHUB_RELEASES_PAGE = 'https://github.com/GRB-04/Gisa-app/releases';
 
     const bodyHtml = `
       <div class="install-download-modal" style="display:flex;flex-direction:column;gap:18px;">
@@ -1955,15 +1956,16 @@ const UI = (() => {
             </div>
             
             <p style="font-size:0.82rem;color:var(--text-secondary);line-height:1.4;margin:0;">
-              Execute o Gisa como um aplicativo nativo em sua própria janela, com atalhos de teclado e funcionamento 100% offline.
+              Execute o Gisa como um aplicativo de computador em sua própria janela, com atalhos de teclado e funcionamento offline.
             </p>
 
-            <button class="btn btn-primary" id="modal-pwa-install-btn" style="width:100%;margin-top:auto;background:linear-gradient(135deg, var(--purple), var(--violet));">
-              ⚡ Instalar no Computador Agora
+            <button class="btn btn-primary" id="modal-pwa-install-btn" style="width:100%;margin-top:auto;background:linear-gradient(135deg, var(--purple), var(--violet));font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;">
+              ⚡ Instalar Aplicativo no PC
             </button>
-            <small style="font-size:0.72rem;color:var(--text-muted);text-align:center;">
-              (Ou clique no ícone ⊕ na barra de endereço do navegador)
-            </small>
+            <div id="pwa-install-guide" style="display:none;background:rgba(168,85,247,0.12);border:1px solid rgba(168,85,247,0.3);border-radius:var(--radius-md);padding:10px;font-size:0.78rem;color:var(--text-secondary);line-height:1.4;">
+              💡 <strong>Instalação rápida pelo navegador:</strong><br>
+              Clique no ícone <strong>⊕ (Instalar aplicativo)</strong> na barra de endereço do seu navegador (ao lado da estrela de favoritos).
+            </div>
           </div>
 
           <!-- Card 2: Baixar APK para Celular Android -->
@@ -1977,15 +1979,16 @@ const UI = (() => {
             </div>
             
             <p style="font-size:0.82rem;color:var(--text-secondary);line-height:1.4;margin:0;">
-              Baixe o pacote <code>app-debug.apk</code> gerado automaticamente para instalar no seu smartphone ou tablet Android.
+              Baixe o arquivo <code>app-debug.apk</code> compilado para instalar diretamente no seu smartphone Android.
             </p>
 
-            <a href="${GITHUB_RELEASES_URL}" target="_blank" rel="noopener" class="btn btn-secondary" style="width:100%;text-decoration:none;text-align:center;margin-top:auto;background:rgba(34,197,94,0.15);border-color:rgba(34,197,94,0.4);color:var(--green);">
-              📥 Baixar APK no GitHub Releases ↗
+            <a href="${DIRECT_APK_DOWNLOAD_URL}" download="app-debug.apk" class="btn btn-primary" style="width:100%;text-decoration:none;text-align:center;margin-top:auto;background:linear-gradient(135deg, #16a34a, #22c55e);color:#fff;font-weight:700;box-shadow:0 4px 14px rgba(34,197,94,0.3);display:flex;align-items:center;justify-content:center;gap:8px;">
+              📥 Baixar APK Direto (.apk)
             </a>
-            <small style="font-size:0.72rem;color:var(--text-muted);text-align:center;">
-              Versão mais recente compilada
-            </small>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <small style="font-size:0.72rem;color:var(--text-muted);">Download da versão mais recente</small>
+              <a href="${GITHUB_RELEASES_PAGE}" target="_blank" rel="noopener" style="font-size:0.72rem;color:var(--text-secondary);text-decoration:underline;">Ver releases ↗</a>
+            </div>
           </div>
 
         </div>
@@ -1996,9 +1999,9 @@ const UI = (() => {
             ℹ️ Como instalar no Android:
           </strong>
           <ol style="margin:0;padding-left:20px;font-size:0.8rem;color:var(--text-secondary);line-height:1.5;">
-            <li>Clique no botão verde acima para abrir os <strong>Releases</strong>.</li>
-            <li>Baixe o arquivo <strong><code>app-debug.apk</code></strong>.</li>
-            <li>Abra o arquivo no celular e autorize "Instalar de Fontes Desconhecidas" caso seja solicitado.</li>
+            <li>Clique no botão verde <strong>"📥 Baixar APK Direto"</strong> acima para iniciar o download do arquivo.</li>
+            <li>Quando o download terminar, abra a notificação ou o arquivo <strong><code>app-debug.apk</code></strong> nos seus downloads.</li>
+            <li>Se solicitado, autorize "Instalar aplicativos de fontes desconhecidas" nas configurações do seu celular.</li>
           </ol>
         </div>
 
@@ -2015,6 +2018,7 @@ const UI = (() => {
 
     setTimeout(() => {
       const pwaBtn = document.getElementById('modal-pwa-install-btn');
+      const guideEl = document.getElementById('pwa-install-guide');
       if (pwaBtn) {
         pwaBtn.onclick = async () => {
           if (window.__gisaDeferredInstallPrompt) {
@@ -2025,7 +2029,8 @@ const UI = (() => {
               window.__gisaDeferredInstallPrompt = null;
             }
           } else {
-            toast('Para instalar no PC: clique no ícone de instalar na barra do navegador (Chrome/Edge)!', 'info');
+            if (guideEl) guideEl.style.display = 'block';
+            toast('Para instalar no PC: clique no ícone ⊕ na barra de endereço do navegador!', 'info', 5000);
           }
         };
       }
