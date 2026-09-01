@@ -175,6 +175,17 @@ const Storage = (() => {
   }
 
   /**
+   * Helper: Get current active logged-in user email
+   */
+  function getCurrentUserEmail() {
+    const s = getSettings();
+    if (s.user_profile && typeof s.user_profile === 'object' && s.user_profile.email) {
+      return s.user_profile.email.trim().toLowerCase();
+    }
+    return '';
+  }
+
+  /**
    * Persist project and all its normalized articles into IndexedDB
    */
   async function persistProjectToIDB(project) {
@@ -188,6 +199,7 @@ const Storage = (() => {
         // 1. Put project header (omitting large articles array from header store for speed)
         const header = {
           id: project.id,
+          owner_email: project.owner_email || getCurrentUserEmail(),
           name: project.name,
           description: project.description || '',
           keywords: project.keywords || [],
@@ -224,7 +236,7 @@ const Storage = (() => {
         }
       });
     } catch (err) {
-      console.error('Erro ao persistir projeto no IndexedDB:', err);
+      console.error('Falha ao persistir projeto no IndexedDB:', err);
     }
   }
 
@@ -290,6 +302,7 @@ const Storage = (() => {
 
           fullProjects.push({
             ...p,
+            owner_email: p.owner_email || '',
             articles,
             labels,
             stats: recalcStats(articles)
@@ -328,11 +341,24 @@ const Storage = (() => {
   initAsync();
 
   // ─────────────────────────────────────────────────────
-  // Synchronous L1 Read API (Instant UI rendering)
+  // Synchronous L1 Read API (Instant UI rendering with User Isolation)
   // ─────────────────────────────────────────────────────
 
   function getProjects() {
-    return memoryProjects;
+    const activeEmail = getCurrentUserEmail();
+    if (!activeEmail) {
+      // Guest or unauthenticated state
+      return memoryProjects.filter(p => !p.owner_email);
+    }
+    return memoryProjects.filter(p => {
+      if (p.owner_email) {
+        return p.owner_email.toLowerCase() === activeEmail;
+      }
+      // Auto-assign existing unassigned legacy project to current active user
+      p.owner_email = activeEmail;
+      persistProjectToIDB(p);
+      return true;
+    });
   }
 
   function getProject(id) {
@@ -344,11 +370,13 @@ const Storage = (() => {
   // ─────────────────────────────────────────────────────
 
   /**
-   * Create a new project / collection
+   * Create a new project / collection (tagged with active owner_email)
    */
   function createProject(name, description = '', keywords = []) {
+    const activeEmail = getCurrentUserEmail();
     const project = {
       id: uuid(),
+      owner_email: activeEmail,
       name,
       description,
       keywords,
