@@ -275,17 +275,15 @@ const App = (() => {
         };
       }
 
+  const DEFAULT_GOOGLE_CLIENT_ID = '74325871114-3l0pg4pfpo6351n0u6n64g0n4kp1r9k8.apps.googleusercontent.com';
+
       // Google OAuth Button
       const googleBtn = $('btn-google-login');
       if (googleBtn) {
         googleBtn.onclick = () => {
           const settings = Storage.getSettings();
-          const clientId = settings.google_client_id;
-          if (clientId && clientId.trim()) {
-            triggerGoogleOAuth2(clientId.trim());
-          } else {
-            renderGoogleConfigModal();
-          }
+          const clientId = (settings.google_client_id || DEFAULT_GOOGLE_CLIENT_ID).trim();
+          triggerGoogleOAuth2(clientId);
         };
       }
     }
@@ -298,11 +296,13 @@ const App = (() => {
   // OFFICIAL GOOGLE OAUTH 2.0 DIRECT API INTEGRATION
   // ─────────────────────────────────────────────────────
   function triggerGoogleOAuth2(clientId) {
+    const cid = clientId || DEFAULT_GOOGLE_CLIENT_ID;
+
     // 1. If Google Identity Services (GSI) Token Client is available in browser
     if (window.google && window.google.accounts && window.google.accounts.oauth2) {
       try {
         const tokenClient = google.accounts.oauth2.initTokenClient({
-          client_id: clientId,
+          client_id: cid,
           scope: 'email profile openid',
           prompt: 'select_account',
           callback: async (tokenResponse) => {
@@ -323,12 +323,53 @@ const App = (() => {
     // 2. Direct Google OAuth 2.0 Redirect Fallback
     const redirectUri = window.location.origin + window.location.pathname;
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-      `client_id=${encodeURIComponent(clientId)}&` +
+      `client_id=${encodeURIComponent(cid)}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `response_type=token&` +
       `scope=email%20profile%20openid&` +
       `prompt=select_account`;
     window.location.href = authUrl;
+  }
+
+  async function handleGoogleJwtCredential(jwt) {
+    try {
+      const base64Url = jwt.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      const payload = JSON.parse(jsonPayload);
+      
+      const profile = Storage.getProfile();
+      Storage.saveProfile({
+        ...profile,
+        name: payload.name || payload.given_name || 'Pesquisador(a)',
+        email: payload.email,
+        avatar: payload.picture || 'https://lh3.googleusercontent.com/a/default-user=s96-c'
+      });
+
+      if (typeof SupabaseSync !== 'undefined' && SupabaseSync.isConfigured()) {
+        try {
+          const sb = SupabaseSync.getClient();
+          if (sb && sb.auth && sb.auth.signInWithIdToken) {
+            await sb.auth.signInWithIdToken({
+              provider: 'google',
+              token: jwt
+            });
+          }
+          await SupabaseSync.syncAll();
+        } catch {}
+      }
+
+      state.view = 'home';
+      render();
+      UI.toast(`Bem-vindo(a), ${payload.name}! Conectado via Google.`, 'success');
+      UI.updateUserProfileNavbarUI();
+      UI.updateCloudStatusUI();
+    } catch (err) {
+      console.error('Erro ao decodificar credencial do Google:', err);
+      UI.toast('Erro ao autenticar com o Google.', 'error');
+    }
   }
 
   async function handleGoogleAccessToken(accessToken) {
