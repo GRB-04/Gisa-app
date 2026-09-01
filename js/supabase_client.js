@@ -1,6 +1,6 @@
 /**
- * Gisa / Rayyan Modernized — Supabase Hybrid Sync Client
- * Handles Cloud Connection, Authentication, Bidirectional Delta Sync, and Offline Queue Flushing
+ * Gisa — Plataforma de Revisão Sistemática Inteligente
+ * Supabase Hybrid Sync Client: Cloud Connection, Authentication, Bidirectional Delta Sync, and Offline Queue
  */
 
 const SupabaseSync = (() => {
@@ -122,6 +122,19 @@ const SupabaseSync = (() => {
       await sb.auth.signOut();
     }
     notifyStatus();
+  }
+
+  async function updateUserMetadata(meta) {
+    const sb = getClient();
+    if (!sb) return null;
+    try {
+      const { data, error } = await sb.auth.updateUser({ data: meta });
+      if (error) throw error;
+      return data;
+    } catch (e) {
+      console.warn('Erro ao atualizar metadados do usuário:', e);
+      return null;
+    }
   }
 
   /**
@@ -381,6 +394,7 @@ const SupabaseSync = (() => {
     signIn,
     signUp,
     signOut,
+    updateUserMetadata,
     syncAll,
     onSyncStatusChange
   };

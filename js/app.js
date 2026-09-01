@@ -60,12 +60,17 @@ const App = (() => {
         <div class="home-hero">
           <h1 class="hero-title">Acelerador de <span class="gradient-text">Revisão Sistemática</span></h1>
           <p class="hero-sub">Reduza semanas de triagem manual para dias. Triagem com atalhos de teclado, Modo Cego (*Blind Mode*), desduplicação e gráficos PRISMA.</p>
-          <button class="btn btn-primary btn-lg" id="new-project-btn">
-            + Criar Novo Projeto de Revisão
-          </button>
+          <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:10px;">
+            <button class="btn btn-primary btn-lg" id="new-project-btn">
+              + Criar Novo Projeto de Revisão
+            </button>
+            <button class="btn btn-secondary btn-lg" id="home-download-app-btn" style="background:rgba(99,102,241,0.12);border-color:rgba(99,102,241,0.35);">
+              📲 Baixar APK / Instalar no PC
+            </button>
+          </div>
         </div>
 
-        <!-- 6 Pilares Estilo Rayyan -->
+        <!-- 6 Pilares da Revisão Sistemática Gisa -->
         <div class="features-strip">
           <div class="feature-item"><span>🔒</span><p><strong>Auditabilidade</strong><br>Registro completo de decisões</p></div>
           <div class="feature-item"><span>👁️</span><p><strong>Modo Cego</strong><br>Triagem sem viés de seleção</p></div>
@@ -81,7 +86,7 @@ const App = (() => {
             <span class="section-count">${projects.length} projeto${projects.length !== 1 ? 's' : ''}</span>
           </div>
           <div class="projects-grid" id="projects-grid">
-            ${projects.length === 0 ? UI.emptyState('📂', 'Nenhum projeto ainda', 'Crie um projeto para começar a importar arquivos RIS/BIB e fazer triagem.') : ''}
+            ${projects.length === 0 ? UI.emptyState('📂', 'Nenhum projeto ainda', 'Crie um projeto para começar a importar arquivos RIS/BIB/PDF e fazer triagem.') : ''}
           </div>
         </div>
       </div>
@@ -104,6 +109,10 @@ const App = (() => {
       state.view = 'wizard';
       render();
     };
+
+    $('home-download-app-btn')?.addEventListener('click', () => {
+      UI.showInstallDownloadModal();
+    });
   }
 
   function confirmDeleteProject(project) {
@@ -184,13 +193,15 @@ const App = (() => {
               <span class="format-chip">.bib</span>
               <span class="format-chip">.csv</span>
               <span class="format-chip">.nbib</span>
+              <span class="format-chip" style="background:rgba(168,85,247,0.2);color:var(--violet);font-weight:700;">.pdf</span>
               <span class="format-chip">.txt</span>
+              <span class="format-chip">.json</span>
             </div>
           </div>
           <div class="wz-drop-zone" id="wz-drop">
             <div class="upload-icon">📂</div>
-            <p>Arraste os arquivos aqui ou clique para selecionar</p>
-            <input type="file" id="wz-file-input" multiple accept=".ris,.bib,.csv,.nbib,.txt" style="display:none"/>
+            <p>Arraste os arquivos aqui ou clique para selecionar (inclusive arquivos PDF)</p>
+            <input type="file" id="wz-file-input" multiple accept=".ris,.bib,.csv,.nbib,.pdf,.txt,.json" style="display:none"/>
             <button class="btn btn-secondary" id="wz-select-btn">Selecionar arquivos</button>
           </div>
           <div id="wz-file-list" class="wz-file-list">${fileList}</div>
@@ -518,8 +529,8 @@ const App = (() => {
           <div class="upload-zone-inner">
             <div class="upload-icon">📂</div>
             <h3>Arraste arquivos aqui ou clique para selecionar</h3>
-            <p>Formatos suportados: <strong>.ris · .bib · .csv · .nbib · .txt</strong></p>
-            <input type="file" id="file-input" multiple accept=".ris,.bib,.csv,.nbib,.txt" style="display:none"/>
+            <p>Formatos suportados: <strong>.ris · .bib · .csv · .nbib · .pdf · .txt · .json</strong></p>
+            <input type="file" id="file-input" multiple accept=".ris,.bib,.csv,.nbib,.pdf,.txt,.json" style="display:none"/>
             <button class="btn btn-primary" id="select-files-btn">Selecionar Arquivos</button>
           </div>
         </div>
@@ -669,7 +680,7 @@ const App = (() => {
         <!-- Modes & Quick Keywords Bar -->
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap;">
           <div style="display:flex;align-items:center;gap:10px;">
-            <button class="screen-mode-btn ${state.screenMode === 'list' ? 'active' : ''}" id="mode-list-btn">📊 Rayyan Workbench (3 Painéis)</button>
+            <button class="screen-mode-btn ${state.screenMode === 'list' ? 'active' : ''}" id="mode-list-btn">📊 Gisa Workbench (3 Painéis)</button>
             <button class="screen-mode-btn ${state.screenMode === 'serial' ? 'active' : ''}" id="mode-serial-btn">▶ Leitura Serial</button>
           </div>
           <div style="display:flex;gap:8px;">
@@ -715,7 +726,7 @@ const App = (() => {
     // Manage keywords modal
     $('manage-keywords-btn').onclick = () => {
       UI.modal(
-        '🏷️ Palavras-chave do Tema (Destaque Rayyan)',
+        '🏷️ Palavras-chave do Tema (Destaque Gisa)',
         `<div style="display:flex;flex-direction:column;gap:14px">
           <div>
             <h4 style="color:var(--green);font-size:0.88rem;margin-bottom:6px">🟢 Termos de Inclusão (Destaque Verde)</h4>
@@ -972,7 +983,16 @@ const App = (() => {
     const callbacks = {
       onInclude: () => makeDecision(project.id, article?.id, 'include'),
       onExclude: () => makeDecision(project.id, article?.id, 'exclude'),
-      onMaybe:   () => makeDecision(project.id, article?.id, 'maybe')
+      onMaybe:   () => makeDecision(project.id, article?.id, 'maybe'),
+      onAttachPdf: async (fileName, dataUrl) => {
+        if (!article) return;
+        await Storage.attachArticlePdf(project.id, article.id, dataUrl, fileName);
+        article.has_pdf = true;
+        article.pdf_name = fileName;
+        article.pdf_data = dataUrl;
+        UI.toast('Arquivo PDF anexado ao artigo com sucesso!', 'success');
+        renderRayyanArticlesListOnly(Storage.getProject(project.id));
+      }
     };
 
     inspectorSlot.replaceWith(UI.renderAbstractInspector(article, kwObject, state.blindMode, callbacks));
@@ -1126,7 +1146,7 @@ const App = (() => {
   // ─── SERIAL SCREENING MODE ────────────────────────────
 
   function renderSerialMode(project) {
-    // In Rayyan Workbench (3-panel) the serial container is #serial-container-slot
+    // In Gisa Workbench (3-panel) the serial container is #serial-container-slot
     // In legacy screen mode it was #screen-articles-list
     const slot = $('serial-container-slot');
     const list = slot || $('screen-articles-list');
@@ -1277,12 +1297,12 @@ const App = (() => {
             <div class="threshold-row" style="display:flex;align-items:center;gap:12px;">
               <input type="range" id="dup-threshold" min="50" max="100" value="65" class="range-input" style="flex:1;cursor:pointer;"/>
             </div>
-            <small style="color:var(--text-muted);font-size:0.76rem;">Padrão Rayyan = 97% | Padrão Abrangente = 65%</small>
+            <small style="color:var(--text-muted);font-size:0.76rem;">Padrão Estrito = 97% | Padrão Abrangente = 65%</small>
           </div>
           <div class="dedup-top-buttons" style="display:flex;gap:10px;flex-wrap:wrap;">
             <button class="btn btn-secondary" id="run-dedup-btn">🔍 Re-analisar</button>
             <button class="btn btn-primary" id="open-auto-resolver-pro-btn" style="background:linear-gradient(135deg, var(--purple), var(--violet));box-shadow:0 4px 14px var(--purple-glow);">
-              ⚡ Systematic Auto-Resolver (Rayyan Pro)
+              ⚡ Systematic Auto-Resolver (Gisa Pro)
             </button>
           </div>
         </div>
@@ -2139,11 +2159,35 @@ Gerado por Gisa · ${date}
   function init() {
     render();
 
+    // Listen for PWA Install Prompt on Desktop / Mobile
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      window.__gisaDeferredInstallPrompt = e;
+      const installBtn = $('install-app-btn');
+      if (installBtn) {
+        installBtn.classList.add('can-install');
+      }
+    });
+
     // Listen for IndexedDB asynchronous hydration
     Storage.onHydrated(() => {
       render();
       UI.updateCloudStatusUI();
+      UI.updateUserProfileNavbarUI();
     });
+
+    // Install / Download APK & Desktop App button
+    $('install-app-btn')?.addEventListener('click', () => {
+      UI.showInstallDownloadModal();
+    });
+
+    // User Profile navbar button
+    $('user-profile-btn')?.addEventListener('click', () => {
+      UI.showProfileModal(() => {
+        UI.updateUserProfileNavbarUI();
+      });
+    });
+    UI.updateUserProfileNavbarUI();
 
     // Supabase Cloud Sync button
     const cloudBtn = $('cloud-sync-btn');
@@ -2170,7 +2214,7 @@ Gerado por Gisa · ${date}
     // Hotkeys help header button
     $('hotkeys-btn')?.addEventListener('click', () => UI.showHotkeysModal());
 
-    // ─── Global keyboard shortcuts (Rayyan Hotkeys Engine) ───
+    // ─── Global keyboard shortcuts (Gisa Hotkeys Engine) ───
     document.addEventListener('keydown', e => {
       // Skip when typing in any input, textarea or active element
       const active = document.activeElement;
@@ -2198,7 +2242,7 @@ Gerado por Gisa · ${date}
       const project = Storage.getProject(state.projectId);
       if (!project || !project.articles.length) return;
 
-      // Rayyan 3-Panel Workbench Hotkeys
+      // Gisa 3-Panel Workbench Hotkeys
       if (state.tab === 'screen' && state.screenMode === 'list') {
         const filteredArticles = project.articles.filter(a => {
           if (state.filter.decision === 'include' && a.decision !== 'include') return false;

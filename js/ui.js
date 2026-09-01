@@ -134,6 +134,9 @@ const UI = (() => {
     const dupBadge = article.is_duplicate
       ? `<span class="badge badge-dup" title="Possível duplicata (${article.duplicate_score}%)">Duplicata ${article.duplicate_score}%</span>`
       : '';
+    const pdfBadge = (article.has_pdf || article.pdf_data)
+      ? `<span class="badge badge-purple" title="Possui PDF anexado">📄 PDF</span>`
+      : '';
 
     const scholarUrl = `https://scholar.google.com/scholar?q=${encodeURIComponent(article.title)}`;
     const doiUrl = article.doi ? `https://doi.org/${article.doi}` : scholarUrl;
@@ -152,7 +155,7 @@ const UI = (() => {
     card.innerHTML = `
       <div class="article-card-inner">
         <div class="article-card-top">
-          <div class="article-badges">${relevBadge}${dupBadge}${decisionLabel(article.decision)}${exReasonBadge}</div>
+          <div class="article-badges">${relevBadge}${dupBadge}${pdfBadge}${decisionLabel(article.decision)}${exReasonBadge}</div>
           <span style="font-size:0.78rem;color:var(--text-muted)">${article.year ? `📅 ${escapeHtml(article.year)}` : ''}${article.journal ? ` · ${escapeHtml(article.journal)}` : ''}</span>
         </div>
         <h4 class="article-title" style="cursor:pointer" title="Clique para abrir detalhes">${titleHtml}</h4>
@@ -170,7 +173,7 @@ const UI = (() => {
             <button class="btn btn-sm btn-maybe ${article.decision === 'maybe' ? 'active' : ''}" data-action="maybe" title="Talvez" aria-pressed="${article.decision === 'maybe'}">Talvez</button>
             <button class="btn btn-sm btn-exclude ${article.decision === 'exclude' ? 'active' : ''}" data-action="exclude" title="Excluir" aria-pressed="${article.decision === 'exclude'}">Excluir</button>
           </div>
-          <div style="display:flex;align-items:center;gap:8px">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <button class="btn btn-sm ai-analyze-btn" style="background:linear-gradient(135deg,var(--purple-dark),var(--violet));color:white;box-shadow:0 2px 10px var(--purple-glow)" title="Analisar com IA (PICO, Resumo e Chat)">Analisar com IA</button>
             <button class="btn btn-sm btn-ghost note-btn" title="Adicionar nota">Nota</button>
             <a href="${scholarUrl}" target="_blank" rel="noopener noreferrer" style="font-size:0.75rem;color:var(--purple);text-decoration:none;font-weight:600">Scholar ↗</a>
@@ -195,15 +198,17 @@ const UI = (() => {
             <div><strong>Autores:</strong> ${escapeHtml((article.authors || []).join('; ')) || 'Não especificado'}</div>
             <div><strong>Ano:</strong> ${escapeHtml(article.year) || '—'} · <strong>Revista:</strong> ${escapeHtml(article.journal) || '—'}</div>
             ${article.doi ? `<div><strong>DOI:</strong> <a href="https://doi.org/${encodeURIComponent(article.doi)}" target="_blank">${escapeHtml(article.doi)}</a></div>` : ''}
+            ${article.has_pdf || article.pdf_data ? `<div><strong>PDF Anexo:</strong> <span style="color:var(--purple);font-weight:600;">📄 ${escapeHtml(article.pdf_name || 'Documento disponível')}</span></div>` : ''}
           </div>
           <hr style="border:none;border-top:1px solid var(--border)"/>
           <div style="font-size:0.9rem;line-height:1.7;color:var(--text-primary)">
             <h4 style="margin-bottom:8px;font-size:0.95rem;color:var(--purple)">Resumo:</h4>
             ${article.abstract ? (hasKw ? Similarity.highlightKeywords(article.abstract, keywords) : escapeHtml(article.abstract)) : '<p class="muted">Nenhum resumo no arquivo importado.</p>'}
           </div>
-          <div style="margin-top:12px;display:flex;gap:10px;">
+          <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm modal-pdf-btn">📄 Ler PDF / Anexar</button>
             <button class="btn btn-primary btn-sm modal-ai-btn">Analisar com IA (Research Pilot)</button>
-            <a href="${scholarUrl}" target="_blank" class="btn btn-secondary btn-sm">Abrir no Google Scholar ↗</a>
+            <a href="${scholarUrl}" target="_blank" class="btn btn-ghost btn-sm">Abrir no Google Scholar ↗</a>
           </div>
         </div>`,
         [{ label: 'Fechar', style: 'btn-ghost' }]
@@ -211,6 +216,12 @@ const UI = (() => {
       setTimeout(() => {
         const modalAiBtn = document.querySelector('.modal-ai-btn');
         if (modalAiBtn) modalAiBtn.onclick = (e) => { e.stopPropagation(); UI.showAIAnalysisModal(article); };
+
+        const modalPdfBtn = document.querySelector('.modal-pdf-btn');
+        if (modalPdfBtn) modalPdfBtn.onclick = (e) => {
+          e.stopPropagation();
+          showPdfViewerModal(article, callbacks);
+        };
       }, 30);
     };
 
@@ -850,7 +861,7 @@ const UI = (() => {
     return html;
   }
 
-  /** Renderiza o Painel Esquerdo de Filtros Facetados Estilo Rayyan */
+  /** Renderiza o Painel Esquerdo de Filtros Facetados Gisa */
   function renderFacetSidebar(project, currentFilter = {}, onSelectFacet) {
     const articles = project.articles || [];
     const stats = project.stats || {};
@@ -947,7 +958,7 @@ const UI = (() => {
   }
 
 
-  /** Renderiza o Painel Direito: Inspetor de Abstract Estilo Rayyan */
+  /** Renderiza o Painel Direito: Inspetor de Abstract Gisa */
   function renderAbstractInspector(article, projectKeywords = {}, blindMode = false, callbacks = {}) {
     const container = document.createElement('div');
     container.id = 'rayyan-inspector-slot';
@@ -981,10 +992,15 @@ const UI = (() => {
       decisionBadge = '<span class="badge badge-pending">Pendente</span>';
     }
 
+    const hasPdf = Boolean(article.has_pdf || article.pdf_data);
+
     container.innerHTML = `
       <div class="inspector-header" role="banner">
         <h3>Leitor de Resumo</h3>
-        ${decisionBadge}
+        <div style="display:flex;gap:6px;align-items:center;">
+          ${hasPdf ? '<span class="badge badge-purple" style="font-size:0.72rem;">📄 PDF Anexo</span>' : ''}
+          ${decisionBadge}
+        </div>
       </div>
       <div class="inspector-content">
         <h2 class="inspector-title">${escapeHtml(article.title)}</h2>
@@ -993,6 +1009,7 @@ const UI = (() => {
           <div><strong>Autores:</strong> ${article.authors?.length ? escapeHtml(article.authors.join('; ')) : 'Não informado'}</div>
           <div><strong>Revista/Fonte:</strong> ${escapeHtml(article.journal || article.source_file || '—')} ${article.year ? `(${article.year})` : ''}</div>
           ${article.doi ? `<div><strong>DOI:</strong> <a href="https://doi.org/${article.doi}" target="_blank" rel="noopener">${article.doi} ↗</a></div>` : ''}
+          ${hasPdf ? `<div><strong>Arquivo PDF:</strong> <span style="color:var(--purple);font-weight:600;">${escapeHtml(article.pdf_name || 'Documento PDF')}</span></div>` : ''}
           ${article.relevance_score !== undefined && article.relevance_score !== null ? `
             <div style="margin-top:4px;">
               <strong>Relevância IA:</strong>
@@ -1007,6 +1024,19 @@ const UI = (() => {
           <button class="btn btn-include" id="insp-btn-include">Incluir (I)</button>
           <button class="btn btn-exclude" id="insp-btn-exclude">Excluir (E)</button>
           <button class="btn btn-maybe"   id="insp-btn-maybe">Talvez (M)</button>
+        </div>
+
+        <!-- PDF Actions & AI Analysis -->
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+          ${hasPdf ? `
+            <button class="btn btn-sm btn-secondary" id="insp-btn-read-pdf" style="flex:1;background:rgba(99,102,241,0.15);border-color:rgba(99,102,241,0.4);color:var(--purple);">
+              📄 Ler PDF Completo
+            </button>
+          ` : ''}
+          <button class="btn btn-sm btn-ghost" id="insp-btn-attach-pdf" style="flex:1;border:1px solid var(--border);">
+            📎 ${hasPdf ? 'Trocar PDF' : 'Anexar PDF'}
+          </button>
+          <input type="file" id="insp-pdf-file-input" accept=".pdf" style="display:none;" />
         </div>
 
         <div style="margin-top:8px;">
@@ -1033,6 +1063,30 @@ const UI = (() => {
     container.querySelector('#insp-btn-exclude')?.addEventListener('click', () => callbacks.onExclude && callbacks.onExclude());
     container.querySelector('#insp-btn-maybe')?.addEventListener('click', () => callbacks.onMaybe && callbacks.onMaybe());
     container.querySelector('#insp-btn-ai-analysis')?.addEventListener('click', () => showAIAnalysisModal(article));
+    
+    // PDF Actions
+    container.querySelector('#insp-btn-read-pdf')?.addEventListener('click', () => {
+      showPdfViewerModal(article, callbacks);
+    });
+
+    const attachBtn = container.querySelector('#insp-btn-attach-pdf');
+    const attachInput = container.querySelector('#insp-pdf-file-input');
+    if (attachBtn && attachInput) {
+      attachBtn.addEventListener('click', () => attachInput.click());
+      attachInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (evt) => {
+            const dataUrl = evt.target.result;
+            if (callbacks.onAttachPdf) {
+              callbacks.onAttachPdf(file.name, dataUrl);
+            }
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+    }
 
     return container;
   }
@@ -1040,7 +1094,6 @@ const UI = (() => {
   /** Exibe o Modal do Supabase Cloud Sync */
   function showSupabaseModal() {
     const isConfigured = typeof SupabaseSync !== 'undefined' && SupabaseSync.isConfigured();
-    // Read stored settings directly from Storage (SupabaseSync.getConfig() does not exist)
     const storedSettings = Storage.getSettings();
     const currentUrl = storedSettings['supabase_url'] || '';
     const currentKey = storedSettings['supabase_anon_key'] || '';
@@ -1075,7 +1128,6 @@ const UI = (() => {
           const url = document.getElementById('sb-url-input')?.value?.trim();
           const key = document.getElementById('sb-key-input')?.value?.trim();
           if (url && key && typeof SupabaseSync !== 'undefined') {
-            // Bug fix: SupabaseSync.init() does not exist; correct method is configure()
             SupabaseSync.configure(url, key);
             toast('Supabase configurado com sucesso!', 'success');
             updateCloudStatusUI();
@@ -1087,12 +1139,12 @@ const UI = (() => {
     );
   }
 
-  /** Exibe o Modal de Atalhos de Teclado (Hotkeys Rayyan) */
+  /** Exibe o Modal de Atalhos de Teclado Gisa */
   function showHotkeysModal() {
     modal(
-      '⌨️ Atalhos de Teclado (Estilo Rayyan)',
+      '⌨️ Atalhos de Teclado Gisa',
       `<p style="font-size:0.86rem;color:var(--text-secondary);margin-bottom:12px">
-        Use o teclado para fazer a triagem rápida dos artigos como no Rayyan:
+        Use o teclado para acelerar a triagem dos artigos científicos no Gisa:
       </p>
       <div class="hotkeys-grid">
         <div class="hotkey-row"><span>Incluir Artigo</span><kbd>I</kbd> ou <kbd>1</kbd></div>
@@ -1124,7 +1176,7 @@ const UI = (() => {
     }
   }
 
-  /* ── Systematic Auto Resolver Pro Modal (Padrão Rayyan + IA Gisa) ── */
+  /* ── Systematic Auto Resolver Pro Modal (Gisa Pro) ── */
   function showAutoResolverModal(project, pairs, onConfirm) {
     const sourceFiles = Array.from(new Set(project.articles.map(a => a.source_file).filter(Boolean)));
     let currentThreshold = 97;
@@ -1163,7 +1215,7 @@ const UI = (() => {
         <div class="auto-resolver-banner" style="background:linear-gradient(135deg, rgba(99,102,241,0.12), rgba(168,85,247,0.08));border:1px solid rgba(99,102,241,0.25);border-radius:var(--radius-lg);padding:14px 18px;display:flex;align-items:center;gap:12px;">
           <span style="font-size:1.8rem;">⚡</span>
           <div style="font-size:0.85rem;color:var(--text-secondary);line-height:1.4;">
-            <strong style="color:var(--text-primary);display:block;margin-bottom:2px;">Systematic Auto Resolver (Padrão Rayyan Pro)</strong>
+            <strong style="color:var(--text-primary);display:block;margin-bottom:2px;">Systematic Auto Resolver (Gisa Pro)</strong>
             O Gisa manterá a melhor versão de cada artigo com base nos seus critérios selecionados e descartará as cópias de forma 100% auditável.
           </div>
         </div>
@@ -1207,16 +1259,16 @@ const UI = (() => {
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
             <div>
               <span style="font-size:0.88rem;font-weight:700;color:var(--text-primary);">Porcentagem Mínima de Similaridade (Articles Similarity %)</span>
-              <p style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">Padrão Rayyan = 97% (Estrito) | Padrão Abrangente = 65%</p>
+              <p style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">Padrão Estrito = 97% | Padrão Abrangente = 65%</p>
             </div>
             <span id="ar-thresh-val" style="font-size:1.3rem;font-weight:800;color:var(--purple);background:var(--purple-glow);padding:4px 12px;border-radius:var(--radius-sm);border:1px solid rgba(99,102,241,0.3);">97%</span>
           </div>
           <div style="display:flex;gap:12px;align-items:center;">
             <input type="range" id="ar-thresh-slider" min="50" max="100" value="97" style="flex:1;cursor:pointer;" />
             <div style="display:flex;gap:6px;">
-              <button class="btn btn-sm btn-ghost ar-preset-btn" data-val="97" style="padding:4px 8px;font-size:0.75rem;">97% (Rayyan)</button>
+              <button class="btn btn-sm btn-ghost ar-preset-btn" data-val="97" style="padding:4px 8px;font-size:0.75rem;">97% (Estrito)</button>
               <button class="btn btn-sm btn-ghost ar-preset-btn" data-val="85" style="padding:4px 8px;font-size:0.75rem;">85%</button>
-              <button class="btn btn-sm btn-ghost ar-preset-btn" data-val="65" style="padding:4px 8px;font-size:0.75rem;">65% (Gisa)</button>
+              <button class="btn btn-sm btn-ghost ar-preset-btn" data-val="65" style="padding:4px 8px;font-size:0.75rem;">65% (Amplo)</button>
             </div>
           </div>
         </div>
@@ -1320,11 +1372,377 @@ const UI = (() => {
     }, 50);
   }
 
+  // ─── PDF VIEWER & READER MODAL ───────────────────────
+  function showPdfViewerModal(article, callbacks = {}) {
+    if (!article) return;
+    const hasData = Boolean(article.pdf_data);
+    const pdfSrc = article.pdf_data || '';
+
+    const bodyHtml = `
+      <div class="pdf-viewer-modal-content" style="display:flex;flex-direction:column;gap:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg-card2);padding:10px 16px;border-radius:var(--radius-md);border:1px solid var(--border);flex-wrap:wrap;gap:8px;">
+          <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;">
+            <strong style="color:var(--text-primary);font-size:0.88rem;">📄 ${escapeHtml(article.pdf_name || article.title || 'Artigo Científico')}</strong>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            ${hasData ? `
+              <a href="${pdfSrc}" download="${escapeHtml(article.pdf_name || 'artigo.pdf')}" class="btn btn-sm btn-secondary" style="text-decoration:none;">
+                ⬇️ Baixar PDF
+              </a>
+              <button class="btn btn-sm btn-ghost" id="pdf-modal-newtab-btn">↗ Abrir Nova Aba</button>
+            ` : ''}
+            <button class="btn btn-sm btn-ghost" id="pdf-modal-replace-btn">📎 ${hasData ? 'Trocar Arquivo' : 'Anexar PDF'}</button>
+            <input type="file" id="pdf-modal-replace-input" accept=".pdf" style="display:none;" />
+          </div>
+        </div>
+
+        ${hasData ? `
+          <div class="pdf-frame-container" style="width:100%;height:68vh;min-height:440px;background:#130e20;border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border);position:relative;">
+            <iframe src="${pdfSrc}#toolbar=1" style="width:100%;height:100%;border:none;" title="Visualizador de PDF Gisa"></iframe>
+          </div>
+        ` : `
+          <div style="text-align:center;padding:50px 20px;background:var(--bg-card2);border-radius:var(--radius-lg);border:1px dashed var(--border);">
+            <div style="font-size:3rem;margin-bottom:12px;">📄</div>
+            <h4 style="color:var(--text-primary);margin-bottom:6px;">Nenhum arquivo PDF anexado a este artigo</h4>
+            <p style="color:var(--text-muted);font-size:0.85rem;max-width:440px;margin:0 auto 16px;">
+              Faça o upload do artigo científico em PDF para ler o texto integral diretamente no Gisa e acelerar sua revisão sistemática.
+            </p>
+            <button class="btn btn-primary" id="pdf-modal-upload-empty-btn">📎 Selecionar Arquivo PDF</button>
+            <input type="file" id="pdf-modal-upload-empty-input" accept=".pdf" style="display:none;" />
+          </div>
+        `}
+      </div>
+    `;
+
+    const m = modal(
+      `📄 Leitor de PDF — ${escapeHtml(article.title).substring(0, 45)}...`,
+      bodyHtml,
+      [
+        { label: 'Fechar', style: 'btn-ghost' }
+      ]
+    );
+
+    setTimeout(() => {
+      const newTabBtn = document.getElementById('pdf-modal-newtab-btn');
+      if (newTabBtn && hasData) {
+        newTabBtn.onclick = () => {
+          const win = window.open();
+          if (win) {
+            win.document.write(`<iframe src="${pdfSrc}" style="position:fixed;top:0;left:0;bottom:0;right:0;width:100%;height:100%;border:none;margin:0;padding:0;overflow:hidden;z-index:999999;"></iframe>`);
+          }
+        };
+      }
+
+      function handleFileAttach(file) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const dataUrl = e.target.result;
+          if (callbacks.onAttachPdf) {
+            callbacks.onAttachPdf(file.name, dataUrl);
+          }
+          toast('PDF anexado ao artigo com sucesso!', 'success');
+          article.pdf_data = dataUrl;
+          article.pdf_name = file.name;
+          article.has_pdf = true;
+          m.remove();
+          showPdfViewerModal(article, callbacks);
+        };
+        reader.readAsDataURL(file);
+      }
+
+      const replaceBtn = document.getElementById('pdf-modal-replace-btn');
+      const replaceInput = document.getElementById('pdf-modal-replace-input');
+      if (replaceBtn && replaceInput) {
+        replaceBtn.onclick = () => replaceInput.click();
+        replaceInput.onchange = (e) => handleFileAttach(e.target.files[0]);
+      }
+
+      const emptyBtn = document.getElementById('pdf-modal-upload-empty-btn');
+      const emptyInput = document.getElementById('pdf-modal-upload-empty-input');
+      if (emptyBtn && emptyInput) {
+        emptyBtn.onclick = () => emptyInput.click();
+        emptyInput.onchange = (e) => handleFileAttach(e.target.files[0]);
+      }
+    }, 50);
+  }
+
+  // ─── USER PROFILE MODAL ──────────────────────────────
+  function showProfileModal(onProfileUpdated = null) {
+    const profile = Storage.getProfile();
+    const stats = Storage.getUserStats();
+    const isCloud = typeof SupabaseSync !== 'undefined' && SupabaseSync.isConfigured();
+    const avatarOptions = ['👩‍🔬', '👨‍🔬', '🧑‍💻', '🎓', '📚', '🔬', '🧬', '💡', '👤', '⭐'];
+
+    const avatarsHtml = avatarOptions.map(av => `
+      <button type="button" class="avatar-option-btn ${profile.avatar === av ? 'active' : ''}" data-avatar="${av}" style="font-size:1.35rem;padding:6px 10px;border-radius:var(--radius-md);border:1px solid ${profile.avatar === av ? 'var(--purple)' : 'var(--border)'};background:${profile.avatar === av ? 'var(--purple-glow)' : 'var(--bg-card2)'};cursor:pointer;transition:all 0.2s;">
+        ${av}
+      </button>
+    `).join('');
+
+    const bodyHtml = `
+      <div class="user-profile-dialog" style="display:flex;flex-direction:column;gap:18px;">
+        
+        <!-- Header / Banner do Perfil -->
+        <div style="background:linear-gradient(135deg, rgba(99,102,241,0.15), rgba(168,85,247,0.1));border:1px solid rgba(99,102,241,0.25);border-radius:var(--radius-lg);padding:16px 20px;display:flex;align-items:center;gap:16px;">
+          <div id="prof-current-avatar" style="font-size:2.6rem;background:var(--bg-card);border:2px solid var(--purple);border-radius:50%;width:64px;height:64px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px var(--purple-glow);flex-shrink:0;">
+            ${profile.avatar || '👩‍🔬'}
+          </div>
+          <div style="flex:1;overflow:hidden;">
+            <h3 style="color:var(--text-primary);margin:0 0 4px 0;font-size:1.15rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="prof-display-name">${escapeHtml(profile.name || 'Pesquisador(a)')}</h3>
+            <div style="font-size:0.8rem;color:var(--text-secondary);display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <span class="badge ${isCloud ? 'badge-include' : 'badge-purple'}">${isCloud ? '☁️ Supabase Conectado' : '💾 Local-First (Offline)'}</span>
+              <span>${escapeHtml(profile.role || 'Pesquisador(a) Principal')}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Estatísticas do Pesquisador -->
+        <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:10px;">
+          <div style="background:var(--bg-card2);padding:10px 8px;border-radius:var(--radius-md);border:1px solid var(--border);text-align:center;">
+            <div style="font-size:1.25rem;font-weight:800;color:var(--purple);">${stats.totalProjects}</div>
+            <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Projetos</div>
+          </div>
+          <div style="background:var(--bg-card2);padding:10px 8px;border-radius:var(--radius-md);border:1px solid var(--border);text-align:center;">
+            <div style="font-size:1.25rem;font-weight:800;color:var(--text-primary);">${stats.totalArticles}</div>
+            <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Artigos</div>
+          </div>
+          <div style="background:var(--bg-card2);padding:10px 8px;border-radius:var(--radius-md);border:1px solid var(--border);text-align:center;">
+            <div style="font-size:1.25rem;font-weight:800;color:var(--green);">${stats.included}</div>
+            <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Incluídos</div>
+          </div>
+          <div style="background:var(--bg-card2);padding:10px 8px;border-radius:var(--radius-md);border:1px solid var(--border);text-align:center;">
+            <div style="font-size:1.25rem;font-weight:800;color:var(--violet);">${stats.withPdf}</div>
+            <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;">Com PDF</div>
+          </div>
+        </div>
+
+        <!-- Formulário de Edição -->
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div>
+            <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:6px;display:block;">Avatar / Ícone do Perfil:</label>
+            <div id="prof-avatar-grid" style="display:flex;gap:8px;flex-wrap:wrap;">
+              ${avatarsHtml}
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div>
+              <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Seu Nome:</label>
+              <input id="prof-input-name" class="input" style="width:100%;font-size:0.88rem;" value="${escapeHtml(profile.name || '')}" placeholder="Ex: Dra. Giselle Silva" />
+            </div>
+            <div>
+              <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">E-mail:</label>
+              <input id="prof-input-email" type="email" class="input" style="width:100%;font-size:0.88rem;" value="${escapeHtml(profile.email || '')}" placeholder="seu.email@pesquisa.br" />
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div>
+              <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Instituição / Universidade:</label>
+              <input id="prof-input-inst" class="input" style="width:100%;font-size:0.88rem;" value="${escapeHtml(profile.institution || '')}" placeholder="Ex: USP, UFRJ, Fiocruz, UnB" />
+            </div>
+            <div>
+              <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Função / Cargo Acadêmico:</label>
+              <select id="prof-input-role" class="input" style="width:100%;font-size:0.88rem;padding:9px 12px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-primary);">
+                <option value="Pesquisador(a) Principal" ${profile.role === 'Pesquisador(a) Principal' ? 'selected' : ''}>Pesquisador(a) Principal (PI)</option>
+                <option value="Revisor(a) Sistemático(a)" ${profile.role === 'Revisor(a) Sistemático(a)' ? 'selected' : ''}>Revisor(a) Sistemático(a)</option>
+                <option value="Pós-Graduando(a) (Mestrado/Doutorado)" ${profile.role?.includes('Pós-Graduando') ? 'selected' : ''}>Pós-Graduando(a) (Mestrado/Doutorado)</option>
+                <option value="Estudante de Graduação / IC" ${profile.role?.includes('Graduação') ? 'selected' : ''}>Estudante de Graduação / IC</option>
+                <option value="Orientador(a) / Docente" ${profile.role?.includes('Orientador') ? 'selected' : ''}>Orientador(a) / Docente</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Bio / Linha de Pesquisa:</label>
+            <textarea id="prof-input-bio" class="input" rows="2" style="width:100%;font-size:0.85rem;resize:vertical;" placeholder="Ex: Pesquisa em Saúde Coletiva, Epidemiologia, Revisão Sistemática PRISMA...">${escapeHtml(profile.bio || '')}</textarea>
+          </div>
+        </div>
+      </div>
+    `;
+
+    let selectedAvatar = profile.avatar || '👩‍🔬';
+
+    modal(
+      '👤 Perfil do Pesquisador',
+      bodyHtml,
+      [
+        { label: 'Fechar', style: 'btn-ghost' },
+        {
+          label: '💾 Salvar Perfil',
+          style: 'btn-primary',
+          cb: () => {
+            const name = document.getElementById('prof-input-name')?.value?.trim() || 'Pesquisador(a)';
+            const email = document.getElementById('prof-input-email')?.value?.trim() || '';
+            const institution = document.getElementById('prof-input-inst')?.value?.trim() || '';
+            const role = document.getElementById('prof-input-role')?.value || 'Pesquisador(a) Principal';
+            const bio = document.getElementById('prof-input-bio')?.value?.trim() || '';
+
+            const updated = Storage.saveProfile({
+              name,
+              email,
+              avatar: selectedAvatar,
+              institution,
+              role,
+              bio
+            });
+
+            if (typeof SupabaseSync !== 'undefined' && SupabaseSync.isConfigured()) {
+              SupabaseSync.updateUserMetadata({ full_name: name, avatar: selectedAvatar, institution, role });
+            }
+
+            updateUserProfileNavbarUI();
+            toast('Perfil salvo com sucesso!', 'success');
+            if (onProfileUpdated) onProfileUpdated(updated);
+          }
+        }
+      ]
+    );
+
+    setTimeout(() => {
+      document.querySelectorAll('.avatar-option-btn').forEach(btn => {
+        btn.onclick = () => {
+          document.querySelectorAll('.avatar-option-btn').forEach(b => {
+            b.style.borderColor = 'var(--border)';
+            b.style.background = 'var(--bg-card2)';
+          });
+          btn.style.borderColor = 'var(--purple)';
+          btn.style.background = 'var(--purple-glow)';
+          selectedAvatar = btn.dataset.avatar;
+          const currentAvEl = document.getElementById('prof-current-avatar');
+          if (currentAvEl) currentAvEl.textContent = selectedAvatar;
+        };
+      });
+
+      const nameInput = document.getElementById('prof-input-name');
+      const displayName = document.getElementById('prof-display-name');
+      if (nameInput && displayName) {
+        nameInput.oninput = () => {
+          displayName.textContent = nameInput.value.trim() || 'Pesquisador(a)';
+        };
+      }
+    }, 50);
+  }
+
+  // ─── INSTALL & DOWNLOAD MODAL ─────────────────────────
+  function showInstallDownloadModal() {
+    const GITHUB_RELEASES_URL = 'https://github.com/GRB-04/Gisa-app/releases';
+
+    const bodyHtml = `
+      <div class="install-download-modal" style="display:flex;flex-direction:column;gap:18px;">
+        
+        <p style="font-size:0.88rem;color:var(--text-secondary);line-height:1.5;margin:0;">
+          O <strong>Gisa</strong> foi desenvolvido para você utilizar onde quiser: no <strong>computador</strong> (aplicativo desktop instalado), no <strong>celular Android</strong> (arquivo APK nativo) ou direto no seu <strong>navegador web</strong>.
+        </p>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          
+          <!-- Card 1: Instalar no Computador / Desktop -->
+          <div style="background:var(--bg-card2);border:1px solid rgba(99,102,241,0.3);border-radius:var(--radius-lg);padding:18px;display:flex;flex-direction:column;gap:12px;box-shadow:0 4px 14px rgba(0,0,0,0.2);">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:2rem;">💻</span>
+              <div>
+                <strong style="color:var(--text-primary);font-size:0.98rem;display:block;">Instalar no Computador</strong>
+                <span style="font-size:0.75rem;color:var(--purple);font-weight:600;">Windows, Mac e Linux (PWA)</span>
+              </div>
+            </div>
+            
+            <p style="font-size:0.82rem;color:var(--text-secondary);line-height:1.4;margin:0;">
+              Execute o Gisa como um aplicativo nativo em sua própria janela, com atalhos de teclado e funcionamento 100% offline.
+            </p>
+
+            <button class="btn btn-primary" id="modal-pwa-install-btn" style="width:100%;margin-top:auto;background:linear-gradient(135deg, var(--purple), var(--violet));">
+              ⚡ Instalar no Computador Agora
+            </button>
+            <small style="font-size:0.72rem;color:var(--text-muted);text-align:center;">
+              (Ou clique no ícone ⊕ na barra de endereço do navegador)
+            </small>
+          </div>
+
+          <!-- Card 2: Baixar APK para Celular Android -->
+          <div style="background:var(--bg-card2);border:1px solid rgba(34,197,94,0.3);border-radius:var(--radius-lg);padding:18px;display:flex;flex-direction:column;gap:12px;box-shadow:0 4px 14px rgba(0,0,0,0.2);">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span style="font-size:2rem;">📱</span>
+              <div>
+                <strong style="color:var(--text-primary);font-size:0.98rem;display:block;">Baixar APK Android</strong>
+                <span style="font-size:0.75rem;color:var(--green);font-weight:600;">Instalação direta no Celular</span>
+              </div>
+            </div>
+            
+            <p style="font-size:0.82rem;color:var(--text-secondary);line-height:1.4;margin:0;">
+              Baixe o pacote <code>app-debug.apk</code> gerado automaticamente para instalar no seu smartphone ou tablet Android.
+            </p>
+
+            <a href="${GITHUB_RELEASES_URL}" target="_blank" rel="noopener" class="btn btn-secondary" style="width:100%;text-decoration:none;text-align:center;margin-top:auto;background:rgba(34,197,94,0.15);border-color:rgba(34,197,94,0.4);color:var(--green);">
+              📥 Baixar APK no GitHub Releases ↗
+            </a>
+            <small style="font-size:0.72rem;color:var(--text-muted);text-align:center;">
+              Versão mais recente compilada
+            </small>
+          </div>
+
+        </div>
+
+        <!-- Instruções Rápidas de Instalação do APK -->
+        <div style="background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 16px;">
+          <strong style="font-size:0.8rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:6px;">
+            ℹ️ Como instalar no Android:
+          </strong>
+          <ol style="margin:0;padding-left:20px;font-size:0.8rem;color:var(--text-secondary);line-height:1.5;">
+            <li>Clique no botão verde acima para abrir os <strong>Releases</strong>.</li>
+            <li>Baixe o arquivo <strong><code>app-debug.apk</code></strong>.</li>
+            <li>Abra o arquivo no celular e autorize "Instalar de Fontes Desconhecidas" caso seja solicitado.</li>
+          </ol>
+        </div>
+
+      </div>
+    `;
+
+    modal(
+      '📲 Baixar / Instalar o Aplicativo Gisa',
+      bodyHtml,
+      [
+        { label: 'Fechar', style: 'btn-ghost' }
+      ]
+    );
+
+    setTimeout(() => {
+      const pwaBtn = document.getElementById('modal-pwa-install-btn');
+      if (pwaBtn) {
+        pwaBtn.onclick = async () => {
+          if (window.__gisaDeferredInstallPrompt) {
+            window.__gisaDeferredInstallPrompt.prompt();
+            const { outcome } = await window.__gisaDeferredInstallPrompt.userChoice;
+            if (outcome === 'accepted') {
+              toast('Gisa instalado no computador!', 'success');
+              window.__gisaDeferredInstallPrompt = null;
+            }
+          } else {
+            toast('Para instalar no PC: clique no ícone de instalar na barra do navegador (Chrome/Edge)!', 'info');
+          }
+        };
+      }
+    }, 50);
+  }
+
+  function updateUserProfileNavbarUI() {
+    const profile = Storage.getProfile();
+    const avatarEl = document.getElementById('nav-user-avatar');
+    const nameEl = document.getElementById('nav-user-name');
+    if (avatarEl) avatarEl.textContent = profile.avatar || '👩‍🔬';
+    if (nameEl) {
+      const firstName = (profile.name || 'Perfil').split(' ')[0];
+      nameEl.textContent = firstName.length > 12 ? firstName.substring(0, 10) + '...' : firstName;
+    }
+  }
+
   return {
     el, toast, modal, renderProjectCard, renderArticleCard, renderDupPair, renderDonut,
     emptyState, loadingState, scoreBar, decisionLabel, showExclusionReasonModal, renderPRISMA,
     renderLabelChips, showLabelPicker, renderHotkeysPanel, renderLabelsManager, showAIAnalysisModal,
     highlightKeywords, renderFacetSidebar, renderAbstractInspector, showHotkeysModal,
-    showSupabaseModal, updateCloudStatusUI, showAutoResolverModal
+    showSupabaseModal, updateCloudStatusUI, showAutoResolverModal, showPdfViewerModal,
+    showProfileModal, showInstallDownloadModal, updateUserProfileNavbarUI
   };
 })();

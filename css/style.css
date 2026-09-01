@@ -1721,7 +1721,7 @@ textarea.input { resize: vertical; min-height: 100px; }
 }
 
 /* ══════════════════════════════════════════════════════════════
-   RAYYAN WORKBENCH LAYOUT (3 Painéis)
+   GISA WORKBENCH LAYOUT (3 Painéis)
    ══════════════════════════════════════════════════════════════ */
 
 .navbar-controls {
@@ -2217,7 +2217,7 @@ textarea.input { resize: vertical; min-height: 100px; }
 
 
 
-/* ─── RAYYAN WORKBENCH (3 PAINÉIS) — VIEWPORT LOCKED (ESTILO RAYYAN) ─── */
+/* ─── GISA WORKBENCH (3 PAINÉIS) — VIEWPORT LOCKED (ESTILO GISA) ─── */
 .screen-tab-rayyan {
   display: flex;
   flex-direction: column;
@@ -2716,4 +2716,69 @@ input, textarea, [contenteditable="true"] {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ── Navbar Profile & Install App Buttons ── */
+.install-app-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(99, 102, 241, 0.1);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  color: var(--purple-light, #a78bfa);
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  padding: 6px 12px;
+  transition: all 0.2s ease;
+}
+.install-app-nav-btn:hover {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: var(--purple);
+  color: #fff;
+  box-shadow: 0 0 12px var(--purple-glow);
+}
+.install-app-nav-btn.can-install {
+  border-color: var(--green);
+  color: var(--green);
+  background: rgba(34, 197, 94, 0.12);
+}
+
+.user-profile-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 5px 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+.user-profile-nav-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--purple);
+  box-shadow: 0 0 12px var(--purple-glow);
+}
+.user-avatar-badge {
+  font-size: 1.15rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.nav-user-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ── PDF Viewer & Profile Modals ── */
+.avatar-option-btn:hover {
+  border-color: var(--purple) !important;
+  transform: translateY(-2px);
+}
+.pdf-viewer-modal-content {
+  animation: fadeIn 0.2s ease-out;
+}
+
 

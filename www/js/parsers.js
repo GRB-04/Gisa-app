@@ -62,6 +62,9 @@ const Parsers = (() => {
       duplicate_score: fields.duplicate_score !== undefined ? fields.duplicate_score : null,
       duplicate_of: fields.duplicate_of || null,
       relevance_score: fields.relevance_score !== undefined ? fields.relevance_score : null,
+      has_pdf: Boolean(fields.has_pdf || fields.pdf_data),
+      pdf_name: fields.pdf_name || '',
+      pdf_data: fields.pdf_data || null,
       imported_at: fields.imported_at || new Date().toISOString()
     };
   }
@@ -302,8 +305,8 @@ const Parsers = (() => {
       const bytes = new Uint8Array(buffer);
       let rawText = '';
       
-      // Read first ~128KB of PDF to extract metadata and first page stream
-      const sliceSize = Math.min(bytes.length, 131072);
+      // Read first ~192KB of PDF to extract metadata and first page stream
+      const sliceSize = Math.min(bytes.length, 196608);
       for (let i = 0; i < sliceSize; i++) {
         const c = bytes[i];
         if (c >= 32 && c <= 126) rawText += String.fromCharCode(c);
@@ -328,7 +331,7 @@ const Parsers = (() => {
 
       // 4. Abstract extraction heuristic
       let abstract = '';
-      const absMatch = rawText.match(/(?:abstract|resumo)[:\s\n]+([\s\S]{100,1200}?)(?=\n\s*(?:keywords|palavras-chave|introduction|introdução|1\.)|\n\n)/i);
+      const absMatch = rawText.match(/(?:abstract|resumo)[:\s\n]+([\s\S]{100,1600}?)(?=\n\s*(?:keywords|palavras-chave|introduction|introdução|1\.)|\n\n)/i);
       if (absMatch) {
         abstract = absMatch[1].replace(/\s+/g, ' ').trim();
       }
@@ -340,25 +343,52 @@ const Parsers = (() => {
         authors.push(metaAuthMatch[1].replace(/\\([()\\])/g, '$1').trim());
       }
 
-      // 6. Year heuristic
+      // 6. Keywords heuristic
+      const keywords = [];
+      const kwMatch = rawText.match(/(?:keywords|palavras-chave|tags)[:\s\n]+([\s\S]{5,300}?)(?=\n\s*(?:introduction|introdução|1\.|abstract)|\n\n)/i);
+      if (kwMatch) {
+        kwMatch[1].split(/[,;•\n]/).map(k => k.trim()).filter(k => k.length > 2 && k.length < 50).forEach(k => keywords.push(k));
+      }
+
+      // 7. Year heuristic
       const yearMatch = rawText.match(/(?:19|20)\d{2}/);
       const year = yearMatch ? yearMatch[0] : '';
 
+      // 8. Generate Data URL for local reading/previewing
+      let pdfDataUrl = null;
+      if (file.size <= 25 * 1024 * 1024) {
+        try {
+          pdfDataUrl = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(file);
+          });
+        } catch {}
+      }
+
       return [makeArticle({
         title,
-        abstract: abstract || 'PDF importado diretamente. Metadados básicos e identificadores extraídos.',
+        abstract: abstract || 'PDF importado diretamente. Você pode visualizar o documento completo no leitor integrado.',
         authors,
         year,
         doi,
-        journal: 'PDF Document',
-        type: 'pdf'
+        keywords,
+        journal: 'Documento Científico (PDF)',
+        type: 'pdf',
+        has_pdf: true,
+        pdf_name: file.name,
+        pdf_data: pdfDataUrl
       }, file.name)];
     } catch (e) {
       console.warn('Erro ao processar PDF:', e);
       return [makeArticle({
         title: file.name.replace(/\.pdf$/i, '').replace(/[-_]/g, ' '),
-        abstract: 'Arquivo PDF carregado (extração de texto protegida ou indisponível).',
-        journal: 'PDF Document'
+        abstract: 'Arquivo PDF carregado no projeto.',
+        journal: 'Documento Científico (PDF)',
+        type: 'pdf',
+        has_pdf: true,
+        pdf_name: file.name
       }, file.name)];
     }
   }

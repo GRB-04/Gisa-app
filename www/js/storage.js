@@ -1,12 +1,12 @@
 /**
- * Gisa / Rayyan Modernized — Storage Engine
- * Hybrid Architecture (Phase 1: High-Performance IndexedDB + Memory Cache + Supabase Sync Queue)
+ * Gisa — Plataforma de Revisão Sistemática Inteligente
+ * Storage Engine: High-Performance IndexedDB + Memory Cache + Supabase Sync Queue
  * 
  * Stores:
  *  - 'projects': Project/Collection metadata, configuration, blindMode, keywords
  *  - 'articles': Normalized article records with indexes on project_id, decision, doi, year, sync_status
  *  - 'labels': Project tags and color codes
- *  - 'settings': User and application preferences
+ *  - 'settings': User profile and application preferences
  *  - 'sync_queue': Offline-first mutation log ready for Supabase synchronization
  */
 
@@ -710,6 +710,86 @@ const Storage = (() => {
     });
   }
 
+  // ─── USER PROFILE MANAGEMENT ─────────────────────────
+  const DEFAULT_PROFILE = {
+    name: 'Pesquisador(a)',
+    email: '',
+    avatar: '👩‍🔬',
+    institution: '',
+    role: 'Pesquisador(a) Principal',
+    bio: 'Revisão Sistemática e Análise Científica com Gisa.',
+    theme: 'dark',
+    updated_at: new Date().toISOString()
+  };
+
+  function getProfile() {
+    const s = getSettings();
+    if (s.user_profile && typeof s.user_profile === 'object') {
+      return { ...DEFAULT_PROFILE, ...s.user_profile };
+    }
+    return { ...DEFAULT_PROFILE };
+  }
+
+  function saveProfile(profileData) {
+    const current = getProfile();
+    const updated = {
+      ...current,
+      ...profileData,
+      updated_at: new Date().toISOString()
+    };
+    saveSetting('user_profile', updated);
+    return updated;
+  }
+
+  function getUserStats() {
+    const projects = getProjects();
+    let totalArticles = 0;
+    let included = 0;
+    let excluded = 0;
+    let maybe = 0;
+    let duplicates = 0;
+    let withPdf = 0;
+
+    projects.forEach(p => {
+      const arts = p.articles || [];
+      totalArticles += arts.length;
+      arts.forEach(a => {
+        if (a.decision === 'include') included++;
+        else if (a.decision === 'exclude') excluded++;
+        else if (a.decision === 'maybe') maybe++;
+        if (a.is_duplicate) duplicates++;
+        if (a.has_pdf || a.pdf_data) withPdf++;
+      });
+    });
+
+    return {
+      totalProjects: projects.length,
+      totalArticles,
+      included,
+      excluded,
+      maybe,
+      duplicates,
+      withPdf
+    };
+  }
+
+  // ─── ARTICLE PDF ATTACHMENT ──────────────────────────
+  async function attachArticlePdf(projectId, articleId, pdfDataUrl, fileName) {
+    return updateArticle(projectId, articleId, {
+      has_pdf: true,
+      pdf_data: pdfDataUrl,
+      pdf_name: fileName || 'artigo.pdf'
+    });
+  }
+
+  async function removeArticlePdf(projectId, articleId) {
+    return updateArticle(projectId, articleId, {
+      has_pdf: false,
+      pdf_data: null,
+      pdf_name: ''
+    });
+  }
+
   /**
    * Retrieve pending mutation log for Supabase hybrid synchronization
    */
@@ -761,6 +841,11 @@ const Storage = (() => {
     toggleArticleLabel,
     getSettings,
     saveSetting,
+    getProfile,
+    saveProfile,
+    getUserStats,
+    attachArticlePdf,
+    removeArticlePdf,
     recalcStats,
     persistProjectToIDB,
     getPendingSyncQueue,

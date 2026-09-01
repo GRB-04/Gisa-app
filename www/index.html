@@ -45,14 +45,24 @@
     </div>
     <div class="navbar-spacer"></div>
 
-    <div class="navbar-controls" id="navbar-controls">
+      <!-- Install / Download APK & Desktop App Button -->
+      <button class="btn btn-sm btn-ghost install-app-nav-btn" id="install-app-btn" title="Baixar APK ou Instalar no Computador">
+        📲 <span class="nav-btn-text">Baixar App</span>
+      </button>
+
       <!-- Supabase Cloud Sync Button -->
       <button class="btn btn-sm btn-ghost cloud-sync-nav-btn" id="cloud-sync-btn" title="Configurar e Sincronizar Supabase">
         ☁️ <span id="cloud-status-text">Nuvem</span>
         <span id="cloud-status-dot" class="status-dot"></span>
       </button>
 
-      <!-- Dynamic Rayyan Controls (Blind mode toggle, Hotkeys button) injected by App -->
+      <!-- User Profile Button -->
+      <button class="btn btn-sm btn-ghost user-profile-nav-btn" id="user-profile-btn" title="Meu Perfil de Pesquisador">
+        <span class="user-avatar-badge" id="nav-user-avatar">👤</span>
+        <span class="nav-user-name" id="nav-user-name">Perfil</span>
+      </button>
+
+      <!-- Dynamic Gisa Controls (Blind mode toggle, Hotkeys button) injected by App -->
       <button class="btn btn-sm btn-ghost hotkeys-help-btn" id="hotkeys-btn" title="Ver atalhos de teclado (?)">
         ⌨️ Atalhos <kbd>?</kbd>
       </button>
