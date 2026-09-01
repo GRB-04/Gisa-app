@@ -493,11 +493,11 @@ const App = (() => {
         <div class="home-hero">
           <h1 class="hero-title">Acelerador de <span class="gradient-text">Revisão Sistemática</span></h1>
           <p class="hero-sub">Reduza semanas de triagem manual para dias. Triagem com atalhos de teclado, Modo Cego (*Blind Mode*), desduplicação e gráficos PRISMA.</p>
-          <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:10px;">
-            <button class="btn btn-primary btn-lg" id="new-project-btn">
+          <div class="home-hero-actions">
+            <button class="btn btn-primary" id="new-project-btn">
               + Criar Novo Projeto de Revisão
             </button>
-            <button class="btn btn-secondary btn-lg" id="home-download-app-btn" style="background:rgba(99,102,241,0.12);border-color:rgba(99,102,241,0.35);">
+            <button class="btn btn-secondary" id="home-download-app-btn">
               📲 Baixar APK
             </button>
           </div>
