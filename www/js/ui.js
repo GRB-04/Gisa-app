@@ -2061,21 +2061,28 @@ const UI = (() => {
     const hasEmail = profile.email && profile.email.includes('@');
 
     if (hasEmail) {
-      // Show real Google photo if available
-      const avatarSrc = profile.avatar;
-      if (avatarSrc && (avatarSrc.startsWith('http') || avatarSrc.startsWith('data:'))) {
-        avatarEl.innerHTML = `<img src="${avatarSrc}" alt="Avatar" style="width:22px;height:22px;border-radius:50%;vertical-align:middle;object-fit:cover;" onerror="this.parentElement.textContent='${(profile.name || 'U').charAt(0).toUpperCase()}'">`;
+      // Check for a real photo URL (stored in avatar or picture field)
+      const photoUrl = profile.avatar && profile.avatar.startsWith('http')
+        ? profile.avatar
+        : (profile.picture && profile.picture.startsWith('http') ? profile.picture : null);
+
+      if (photoUrl) {
+        avatarEl.innerHTML = `<img src="${photoUrl}" alt="Avatar" style="width:22px;height:22px;border-radius:50%;vertical-align:middle;object-fit:cover;display:inline-block;">`;
+        avatarEl.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;';
       } else {
-        // Show initials
-        const initials = (profile.name || 'P').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
-        avatarEl.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;font-size:0.68rem;font-weight:700;vertical-align:middle;';
+        // Initials circle for email login without photo
+        const initials = (profile.name || 'P').split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
+        avatarEl.innerHTML = '';
         avatarEl.textContent = initials;
+        avatarEl.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;font-size:0.68rem;font-weight:800;vertical-align:middle;flex-shrink:0;';
       }
 
       const firstName = (profile.name || 'Perfil').split(' ')[0];
       nameEl.textContent = firstName.length > 12 ? firstName.substring(0, 10) + '…' : firstName;
     } else {
-      avatarEl.textContent = '👤';
+      avatarEl.innerHTML = '';
+      avatarEl.textContent = '';
+      avatarEl.style.cssText = '';
       nameEl.textContent = 'Entrar';
     }
   }
