@@ -2673,16 +2673,20 @@ Gerado por Gisa · ${date}
     });
 
     // Install / Download APK & Desktop App button
-    $('install-app-btn')?.addEventListener('click', () => {
-      UI.showInstallDownloadModal();
-    });
+    const installBtn = $('install-app-btn');
+    if (installBtn) {
+      installBtn.onclick = () => UI.showInstallDownloadModal();
+    }
 
     // User Profile navbar button
-    $('user-profile-btn')?.addEventListener('click', () => {
-      UI.showProfileModal(() => {
-        UI.updateUserProfileNavbarUI();
-      });
-    });
+    const userProfileBtn = $('user-profile-btn');
+    if (userProfileBtn) {
+      userProfileBtn.onclick = () => {
+        UI.showProfileModal(() => {
+          UI.updateUserProfileNavbarUI();
+        });
+      };
+    }
     UI.updateUserProfileNavbarUI();
 
     // Supabase Cloud Sync / Auth button
@@ -2727,7 +2731,10 @@ Gerado por Gisa · ${date}
     }
 
     // Hotkeys help header button
-    $('hotkeys-btn')?.addEventListener('click', () => UI.showHotkeysModal());
+    const hotkeysBtn = $('hotkeys-btn');
+    if (hotkeysBtn) {
+      hotkeysBtn.onclick = () => UI.showHotkeysModal();
+    }
 
     // ─── Global keyboard shortcuts (Gisa Hotkeys Engine) ───
     document.addEventListener('keydown', e => {

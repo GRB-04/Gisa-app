@@ -59,16 +59,41 @@ const UI = (() => {
 
   /* ── Modal ───────────────────────────────────────────── */
   function modal(title, bodyHtml, actions = []) {
-    const overlay = el('div', { class: 'modal-overlay', onclick: (e) => { if (e.target === overlay) overlay.remove(); } });
+    // Clean up any existing modal overlay from DOM first
+    document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+
+    const overlay = el('div', { class: 'modal-overlay' });
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+      }
+    });
+
     const box = el('div', { class: 'modal-box' });
     const header = el('div', { class: 'modal-header' },
       el('h3', { class: 'modal-title' }, title),
-      el('button', { class: 'modal-close', 'aria-label': 'Fechar modal', onclick: () => overlay.remove() }, '×')
+      el('button', {
+        class: 'modal-close',
+        'aria-label': 'Fechar modal',
+        onclick: (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+        }
+      }, '×')
     );
     const body = el('div', { class: 'modal-body', html: bodyHtml });
     const footer = el('div', { class: 'modal-footer' });
     actions.forEach(({ label, style, cb }) => {
-      const btn = el('button', { class: `btn ${style || 'btn-ghost'}`, onclick: () => { if (cb) cb(); overlay.remove(); } }, label);
+      const btn = el('button', {
+        class: `btn ${style || 'btn-ghost'}`,
+        onclick: (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+          if (cb) cb();
+        }
+      }, label);
       footer.appendChild(btn);
     });
     box.append(header, body, footer);

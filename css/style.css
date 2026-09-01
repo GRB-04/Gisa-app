@@ -3413,65 +3413,88 @@ input, textarea, [contenteditable="true"] {
 }
 }
 
-/* ── Navbar Profile & Install App Buttons ── */
-.install-app-nav-btn {
+/* ── Padronized Navbar Buttons (Apple Pro Glass Pill) ── */
+.navbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+.install-app-nav-btn,
+.user-profile-nav-btn,
+.hotkeys-help-btn,
+.blind-toggle-btn {
+  height: 36px;
+  min-height: 36px;
+  padding: 0 14px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: rgba(99, 102, 241, 0.1);
-  border: 1px solid rgba(99, 102, 241, 0.3);
-  color: var(--purple-light, #a78bfa);
+  justify-content: center;
+  gap: 7px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(168, 85, 247, 0.28);
+  color: var(--text-primary);
+  font-size: 0.83rem;
   font-weight: 600;
-  border-radius: var(--radius-md);
-  padding: 6px 12px;
-  transition: all 0.2s ease;
+  white-space: nowrap;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: all 0.2s cubic-bezier(0.23, 1, 0.32, 1);
 }
-.install-app-nav-btn:hover {
-  background: rgba(99, 102, 241, 0.2);
+
+.install-app-nav-btn:hover,
+.user-profile-nav-btn:hover,
+.hotkeys-help-btn:hover,
+.blind-toggle-btn:hover {
+  background: rgba(168, 85, 247, 0.14);
   border-color: var(--purple);
-  color: #fff;
-  box-shadow: 0 0 12px var(--purple-glow);
-}
-.install-app-nav-btn.can-install {
-  border-color: var(--green);
-  color: var(--green);
-  background: rgba(34, 197, 94, 0.12);
+  color: #ffffff;
+  box-shadow: 0 0 14px var(--purple-glow);
+  transform: translateY(-1px);
 }
 
 .user-profile-nav-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 5px 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-  transition: all 0.2s ease;
-  cursor: pointer;
+  padding: 0 14px 0 8px;
 }
-.user-profile-nav-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: var(--purple);
-  box-shadow: 0 0 12px var(--purple-glow);
-}
+
 .user-avatar-badge {
-  font-size: 1.15rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
+
+.user-avatar-badge img {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid var(--purple);
+}
+
 .nav-user-name {
-  font-size: 0.82rem;
+  font-size: 0.83rem;
   font-weight: 600;
   color: var(--text-primary);
 }
 
-/* ── PDF Viewer & Profile Modals ── */
-.avatar-option-btn:hover {
-  border-color: var(--purple) !important;
-  transform: translateY(-2px);
+.hotkeys-help-btn kbd {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--violet);
+}
+
+.blind-toggle-btn.blind-active {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.6);
+  color: #fca5a5;
+  font-weight: 700;
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.35);
 }
 .pdf-viewer-modal-content {
   animation: fadeIn 0.2s ease-out;
