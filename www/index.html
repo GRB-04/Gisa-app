@@ -24,7 +24,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&display=swap" rel="stylesheet"/>
 
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=39"/>
+  <link rel="stylesheet" href="css/style.css?v=40"/>
 
   <!-- App Icons -->
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg"/>
@@ -35,36 +35,36 @@
 <div id="app">
 
   <!-- ── HEADER / TOP NAVBAR ───────────────────────────────── -->
-  <header id="navbar" style="display:none;">
-    <div class="navbar-left">
-      <div class="navbar-brand" id="navbar-brand-btn">
-        <div class="brand-icon">G</div>
-        <div class="brand-text">
-          <span class="brand-title">Gisa</span>
-          <span class="brand-sub">Revisão Sistemática</span>
-        </div>
+  <header class="navbar" id="navbar" style="display:none;">
+    <div class="navbar-brand" id="navbar-brand-btn" title="Ir para a página inicial">
+      <div class="navbar-logo">G</div>
+      <div>
+        <div class="navbar-name">Gisa</div>
+        <div class="navbar-tagline">Revisão Sistemática</div>
       </div>
     </div>
 
-    <div class="navbar-actions">
+    <div class="navbar-spacer"></div>
+
+    <div class="navbar-controls" id="navbar-controls">
       <!-- Direct APK / Desktop App Download Trigger -->
-      <button class="btn btn-sm btn-ghost" id="install-app-btn" title="Instalar aplicativo ou Baixar APK">
-        📲 Baixar App
+      <button class="btn btn-sm btn-ghost install-app-nav-btn" id="install-app-btn" title="Instalar aplicativo ou Baixar APK">
+        📲 <span class="nav-btn-text">Baixar App</span>
       </button>
 
       <!-- User Profile Navbar Pill -->
-      <button class="btn btn-sm btn-ghost user-profile-btn" id="user-profile-btn" title="Perfil do Pesquisador" style="display:flex;align-items:center;gap:6px;">
-        <span id="nav-user-avatar" style="display:inline-flex;align-items:center;justify-content:center;"></span>
-        <span id="nav-user-name">Entrar</span>
+      <button class="btn btn-sm btn-ghost user-profile-nav-btn" id="user-profile-btn" title="Perfil do Pesquisador">
+        <span id="nav-user-avatar" class="user-avatar-badge"></span>
+        <span id="nav-user-name" class="nav-user-name">Entrar</span>
       </button>
 
       <!-- Keyboard Shortcuts -->
-      <button class="btn btn-sm btn-ghost" id="shortcuts-btn" title="Atalhos do Teclado (Pressione ?)">
-        ⌨️ Atalhos ?
+      <button class="btn btn-sm btn-ghost hotkeys-help-btn" id="hotkeys-btn" title="Atalhos do Teclado (Pressione ?)">
+        ⌨️ Atalhos <kbd>?</kbd>
       </button>
 
       <!-- Blind Mode Toggle -->
-      <button class="btn btn-sm btn-outline blind-mode-btn" id="blind-mode-btn" title="Modo Cego — Oculte autores e periódicos durante a triagem para evitar viés (Cochrane)">
+      <button class="btn btn-sm blind-toggle-btn" id="blind-mode-btn" title="Modo Cego — Oculte autores e periódicos durante a triagem para evitar viés (Cochrane)">
         👁️ Modo Cego: <span id="blind-status-text">OFF</span>
       </button>
     </div>
@@ -85,13 +85,13 @@
 <!-- ── SCRIPTS ─────────────────────────────────────────────── -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="console.warn('Supabase CDN indisponível ou bloqueado. A aplicação funcionará em modo Local-First.')"></script>
-<script src="js/storage.js?v=39"></script>
-<script src="js/supabase_client.js?v=39"></script>
-<script src="js/similarity.js?v=39"></script>
-<script src="js/parsers.js?v=39"></script>
-<script src="js/ai_assistant.js?v=39"></script>
-<script src="js/ui.js?v=39"></script>
-<script src="js/app.js?v=39"></script>
+<script src="js/storage.js?v=40"></script>
+<script src="js/supabase_client.js?v=40"></script>
+<script src="js/similarity.js?v=40"></script>
+<script src="js/parsers.js?v=40"></script>
+<script src="js/ai_assistant.js?v=40"></script>
+<script src="js/ui.js?v=40"></script>
+<script src="js/app.js?v=40"></script>
 
 <!-- Service Worker Registration for PWA / Offline Support -->
 <script>
