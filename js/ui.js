@@ -1091,52 +1091,365 @@ const UI = (() => {
     return container;
   }
 
-  /** Exibe o Modal do Supabase Cloud Sync */
-  function showSupabaseModal() {
-    const isConfigured = typeof SupabaseSync !== 'undefined' && SupabaseSync.isConfigured();
+  /** Exibe o Modal de Login, Cadastro e Sincronização em Nuvem */
+  async function showSupabaseModal(onSuccess) {
+    let currentUser = null;
+    let isConfigured = false;
+
+    if (typeof SupabaseSync !== 'undefined') {
+      isConfigured = SupabaseSync.isConfigured();
+      if (isConfigured) {
+        try {
+          currentUser = await SupabaseSync.getUser();
+        } catch {}
+      }
+    }
+
     const storedSettings = Storage.getSettings();
     const currentUrl = storedSettings['supabase_url'] || '';
     const currentKey = storedSettings['supabase_anon_key'] || '';
+    const lastSync = storedSettings['supabase_last_sync'] 
+      ? new Date(storedSettings['supabase_last_sync']).toLocaleString('pt-BR') 
+      : 'Nunca';
 
-    const bodyHtml = `
-      <div class="supabase-config-modal">
-        <p style="font-size:0.88rem;color:var(--text-secondary);margin-bottom:16px;">
-          Conecte sua conta do <strong>Supabase</strong> para sincronizar seus projetos na nuvem e colaborar em tempo real com sua equipe.
-        </p>
-        <div style="margin-bottom:12px;">
-          <label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px;">Project URL do Supabase:</label>
-          <input id="sb-url-input" class="input" style="width:100%;font-size:0.85rem;" placeholder="https://xyzcompany.supabase.co" value="${escapeHtml(currentUrl)}"/>
-        </div>
-        <div style="margin-bottom:16px;">
-          <label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px;">Anon Public Key:</label>
-          <input id="sb-key-input" type="password" class="input" style="width:100%;font-size:0.85rem;" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." value="${escapeHtml(currentKey)}"/>
-        </div>
-        ${isConfigured ? `
-          <div style="padding:10px 14px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.3);border-radius:var(--radius-sm);color:var(--green);font-size:0.82rem;margin-bottom:12px;">
-            ✓ Supabase configurado e ativo.
+    let bodyHtml = '';
+
+    if (currentUser) {
+      // ─── USUÁRIO LOGADO ───
+      const userMeta = currentUser.user_metadata || {};
+      const displayName = userMeta.full_name || currentUser.email?.split('@')[0] || 'Pesquisador(a)';
+      const avatar = userMeta.avatar || '👩‍🔬';
+
+      bodyHtml = `
+        <div class="auth-logged-modal" style="display:flex;flex-direction:column;gap:18px;">
+          <div style="display:flex;align-items:center;gap:14px;background:var(--bg-card2);padding:18px;border-radius:var(--radius-lg);border:1px solid rgba(34,197,94,0.35);">
+            <div style="font-size:2.2rem;background:var(--bg-elevated);width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid var(--green);flex-shrink:0;">${avatar}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <strong style="color:var(--text-primary);font-size:1.05rem;">${escapeHtml(displayName)}</strong>
+                <span style="font-size:0.72rem;background:var(--green-bg);color:var(--green);padding:2px 8px;border-radius:99px;font-weight:700;">Conectado</span>
+              </div>
+              <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:2px;">${escapeHtml(currentUser.email || '')}</div>
+              <div style="font-size:0.74rem;color:var(--text-muted);margin-top:4px;">Última sincronização: <strong>${lastSync}</strong></div>
+            </div>
           </div>
-        ` : ''}
-      </div>
-    `;
+
+          <div style="background:var(--bg-card2);padding:14px 16px;border-radius:var(--radius-md);border:1px solid var(--border);">
+            <div style="font-size:0.85rem;color:var(--text-primary);font-weight:700;margin-bottom:4px;">☁️ Armazenamento em Nuvem Ativo</div>
+            <p style="font-size:0.8rem;color:var(--text-secondary);margin:0;line-height:1.45;">
+              Seus projetos, artigos importados e decisões de triagem estão salvos com segurança na sua conta e sincronizam automaticamente entre seu computador e celular.
+            </p>
+          </div>
+
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-primary" id="btn-sync-now" style="flex:1;min-width:180px;">
+              🔄 Sincronizar Tudo Agora
+            </button>
+            <button class="btn btn-secondary" id="btn-open-profile-from-auth" style="min-width:120px;">
+              👤 Meu Perfil
+            </button>
+            <button class="btn btn-danger" id="btn-logout" style="background:var(--red-bg);border-color:rgba(239,68,68,0.4);color:var(--red);padding:8px 14px;">
+              🚪 Sair
+            </button>
+          </div>
+
+          <details style="margin-top:6px;font-size:0.8rem;color:var(--text-muted);">
+            <summary style="cursor:pointer;padding:4px 0;">⚙️ Configurações avançadas do servidor Supabase</summary>
+            <div style="padding-top:10px;display:flex;flex-direction:column;gap:10px;">
+              <div>
+                <label style="font-size:0.75rem;font-weight:600;display:block;margin-bottom:2px;">URL do Supabase:</label>
+                <input id="sb-url-input" class="input" style="width:100%;font-size:0.8rem;" value="${escapeHtml(currentUrl)}"/>
+              </div>
+              <div>
+                <label style="font-size:0.75rem;font-weight:600;display:block;margin-bottom:2px;">Anon Key:</label>
+                <input id="sb-key-input" type="password" class="input" style="width:100%;font-size:0.8rem;" value="${escapeHtml(currentKey)}"/>
+              </div>
+              <button class="btn btn-sm btn-secondary" id="btn-save-custom-keys">Salvar chaves personalizadas</button>
+            </div>
+          </details>
+        </div>
+      `;
+    } else {
+      // ─── USUÁRIO NÃO LOGADO (ABAS: ENTRAR / CRIAR CONTA) ───
+      bodyHtml = `
+        <div class="auth-modal" style="display:flex;flex-direction:column;gap:16px;">
+          
+          <div style="display:flex;gap:6px;background:var(--bg-card2);padding:4px;border-radius:var(--radius-md);border:1px solid var(--border);">
+            <button id="tab-auth-login" class="btn btn-sm btn-primary" style="flex:1;border-radius:var(--radius-sm);font-weight:700;">
+              🔑 Entrar
+            </button>
+            <button id="tab-auth-signup" class="btn btn-sm btn-ghost" style="flex:1;border-radius:var(--radius-sm);font-weight:700;">
+              ✨ Criar Conta
+            </button>
+          </div>
+
+          <div id="auth-tab-content">
+            <!-- TAB 1: LOGIN -->
+            <div id="auth-login-view" style="display:flex;flex-direction:column;gap:12px;">
+              <p style="font-size:0.84rem;color:var(--text-secondary);margin:0;line-height:1.45;">
+                Entre na sua conta para <strong>guardar e sincronizar seus projetos e triagens</strong> na nuvem automaticamente.
+              </p>
+              
+              <div>
+                <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Seu E-mail:</label>
+                <input id="auth-login-email" type="email" class="input" placeholder="seu.email@pesquisa.br" style="width:100%;font-size:0.9rem;" />
+              </div>
+
+              <div>
+                <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Sua Senha:</label>
+                <input id="auth-login-password" type="password" class="input" placeholder="Digite sua senha" style="width:100%;font-size:0.9rem;" />
+              </div>
+
+              <div style="display:flex;gap:10px;margin-top:4px;">
+                <button class="btn btn-primary" id="btn-do-login" style="width:100%;font-size:0.92rem;padding:11px 16px;">
+                  ⚡ Entrar e Sincronizar
+                </button>
+              </div>
+
+              <div style="text-align:center;margin-top:2px;">
+                <button id="btn-magic-link" style="background:none;border:none;color:var(--purple);cursor:pointer;font-size:0.8rem;text-decoration:underline;">
+                  Entrar sem senha (enviar link no e-mail)
+                </button>
+              </div>
+            </div>
+
+            <!-- TAB 2: SIGNUP (INICIALMENTE OCULTA) -->
+            <div id="auth-signup-view" style="display:none;flex-direction:column;gap:12px;">
+              <p style="font-size:0.84rem;color:var(--text-secondary);margin:0;line-height:1.45;">
+                Crie sua conta gratuita em segundos para salvar suas pesquisas e acessar do computador ou celular.
+              </p>
+              
+              <div>
+                <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Seu Nome:</label>
+                <input id="auth-signup-name" class="input" placeholder="Ex: Dra. Giselle Silva" style="width:100%;font-size:0.9rem;" />
+              </div>
+
+              <div>
+                <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">E-mail:</label>
+                <input id="auth-signup-email" type="email" class="input" placeholder="seu.email@pesquisa.br" style="width:100%;font-size:0.9rem;" />
+              </div>
+
+              <div>
+                <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Crie uma Senha (mín. 6 caracteres):</label>
+                <input id="auth-signup-password" type="password" class="input" placeholder="••••••••" style="width:100%;font-size:0.9rem;" />
+              </div>
+
+              <div style="margin-top:4px;">
+                <button class="btn btn-primary" id="btn-do-signup" style="width:100%;font-size:0.92rem;padding:11px 16px;background:linear-gradient(135deg, var(--purple), var(--violet));">
+                  ✨ Criar Conta Gratuita
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px 14px;display:flex;align-items:center;gap:10px;">
+            <span style="font-size:1.2rem;">💡</span>
+            <div style="font-size:0.78rem;color:var(--text-secondary);">
+              <strong>Modo Local:</strong> O Gisa também funciona 100% offline no navegador mesmo sem login. Ao criar uma conta ou entrar, tudo é sincronizado com segurança na nuvem.
+            </div>
+          </div>
+
+          <details style="margin-top:4px;font-size:0.78rem;color:var(--text-muted);">
+            <summary style="cursor:pointer;padding:4px 0;">⚙️ Configurações avançadas de servidor Supabase</summary>
+            <div style="padding-top:8px;display:flex;flex-direction:column;gap:8px;">
+              <div>
+                <label style="font-size:0.75rem;font-weight:600;display:block;margin-bottom:2px;">URL do Supabase:</label>
+                <input id="sb-url-input" class="input" style="width:100%;font-size:0.8rem;" value="${escapeHtml(currentUrl)}"/>
+              </div>
+              <div>
+                <label style="font-size:0.75rem;font-weight:600;display:block;margin-bottom:2px;">Anon Key:</label>
+                <input id="sb-key-input" type="password" class="input" style="width:100%;font-size:0.8rem;" value="${escapeHtml(currentKey)}"/>
+              </div>
+              <button class="btn btn-sm btn-secondary" id="btn-save-custom-keys">Salvar chaves personalizadas</button>
+            </div>
+          </details>
+        </div>
+      `;
+    }
 
     modal(
-      '☁️ Configurar Supabase Cloud Sync',
+      currentUser ? '☁️ Minha Conta & Nuvem' : '☁️ Entrar / Criar Conta no Gisa',
       bodyHtml,
       [
-        { label: 'Fechar', style: 'btn-ghost', cb: () => {} },
-        { label: 'Salvar e Conectar', style: 'btn-primary', cb: () => {
-          const url = document.getElementById('sb-url-input')?.value?.trim();
-          const key = document.getElementById('sb-key-input')?.value?.trim();
-          if (url && key && typeof SupabaseSync !== 'undefined') {
-            SupabaseSync.configure(url, key);
-            toast('Supabase configurado com sucesso!', 'success');
-            updateCloudStatusUI();
-          } else if (!url || !key) {
-            toast('Preencha a URL e a chave Anon', 'error');
-          }
-        }}
+        { label: 'Fechar', style: 'btn-ghost' }
       ]
     );
+
+    setTimeout(() => {
+      // Tab switcher
+      const tabLogin = document.getElementById('tab-auth-login');
+      const tabSignup = document.getElementById('tab-auth-signup');
+      const loginView = document.getElementById('auth-login-view');
+      const signupView = document.getElementById('auth-signup-view');
+
+      if (tabLogin && tabSignup && loginView && signupView) {
+        tabLogin.onclick = () => {
+          tabLogin.className = 'btn btn-sm btn-primary';
+          tabSignup.className = 'btn btn-sm btn-ghost';
+          loginView.style.display = 'flex';
+          signupView.style.display = 'none';
+        };
+        tabSignup.onclick = () => {
+          tabSignup.className = 'btn btn-sm btn-primary';
+          tabLogin.className = 'btn btn-sm btn-ghost';
+          signupView.style.display = 'flex';
+          loginView.style.display = 'none';
+        };
+      }
+
+      // Login Action
+      const btnDoLogin = document.getElementById('btn-do-login');
+      if (btnDoLogin) {
+        btnDoLogin.onclick = async () => {
+          const email = document.getElementById('auth-login-email')?.value?.trim();
+          const pass = document.getElementById('auth-login-password')?.value;
+          if (!email || !pass) {
+            toast('Preencha seu e-mail e senha.', 'error');
+            return;
+          }
+          btnDoLogin.disabled = true;
+          btnDoLogin.textContent = 'Entrando…';
+          try {
+            await SupabaseSync.signIn(email, pass);
+            const user = await SupabaseSync.getUser();
+            if (user) {
+              const profile = Storage.getProfile();
+              if (user.user_metadata?.full_name && !profile.name) {
+                Storage.saveProfile({ ...profile, name: user.user_metadata.full_name, email: user.email });
+              }
+            }
+            toast('Login realizado com sucesso! Sincronizando...', 'success');
+            await SupabaseSync.syncAll();
+            updateCloudStatusUI();
+            updateUserProfileNavbarUI();
+            document.querySelector('.modal-overlay')?.remove();
+            if (onSuccess) onSuccess();
+          } catch (err) {
+            toast('Erro ao entrar: ' + (err.message || 'Credenciais inválidas'), 'error');
+          } finally {
+            btnDoLogin.disabled = false;
+            btnDoLogin.textContent = '⚡ Entrar e Sincronizar';
+          }
+        };
+      }
+
+      // Sign Up Action
+      const btnDoSignup = document.getElementById('btn-do-signup');
+      if (btnDoSignup) {
+        btnDoSignup.onclick = async () => {
+          const name = document.getElementById('auth-signup-name')?.value?.trim() || 'Pesquisador(a)';
+          const email = document.getElementById('auth-signup-email')?.value?.trim();
+          const pass = document.getElementById('auth-signup-password')?.value;
+          if (!email || !pass) {
+            toast('Preencha e-mail e senha.', 'error');
+            return;
+          }
+          if (pass.length < 6) {
+            toast('A senha deve ter pelo menos 6 caracteres.', 'error');
+            return;
+          }
+          btnDoSignup.disabled = true;
+          btnDoSignup.textContent = 'Criando conta…';
+          try {
+            await SupabaseSync.signUp(email, pass);
+            await SupabaseSync.updateUserMetadata({ full_name: name });
+            const profile = Storage.getProfile();
+            Storage.saveProfile({ ...profile, name, email });
+            toast('Conta criada com sucesso! Sincronizando...', 'success');
+            await SupabaseSync.syncAll();
+            updateCloudStatusUI();
+            updateUserProfileNavbarUI();
+            document.querySelector('.modal-overlay')?.remove();
+            if (onSuccess) onSuccess();
+          } catch (err) {
+            toast('Erro ao criar conta: ' + (err.message || 'Erro inesperado'), 'error');
+          } finally {
+            btnDoSignup.disabled = false;
+            btnDoSignup.textContent = '✨ Criar Conta Gratuita';
+          }
+        };
+      }
+
+      // Magic Link Action
+      const btnMagic = document.getElementById('btn-magic-link');
+      if (btnMagic) {
+        btnMagic.onclick = async () => {
+          const email = document.getElementById('auth-login-email')?.value?.trim();
+          if (!email) {
+            toast('Digite seu e-mail acima para receber o link de acesso.', 'error');
+            return;
+          }
+          try {
+            await SupabaseSync.signInWithOtp(email);
+            toast('Link de acesso enviado para o seu e-mail!', 'success');
+          } catch (err) {
+            toast('Erro ao enviar link: ' + err.message, 'error');
+          }
+        };
+      }
+
+      // Sync Now Action (when logged in)
+      const btnSyncNow = document.getElementById('btn-sync-now');
+      if (btnSyncNow) {
+        btnSyncNow.onclick = async () => {
+          btnSyncNow.disabled = true;
+          btnSyncNow.textContent = 'Sincronizando…';
+          try {
+            const res = await SupabaseSync.syncAll();
+            if (res.success) {
+              toast('Sincronização concluída com sucesso!', 'success');
+              updateCloudStatusUI();
+              document.querySelector('.modal-overlay')?.remove();
+              if (onSuccess) onSuccess();
+            } else {
+              toast('Erro na sincronização: ' + res.error, 'error');
+            }
+          } catch (e) {
+            toast('Erro ao sincronizar: ' + e.message, 'error');
+          } finally {
+            btnSyncNow.disabled = false;
+            btnSyncNow.textContent = '🔄 Sincronizar Tudo Agora';
+          }
+        };
+      }
+
+      // Profile shortcut from auth modal
+      const btnProfileFromAuth = document.getElementById('btn-open-profile-from-auth');
+      if (btnProfileFromAuth) {
+        btnProfileFromAuth.onclick = () => {
+          document.querySelector('.modal-overlay')?.remove();
+          showProfileModal(() => updateUserProfileNavbarUI());
+        };
+      }
+
+      // Logout Action
+      const btnLogout = document.getElementById('btn-logout');
+      if (btnLogout) {
+        btnLogout.onclick = async () => {
+          await SupabaseSync.signOut();
+          toast('Você saiu da conta.', 'info');
+          updateCloudStatusUI();
+          document.querySelector('.modal-overlay')?.remove();
+          if (onSuccess) onSuccess();
+        };
+      }
+
+      // Save custom keys
+      const btnSaveKeys = document.getElementById('btn-save-custom-keys');
+      if (btnSaveKeys) {
+        btnSaveKeys.onclick = () => {
+          const url = document.getElementById('sb-url-input')?.value?.trim();
+          const key = document.getElementById('sb-key-input')?.value?.trim();
+          if (url && key) {
+            SupabaseSync.configure(url, key);
+            toast('Chaves do Supabase atualizadas com sucesso!', 'success');
+            updateCloudStatusUI();
+          } else {
+            toast('Preencha a URL e a chave Anon.', 'error');
+          }
+        };
+      }
+    }, 50);
   }
 
   /** Exibe o Modal de Atalhos de Teclado Gisa */
@@ -1160,18 +1473,28 @@ const UI = (() => {
     );
   }
 
-  function updateCloudStatusUI() {
+  async function updateCloudStatusUI() {
     const dot = document.getElementById('cloud-status-dot');
     const txt = document.getElementById('cloud-status-text');
     if (!dot || !txt) return;
 
     if (typeof SupabaseSync !== 'undefined' && SupabaseSync.isConfigured()) {
-      dot.style.background = '#22c55e';
-      dot.title = 'Supabase Conectado';
-      txt.textContent = 'Nuvem Conectada';
-    } else {
+      try {
+        const user = await SupabaseSync.getUser();
+        if (user) {
+          dot.style.background = '#22c55e';
+          dot.title = `Conectado como ${user.email}`;
+          const name = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Conectado';
+          txt.textContent = name.length > 12 ? name.substring(0, 10) + '…' : name;
+          return;
+        }
+      } catch {}
       dot.style.background = '#a855f7';
-      dot.title = 'Local-Only (IndexedDB)';
+      dot.title = 'Nuvem pronta (Clique para entrar)';
+      txt.textContent = 'Entrar';
+    } else {
+      dot.style.background = '#94a3b8';
+      dot.title = 'Modo Local (IndexedDB)';
       txt.textContent = 'Nuvem';
     }
   }

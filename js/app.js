@@ -2189,7 +2189,7 @@ Gerado por Gisa · ${date}
     });
     UI.updateUserProfileNavbarUI();
 
-    // Supabase Cloud Sync button
+    // Supabase Cloud Sync / Auth button
     const cloudBtn = $('cloud-sync-btn');
     if (cloudBtn) {
       cloudBtn.onclick = () => {
@@ -2198,6 +2198,25 @@ Gerado por Gisa · ${date}
         });
       };
       UI.updateCloudStatusUI();
+
+      if (typeof SupabaseSync !== 'undefined') {
+        SupabaseSync.onSyncStatusChange(() => {
+          UI.updateCloudStatusUI();
+          UI.updateUserProfileNavbarUI();
+        });
+
+        // Trigger background sync if user is logged in
+        SupabaseSync.getUser().then(user => {
+          if (user) {
+            console.log('Usuário autenticado encontrado:', user.email, 'Iniciando sincronização...');
+            SupabaseSync.syncAll().then(res => {
+              if (res.success) {
+                render();
+              }
+            }).catch(() => {});
+          }
+        }).catch(() => {});
+      }
     }
 
     // Blind mode toggle header button
