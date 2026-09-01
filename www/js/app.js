@@ -498,7 +498,7 @@ const App = (() => {
               + Criar Novo Projeto de Revisão
             </button>
             <button class="btn btn-secondary btn-lg" id="home-download-app-btn" style="background:rgba(99,102,241,0.12);border-color:rgba(99,102,241,0.35);">
-              📲 Baixar APK / Instalar no PC
+              📲 Baixar APK
             </button>
           </div>
         </div>

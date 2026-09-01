@@ -1998,22 +1998,18 @@ const UI = (() => {
             <div style="display:flex;align-items:center;gap:10px;">
               <span style="font-size:2rem;">📱</span>
               <div>
-                <strong style="color:var(--text-primary);font-size:0.98rem;display:block;">Baixar APK Android</strong>
+                <strong style="color:var(--text-primary);font-size:0.98rem;display:block;">Baixar APK</strong>
                 <span style="font-size:0.75rem;color:var(--green);font-weight:600;">Instalação direta no Celular</span>
               </div>
             </div>
             
             <p style="font-size:0.82rem;color:var(--text-secondary);line-height:1.4;margin:0;">
-              Baixe o arquivo <code>app-debug.apk</code> compilado para instalar diretamente no seu smartphone Android.
+              Baixe o aplicativo nativo para instalar diretamente no seu smartphone Android.
             </p>
 
             <a href="${DIRECT_APK_DOWNLOAD_URL}" download="app-debug.apk" class="btn btn-primary" style="width:100%;text-decoration:none;text-align:center;margin-top:auto;background:linear-gradient(135deg, #16a34a, #22c55e);color:#fff;font-weight:700;box-shadow:0 4px 14px rgba(34,197,94,0.3);display:flex;align-items:center;justify-content:center;gap:8px;">
-              📥 Baixar APK Direto (.apk)
+              📥 Baixar APK
             </a>
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <small style="font-size:0.72rem;color:var(--text-muted);">Download da versão mais recente</small>
-              <a href="${GITHUB_RELEASES_PAGE}" target="_blank" rel="noopener" style="font-size:0.72rem;color:var(--text-secondary);text-decoration:underline;">Ver releases ↗</a>
-            </div>
           </div>
 
         </div>
