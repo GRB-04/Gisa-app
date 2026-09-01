@@ -1908,13 +1908,6 @@ const UI = (() => {
       'Perfil do Pesquisador',
       bodyHtml,
       [
-        {
-          label: '🚪 Sair da Conta',
-          style: 'btn-ghost text-danger',
-          cb: () => {
-            if (typeof App !== 'undefined' && App.logout) App.logout();
-          }
-        },
         { label: 'Fechar', style: 'btn-ghost' },
         {
           label: 'Salvar Perfil',
