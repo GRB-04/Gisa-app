@@ -51,80 +51,168 @@ const App = (() => {
   }
 
   // ─────────────────────────────────────────────────────
-  // AUTH SCREEN (WELCOME / LOGIN / CADASTRO GATEWAY)
+  // AUTH SCREEN (LANDING ONBOARDING + INTEGRATED AUTH)
   // ─────────────────────────────────────────────────────
   function renderAuthScreen() {
     const main = $('main-content');
     main.innerHTML = `
-      <div class="auth-page-wrapper">
-        <div class="auth-card-box">
-          <div class="auth-header">
-            <div class="auth-header-logo">G</div>
-            <h1>Acesse o <span class="gradient-text">Gisa</span></h1>
-            <p>Plataforma Inteligente de Revisão Sistemática. Guarde suas pesquisas e acesse de qualquer lugar.</p>
+      <div class="landing-page-wrapper">
+        
+        <!-- ── HERO + AUTH INTEGRATED GRID ── -->
+        <div class="landing-hero-grid">
+          
+          <!-- LEFT: INTRO & BENEFITS -->
+          <div class="landing-intro-col">
+            <div class="landing-badge">✨ Plataforma 100% Gratuita para Pesquisadores</div>
+            <h1 class="landing-title">
+              Acelere sua <span class="gradient-text">Revisão Sistemática</span> de Semanas para Dias
+            </h1>
+            <p class="landing-sub">
+              A plataforma inteligente para triar artigos científicos sem viés, eliminar duplicatas com IA e gerar relatórios PRISMA automatizados.
+            </p>
+
+            <div class="landing-benefits-list">
+              <div class="landing-benefit-item">
+                <div class="landing-benefit-icon">⚡</div>
+                <div class="landing-benefit-text">
+                  <strong>Triagem 10x Mais Rápida</strong>
+                  Atalhos de teclado ágeis (I: Incluir, E: Excluir, M: Talvez) e leitura otimizada de resumos.
+                </div>
+              </div>
+
+              <div class="landing-benefit-item">
+                <div class="landing-benefit-icon">👁️</div>
+                <div class="landing-benefit-text">
+                  <strong>Modo Cego Cochrane (Blind Screening)</strong>
+                  Oculte autores e periódicos durante a triagem para garantir rigor científico e neutralidade.
+                </div>
+              </div>
+
+              <div class="landing-benefit-item">
+                <div class="landing-benefit-icon">☁️</div>
+                <div class="landing-benefit-text">
+                  <strong>Nuvem Segura & Multiplataforma</strong>
+                  Acesse suas pesquisas do computador, tablet ou celular (App Android APK) com sincronização automática.
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div style="display:flex;gap:6px;background:var(--bg-card2);padding:4px;border-radius:var(--radius-md);border:1px solid var(--border);">
-            <button id="auth-screen-tab-login" class="btn btn-sm btn-primary" style="flex:1;border-radius:var(--radius-sm);font-weight:700;">
-              🔑 Entrar
-            </button>
-            <button id="auth-screen-tab-signup" class="btn btn-sm btn-ghost" style="flex:1;border-radius:var(--radius-sm);font-weight:700;">
-              ✨ Criar Conta
-            </button>
+          <!-- RIGHT: AUTH CARD (SIGNUP & LOGIN TABS) -->
+          <div class="landing-auth-col">
+            <div class="auth-card-box">
+              <div class="auth-header">
+                <div class="auth-header-logo">G</div>
+                <h2>Comece Agora no <span class="gradient-text">Gisa</span></h2>
+                <p>Crie sua conta gratuita ou entre para salvar suas pesquisas</p>
+              </div>
+
+              <div style="display:flex;gap:6px;background:var(--bg-card2);padding:4px;border-radius:var(--radius-md);border:1px solid var(--border);">
+                <button id="auth-screen-tab-signup" class="btn btn-sm btn-primary" style="flex:1;border-radius:var(--radius-sm);font-weight:700;">
+                  ✨ Criar Conta
+                </button>
+                <button id="auth-screen-tab-login" class="btn btn-sm btn-ghost" style="flex:1;border-radius:var(--radius-sm);font-weight:700;">
+                  🔑 Entrar
+                </button>
+              </div>
+
+              <!-- TAB 1: SIGNUP (DEFAULT) -->
+              <div id="auth-screen-signup-view" style="display:flex;flex-direction:column;gap:12px;">
+                <div>
+                  <label style="font-size:0.78rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Seu Nome Completo:</label>
+                  <input id="screen-signup-name" class="input" placeholder="Ex: Dra. Giselle Silva" style="width:100%;font-size:0.9rem;padding:10px 12px;" />
+                </div>
+
+                <div>
+                  <label style="font-size:0.78rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Seu E-mail:</label>
+                  <input id="screen-signup-email" type="email" class="input" placeholder="seu.email@pesquisa.br" style="width:100%;font-size:0.9rem;padding:10px 12px;" />
+                </div>
+
+                <div>
+                  <label style="font-size:0.78rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Crie uma Senha (mín. 6 caracteres):</label>
+                  <input id="screen-signup-password" type="password" class="input" placeholder="••••••••" style="width:100%;font-size:0.9rem;padding:10px 12px;" />
+                </div>
+
+                <button class="btn btn-primary btn-lg" id="btn-screen-signup" style="width:100%;font-size:0.95rem;padding:12px;margin-top:2px;background:linear-gradient(135deg, var(--purple), var(--violet));">
+                  🚀 Criar Minha Conta Gratuita
+                </button>
+              </div>
+
+              <!-- TAB 2: LOGIN -->
+              <div id="auth-screen-login-view" style="display:none;flex-direction:column;gap:12px;">
+                <div>
+                  <label style="font-size:0.78rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Seu E-mail:</label>
+                  <input id="screen-login-email" type="email" class="input" placeholder="seu.email@pesquisa.br" style="width:100%;font-size:0.9rem;padding:10px 12px;" />
+                </div>
+
+                <div>
+                  <label style="font-size:0.78rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:4px;">Sua Senha:</label>
+                  <input id="screen-login-password" type="password" class="input" placeholder="Digite sua senha" style="width:100%;font-size:0.9rem;padding:10px 12px;" />
+                </div>
+
+                <button class="btn btn-primary btn-lg" id="btn-screen-login" style="width:100%;font-size:0.95rem;padding:12px;margin-top:2px;">
+                  ⚡ Entrar na Conta
+                </button>
+
+                <div style="text-align:center;margin-top:2px;">
+                  <button id="btn-screen-magic" style="background:none;border:none;color:var(--purple);cursor:pointer;font-size:0.8rem;text-decoration:underline;">
+                    Entrar sem senha (enviar link no e-mail)
+                  </button>
+                </div>
+              </div>
+
+              <!-- GUEST / OFFLINE OPTION -->
+              <div style="border-top:1px solid var(--border);padding-top:12px;text-align:center;">
+                <button class="btn btn-ghost btn-sm" id="btn-continue-guest" style="color:var(--text-muted);font-size:0.8rem;padding:6px 10px;">
+                  👤 Continuar sem conta (Modo Convidado / Offline)
+                </button>
+              </div>
+            </div>
           </div>
 
-          <!-- TAB 1: LOGIN -->
-          <div id="auth-screen-login-view" style="display:flex;flex-direction:column;gap:14px;">
-            <div>
-              <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px;">E-mail:</label>
-              <input id="screen-login-email" type="email" class="input" placeholder="seu.email@pesquisa.br" style="width:100%;font-size:0.95rem;padding:12px 14px;" />
+        </div>
+
+        <!-- ── HOW IT WORKS IN 3 STEPS ── -->
+        <div class="landing-steps-section">
+          <h2 class="landing-section-title">Como o Gisa Funciona em 3 Passos</h2>
+          <p class="landing-section-sub">Do upload das bases ao relatório PRISMA final pronto para publicação</p>
+
+          <div class="landing-steps-grid">
+            <div class="landing-step-card">
+              <span class="landing-step-num">Passo 01</span>
+              <h3>📥 1. Importe seus Artigos</h3>
+              <p>Importe arquivos <strong>RIS, BibTeX, CSV ou PDFs</strong> exportados do PubMed, Scopus, Web of Science, Embase ou SciELO.</p>
             </div>
 
-            <div>
-              <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px;">Senha:</label>
-              <input id="screen-login-password" type="password" class="input" placeholder="Digite sua senha" style="width:100%;font-size:0.95rem;padding:12px 14px;" />
+            <div class="landing-step-card">
+              <span class="landing-step-num">Passo 02</span>
+              <h3>⚡ 2. Trie com Agilidade</h3>
+              <p>Avalie resumos usando <strong>atalhos do teclado</strong>, destaque automático de termos de inclusão/exclusão e <strong>Modo Cego</strong>.</p>
             </div>
 
-            <button class="btn btn-primary btn-lg" id="btn-screen-login" style="width:100%;font-size:1rem;padding:12px;margin-top:4px;">
-              ⚡ Entrar no Gisa
-            </button>
-
-            <div style="text-align:center;">
-              <button id="btn-screen-magic" style="background:none;border:none;color:var(--purple);cursor:pointer;font-size:0.82rem;text-decoration:underline;">
-                Entrar sem senha (enviar link no e-mail)
-              </button>
+            <div class="landing-step-card">
+              <span class="landing-step-num">Passo 03</span>
+              <h3>📊 3. Desduplique & Exporte</h3>
+              <p>Identifique duplicatas automaticamente por % de similaridade e exporte a tabela final e o <strong>fluxograma PRISMA</strong>.</p>
             </div>
-          </div>
-
-          <!-- TAB 2: SIGNUP -->
-          <div id="auth-screen-signup-view" style="display:none;flex-direction:column;gap:14px;">
-            <div>
-              <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px;">Seu Nome Completo:</label>
-              <input id="screen-signup-name" class="input" placeholder="Ex: Dra. Giselle Silva" style="width:100%;font-size:0.95rem;padding:12px 14px;" />
-            </div>
-
-            <div>
-              <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px;">E-mail Institucional ou Pessoal:</label>
-              <input id="screen-signup-email" type="email" class="input" placeholder="seu.email@pesquisa.br" style="width:100%;font-size:0.95rem;padding:12px 14px;" />
-            </div>
-
-            <div>
-              <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px;">Crie uma Senha (mín. 6 caracteres):</label>
-              <input id="screen-signup-password" type="password" class="input" placeholder="••••••••" style="width:100%;font-size:0.95rem;padding:12px 14px;" />
-            </div>
-
-            <button class="btn btn-primary btn-lg" id="btn-screen-signup" style="width:100%;font-size:1rem;padding:12px;margin-top:4px;background:linear-gradient(135deg, var(--purple), var(--violet));">
-              ✨ Criar Conta Gratuita
-            </button>
-          </div>
-
-          <!-- GUEST / OFFLINE OPTION -->
-          <div style="border-top:1px solid var(--border);padding-top:14px;text-align:center;">
-            <button class="btn btn-ghost btn-sm" id="btn-continue-guest" style="color:var(--text-muted);font-size:0.82rem;">
-              👤 Continuar sem conta (Modo Convidado / Offline)
-            </button>
           </div>
         </div>
+
+        <!-- ── 6 PILARES DA PLATAFORMA GISA ── -->
+        <div>
+          <h2 class="landing-section-title" style="text-align:center;margin-bottom:8px;">Recursos Projetados para a Ciência</h2>
+          <p class="landing-section-sub" style="text-align:center;margin-bottom:24px;">Tudo o que sua equipe precisa em um só lugar</p>
+
+          <div class="features-strip">
+            <div class="feature-item"><span>🔒</span><p><strong>Auditabilidade</strong><br>Registro completo de decisões</p></div>
+            <div class="feature-item"><span>👁️</span><p><strong>Modo Cego</strong><br>Triagem sem viés de seleção</p></div>
+            <div class="feature-item"><span>📊</span><p><strong>Fluxo PRISMA</strong><br>Gráficos % e tabela automatizada</p></div>
+            <div class="feature-item"><span>🔄</span><p><strong>Auto-Deduplicação</strong><br>Detecção por % de similaridade</p></div>
+            <div class="feature-item"><span>⌨️</span><p><strong>Atalhos (Hotkeys)</strong><br>Triagem rápida via teclas I, E, M</p></div>
+            <div class="feature-item"><span>🤖</span><p><strong>Assistente de IA</strong><br>Destaque de termos no resumo</p></div>
+          </div>
+        </div>
+
       </div>
     `;
 
@@ -134,18 +222,20 @@ const App = (() => {
     const loginView = $('auth-screen-login-view');
     const signupView = $('auth-screen-signup-view');
 
-    tabLogin.onclick = () => {
-      tabLogin.className = 'btn btn-sm btn-primary';
-      tabSignup.className = 'btn btn-sm btn-ghost';
-      loginView.style.display = 'flex';
-      signupView.style.display = 'none';
-    };
-    tabSignup.onclick = () => {
-      tabSignup.className = 'btn btn-sm btn-primary';
-      tabLogin.className = 'btn btn-sm btn-ghost';
-      signupView.style.display = 'flex';
-      loginView.style.display = 'none';
-    };
+    if (tabLogin && tabSignup && loginView && signupView) {
+      tabLogin.onclick = () => {
+        tabLogin.className = 'btn btn-sm btn-primary';
+        tabSignup.className = 'btn btn-sm btn-ghost';
+        loginView.style.display = 'flex';
+        signupView.style.display = 'none';
+      };
+      tabSignup.onclick = () => {
+        tabSignup.className = 'btn btn-sm btn-primary';
+        tabLogin.className = 'btn btn-sm btn-ghost';
+        signupView.style.display = 'flex';
+        loginView.style.display = 'none';
+      };
+    }
 
     // Login action
     $('btn-screen-login').onclick = async () => {
