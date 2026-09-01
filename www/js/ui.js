@@ -1864,11 +1864,14 @@ const UI = (() => {
                 <option value="Orientador(a) / Docente" ${profile.role?.includes('Orientador') ? 'selected' : ''}>Orientador(a) / Docente</option>
               </select>
             </div>
+          </div>
+
+          <!-- Sessão e Sair da Conta -->
           <div style="margin-top:8px;padding-top:14px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
             <div style="font-size:0.8rem;color:var(--text-muted);">
-              Sessão iniciada como <strong>${escapeHtml(profile.email || 'Usuário')}</strong>
+              Sessão conectada como <strong>${escapeHtml(profile.email || 'Usuário')}</strong>
             </div>
-            <button type="button" id="prof-btn-logout" class="btn btn-sm" style="color:#ef4444;border:1px solid rgba(239,68,68,0.35);background:rgba(239,68,68,0.08);font-weight:600;padding:6px 14px;border-radius:var(--radius-md);cursor:pointer;transition:all 0.2s;">
+            <button type="button" id="prof-btn-logout" class="btn btn-sm" onclick="document.querySelector('.modal-overlay')?.remove(); if(typeof App !== 'undefined' && App.logout) App.logout();" style="color:#ef4444;border:1px solid rgba(239,68,68,0.4);background:rgba(239,68,68,0.1);font-weight:700;padding:6px 14px;border-radius:var(--radius-md);cursor:pointer;transition:all 0.2s;">
               🚪 Sair da Conta
             </button>
           </div>
@@ -1880,6 +1883,13 @@ const UI = (() => {
       'Perfil do Pesquisador',
       bodyHtml,
       [
+        {
+          label: '🚪 Sair da Conta',
+          style: 'btn-ghost text-danger',
+          cb: () => {
+            if (typeof App !== 'undefined' && App.logout) App.logout();
+          }
+        },
         { label: 'Fechar', style: 'btn-ghost' },
         {
           label: 'Salvar Perfil',
@@ -1916,35 +1926,6 @@ const UI = (() => {
       if (nameInput && displayName) {
         nameInput.oninput = () => {
           displayName.textContent = nameInput.value.trim() || 'Pesquisador(a)';
-        };
-      }
-
-      const logoutBtn = document.getElementById('prof-btn-logout');
-      if (logoutBtn) {
-        logoutBtn.onclick = async () => {
-          document.querySelector('.modal-overlay')?.remove();
-          if (typeof App !== 'undefined' && App.logout) {
-            await App.logout();
-          } else {
-            Storage.saveProfile({
-              name: 'Pesquisador(a)',
-              email: '',
-              avatar: '👩‍🔬',
-              picture: '',
-              institution: '',
-              role: 'Pesquisador(a) Principal',
-              bio: '',
-              theme: 'dark'
-            });
-            if (typeof SupabaseSync !== 'undefined' && SupabaseSync.isConfigured()) {
-              try { await SupabaseSync.signOut(); } catch {}
-            }
-            updateUserProfileNavbarUI();
-            toast('Você saiu da sua conta com sucesso.', 'info');
-            if (typeof App !== 'undefined' && App.navigate) {
-              App.navigate('auth');
-            }
-          }
         };
       }
     }, 50);
