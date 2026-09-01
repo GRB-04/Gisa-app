@@ -43,10 +43,200 @@ const App = (() => {
 
   // ─── Main Render ──────────────────────────────────────
   function render() {
-    if (state.view === 'home') renderHome();
+    if (state.view === 'auth') renderAuthScreen();
+    else if (state.view === 'home') renderHome();
     else if (state.view === 'project') renderProject();
     else if (state.view === 'wizard') renderWizard();
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ─────────────────────────────────────────────────────
+  // AUTH SCREEN (WELCOME / LOGIN / CADASTRO GATEWAY)
+  // ─────────────────────────────────────────────────────
+  function renderAuthScreen() {
+    const main = $('main-content');
+    main.innerHTML = `
+      <div class="auth-page-wrapper">
+        <div class="auth-card-box">
+          <div class="auth-header">
+            <div class="auth-header-logo">G</div>
+            <h1>Acesse o <span class="gradient-text">Gisa</span></h1>
+            <p>Plataforma Inteligente de Revisão Sistemática. Guarde suas pesquisas e acesse de qualquer lugar.</p>
+          </div>
+
+          <div style="display:flex;gap:6px;background:var(--bg-card2);padding:4px;border-radius:var(--radius-md);border:1px solid var(--border);">
+            <button id="auth-screen-tab-login" class="btn btn-sm btn-primary" style="flex:1;border-radius:var(--radius-sm);font-weight:700;">
+              🔑 Entrar
+            </button>
+            <button id="auth-screen-tab-signup" class="btn btn-sm btn-ghost" style="flex:1;border-radius:var(--radius-sm);font-weight:700;">
+              ✨ Criar Conta
+            </button>
+          </div>
+
+          <!-- TAB 1: LOGIN -->
+          <div id="auth-screen-login-view" style="display:flex;flex-direction:column;gap:14px;">
+            <div>
+              <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px;">E-mail:</label>
+              <input id="screen-login-email" type="email" class="input" placeholder="seu.email@pesquisa.br" style="width:100%;font-size:0.95rem;padding:12px 14px;" />
+            </div>
+
+            <div>
+              <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px;">Senha:</label>
+              <input id="screen-login-password" type="password" class="input" placeholder="Digite sua senha" style="width:100%;font-size:0.95rem;padding:12px 14px;" />
+            </div>
+
+            <button class="btn btn-primary btn-lg" id="btn-screen-login" style="width:100%;font-size:1rem;padding:12px;margin-top:4px;">
+              ⚡ Entrar no Gisa
+            </button>
+
+            <div style="text-align:center;">
+              <button id="btn-screen-magic" style="background:none;border:none;color:var(--purple);cursor:pointer;font-size:0.82rem;text-decoration:underline;">
+                Entrar sem senha (enviar link no e-mail)
+              </button>
+            </div>
+          </div>
+
+          <!-- TAB 2: SIGNUP -->
+          <div id="auth-screen-signup-view" style="display:none;flex-direction:column;gap:14px;">
+            <div>
+              <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px;">Seu Nome Completo:</label>
+              <input id="screen-signup-name" class="input" placeholder="Ex: Dra. Giselle Silva" style="width:100%;font-size:0.95rem;padding:12px 14px;" />
+            </div>
+
+            <div>
+              <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px;">E-mail Institucional ou Pessoal:</label>
+              <input id="screen-signup-email" type="email" class="input" placeholder="seu.email@pesquisa.br" style="width:100%;font-size:0.95rem;padding:12px 14px;" />
+            </div>
+
+            <div>
+              <label style="font-size:0.8rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:6px;">Crie uma Senha (mín. 6 caracteres):</label>
+              <input id="screen-signup-password" type="password" class="input" placeholder="••••••••" style="width:100%;font-size:0.95rem;padding:12px 14px;" />
+            </div>
+
+            <button class="btn btn-primary btn-lg" id="btn-screen-signup" style="width:100%;font-size:1rem;padding:12px;margin-top:4px;background:linear-gradient(135deg, var(--purple), var(--violet));">
+              ✨ Criar Conta Gratuita
+            </button>
+          </div>
+
+          <!-- GUEST / OFFLINE OPTION -->
+          <div style="border-top:1px solid var(--border);padding-top:14px;text-align:center;">
+            <button class="btn btn-ghost btn-sm" id="btn-continue-guest" style="color:var(--text-muted);font-size:0.82rem;">
+              👤 Continuar sem conta (Modo Convidado / Offline)
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Tab switcher
+    const tabLogin = $('auth-screen-tab-login');
+    const tabSignup = $('auth-screen-tab-signup');
+    const loginView = $('auth-screen-login-view');
+    const signupView = $('auth-screen-signup-view');
+
+    tabLogin.onclick = () => {
+      tabLogin.className = 'btn btn-sm btn-primary';
+      tabSignup.className = 'btn btn-sm btn-ghost';
+      loginView.style.display = 'flex';
+      signupView.style.display = 'none';
+    };
+    tabSignup.onclick = () => {
+      tabSignup.className = 'btn btn-sm btn-primary';
+      tabLogin.className = 'btn btn-sm btn-ghost';
+      signupView.style.display = 'flex';
+      loginView.style.display = 'none';
+    };
+
+    // Login action
+    $('btn-screen-login').onclick = async () => {
+      const email = $('screen-login-email')?.value?.trim();
+      const pass = $('screen-login-password')?.value;
+      if (!email || !pass) {
+        UI.toast('Preencha e-mail e senha.', 'error');
+        return;
+      }
+      const btn = $('btn-screen-login');
+      btn.disabled = true;
+      btn.textContent = 'Entrando…';
+      try {
+        await SupabaseSync.signIn(email, pass);
+        const user = await SupabaseSync.getUser();
+        if (user) {
+          const profile = Storage.getProfile();
+          if (user.user_metadata?.full_name && !profile.name) {
+            Storage.saveProfile({ ...profile, name: user.user_metadata.full_name, email: user.email });
+          }
+        }
+        UI.toast('Bem-vindo(a) de volta! Sincronizando...', 'success');
+        await SupabaseSync.syncAll();
+        UI.updateCloudStatusUI();
+        UI.updateUserProfileNavbarUI();
+        state.view = 'home';
+        render();
+      } catch (err) {
+        UI.toast('Erro ao entrar: ' + (err.message || 'Credenciais inválidas'), 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '⚡ Entrar no Gisa';
+      }
+    };
+
+    // Signup action
+    $('btn-screen-signup').onclick = async () => {
+      const name = $('screen-signup-name')?.value?.trim() || 'Pesquisador(a)';
+      const email = $('screen-signup-email')?.value?.trim();
+      const pass = $('screen-signup-password')?.value;
+      if (!email || !pass) {
+        UI.toast('Preencha e-mail e senha.', 'error');
+        return;
+      }
+      if (pass.length < 6) {
+        UI.toast('A senha deve ter pelo menos 6 caracteres.', 'error');
+        return;
+      }
+      const btn = $('btn-screen-signup');
+      btn.disabled = true;
+      btn.textContent = 'Criando conta…';
+      try {
+        await SupabaseSync.signUp(email, pass);
+        await SupabaseSync.updateUserMetadata({ full_name: name });
+        const profile = Storage.getProfile();
+        Storage.saveProfile({ ...profile, name, email });
+        UI.toast('Conta criada com sucesso! Sincronizando...', 'success');
+        await SupabaseSync.syncAll();
+        UI.updateCloudStatusUI();
+        UI.updateUserProfileNavbarUI();
+        state.view = 'home';
+        render();
+      } catch (err) {
+        UI.toast('Erro ao criar conta: ' + (err.message || 'Erro inesperado'), 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '✨ Criar Conta Gratuita';
+      }
+    };
+
+    // Magic link action
+    $('btn-screen-magic').onclick = async () => {
+      const email = $('screen-login-email')?.value?.trim();
+      if (!email) {
+        UI.toast('Digite seu e-mail para receber o link de acesso.', 'error');
+        return;
+      }
+      try {
+        await SupabaseSync.signInWithOtp(email);
+        UI.toast('Link de acesso enviado para o seu e-mail!', 'success');
+      } catch (err) {
+        UI.toast('Erro ao enviar link: ' + err.message, 'error');
+      }
+    };
+
+    // Continue as guest
+    $('btn-continue-guest').onclick = () => {
+      sessionStorage.setItem('gisa_guest_mode', '1');
+      state.view = 'home';
+      render();
+    };
   }
 
   // ─────────────────────────────────────────────────────
@@ -2156,7 +2346,23 @@ Gerado por Gisa · ${date}
   }
 
   // ─── Init ─────────────────────────────────────────────
-  function init() {
+  async function init() {
+    // Check initial authentication state or guest mode
+    const isGuest = sessionStorage.getItem('gisa_guest_mode') === '1';
+    let isLoggedIn = false;
+    if (typeof SupabaseSync !== 'undefined' && SupabaseSync.isConfigured()) {
+      try {
+        const user = await SupabaseSync.getUser();
+        if (user) isLoggedIn = true;
+      } catch {}
+    }
+
+    if (!isLoggedIn && !isGuest) {
+      state.view = 'auth';
+    } else {
+      state.view = 'home';
+    }
+
     render();
 
     // Listen for PWA Install Prompt on Desktop / Mobile
@@ -2171,7 +2377,9 @@ Gerado por Gisa · ${date}
 
     // Listen for IndexedDB asynchronous hydration
     Storage.onHydrated(() => {
-      render();
+      if (state.view !== 'auth') {
+        render();
+      }
       UI.updateCloudStatusUI();
       UI.updateUserProfileNavbarUI();
     });

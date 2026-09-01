@@ -1427,9 +1427,11 @@ const UI = (() => {
       if (btnLogout) {
         btnLogout.onclick = async () => {
           await SupabaseSync.signOut();
+          sessionStorage.removeItem('gisa_guest_mode');
           toast('Você saiu da conta.', 'info');
           updateCloudStatusUI();
           document.querySelector('.modal-overlay')?.remove();
+          if (typeof App !== 'undefined') App.navigate('auth');
           if (onSuccess) onSuccess();
         };
       }
