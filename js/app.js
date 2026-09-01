@@ -7,7 +7,7 @@ const App = (() => {
 
   // ─── State ────────────────────────────────────────────
   let state = {
-    view: 'home',          // 'home' | 'project' | 'wizard'
+    view: 'auth',          // 'auth' | 'home' | 'project' | 'wizard'
     projectId: null,
     tab: 'overview',       // 'overview'|'upload'|'screen'|'dedup'|'articles'|'stats'|'export'
     screenMode: 'list',    // 'list' | 'serial'
