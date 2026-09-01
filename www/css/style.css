@@ -3522,6 +3522,34 @@ input, textarea, [contenteditable="true"] {
   .navbar-tagline {
     display: none;
   }
+  
+  /* Compact and clean Mobile Auth Layout */
+  .auth-gateway-container {
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  .auth-visual-panel {
+    padding: 28px 18px 16px;
+    min-height: auto;
+    border-right: none;
+    border-bottom: 1px solid rgba(168, 85, 247, 0.2);
+  }
+  .auth-visual-sub,
+  .auth-feature-showcase {
+    display: none !important;
+  }
+  .auth-visual-headline {
+    font-size: 1.4rem;
+    margin-bottom: 8px;
+  }
+  .auth-form-wrapper {
+    padding: 20px 16px 36px;
+  }
+  .auth-form-panel {
+    padding: 24px 20px;
+    box-shadow: none;
+  }
+
   .screen-tab-rayyan {
     height: auto;
     min-height: unset;
@@ -3560,31 +3588,65 @@ input, textarea, [contenteditable="true"] {
   }
 }
 
-/* ── Small Mobile (max-width: 480px) ── */
-@media (max-width: 480px) {
+/* ── Mobile Screen (max-width: 640px) ── */
+@media (max-width: 640px) {
   .navbar {
-    padding: 6px 12px;
+    padding: 6px 10px;
+    height: 50px;
+    min-height: 50px;
   }
   .navbar-brand {
     gap: 6px;
+  }
+  .navbar-logo {
+    width: 28px;
+    height: 28px;
+    font-size: 0.95rem;
   }
   .navbar-name {
     font-size: 1.05rem;
   }
   .navbar-controls {
-    gap: 4px;
+    gap: 5px;
+  }
+
+  /* Hide keyboard shortcuts on touch devices */
+  .hotkeys-help-btn {
+    display: none !important;
+  }
+
+  /* Compact Navbar Pills on Mobile */
+  .install-app-nav-btn,
+  .user-profile-nav-btn,
+  .blind-toggle-btn {
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 0 10px !important;
+    font-size: 0.78rem !important;
+    gap: 5px !important;
+  }
+
+  .user-profile-nav-btn {
+    padding: 0 10px 0 5px !important;
+  }
+  .user-avatar-badge img {
+    width: 20px !important;
+    height: 20px !important;
   }
   .nav-user-name {
-    display: none;
+    display: inline-block !important;
+    font-size: 0.78rem !important;
   }
-  .install-app-nav-btn span:not(.btn-icon),
-  .cloud-sync-nav-btn span:not(.status-dot) {
-    display: none;
-  }
+
   .home-hero {
-    padding: 24px 8px;
+    padding: 24px 8px 16px;
   }
-  .features-strip {
+  .home-hero h1 {
+    font-size: 1.6rem !important;
+  }
+  .home-hero p {
+    font-size: 0.88rem !important;
+  }
     grid-template-columns: 1fr;
     padding: 12px;
   }
