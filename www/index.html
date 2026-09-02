@@ -25,7 +25,7 @@
 
   <!-- Cache Buster & SW Sync Engine -->
   <script>
-    const GISA_VERSION = 'v63';
+    const GISA_VERSION = 'v64';
     if (localStorage.getItem('gisa_build_ver') !== GISA_VERSION) {
       localStorage.setItem('gisa_build_ver', GISA_VERSION);
       if ('caches' in window) {
@@ -35,7 +35,108 @@
   </script>
 
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=63"/>
+  <link rel="stylesheet" href="css/style.css?v=64"/>
+
+  <!-- Critical Inline Styles (Guaranteed Zero-Scroll Wizard Layout) -->
+  <style>
+    .wizard-main-wrapper {
+      display: block !important;
+      width: 100% !important;
+      padding: 10px 16px 20px !important;
+    }
+    .wizard-view {
+      width: 100% !important;
+      max-width: 880px !important;
+      margin: 0 auto !important;
+      padding: 0 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 12px !important;
+    }
+    .wz-header {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      flex-wrap: wrap !important;
+      gap: 12px !important;
+      padding: 0 4px !important;
+    }
+    .wz-header-left {
+      display: flex !important;
+      align-items: center !important;
+      gap: 12px !important;
+    }
+    .wz-main-title {
+      font-size: 1.25rem !important;
+      font-weight: 800 !important;
+      color: #f8f5ff !important;
+      margin: 0 !important;
+    }
+    .wz-step-indicator {
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 8px !important;
+      background: #191030 !important;
+      padding: 5px 14px !important;
+      border-radius: 9999px !important;
+      border: 1px solid #33215c !important;
+    }
+    .wz-card {
+      background: #191030 !important;
+      border: 1px solid #33215c !important;
+      border-radius: 18px !important;
+      padding: 18px 24px !important;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4) !important;
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 12px !important;
+    }
+    .wz-form-grid {
+      display: grid !important;
+      grid-template-columns: 1fr 1fr !important;
+      gap: 10px 14px !important;
+      width: 100% !important;
+    }
+    .wz-field-title { grid-column: 1 / 2 !important; }
+    .wz-field-type { grid-column: 2 / 3 !important; }
+    .wz-field-desc { grid-column: 1 / -1 !important; }
+    @media (max-width: 680px) {
+      .wz-form-grid { grid-template-columns: 1fr !important; gap: 8px !important; }
+      .wz-field-title, .wz-field-type, .wz-field-desc { grid-column: 1 / -1 !important; }
+    }
+    .wz-body .input {
+      width: 100% !important;
+      height: 38px !important;
+      padding: 0 12px !important;
+      font-size: 0.88rem !important;
+      background: #231742 !important;
+      border: 1px solid #33215c !important;
+      border-radius: 6px !important;
+      color: #f8f5ff !important;
+    }
+    .wz-body textarea.input {
+      height: 52px !important;
+      min-height: 52px !important;
+      padding: 8px 12px !important;
+      line-height: 1.35 !important;
+      resize: none !important;
+    }
+    .wz-footer {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      padding-top: 10px !important;
+      border-top: 1px solid #33215c !important;
+      margin-top: 2px !important;
+    }
+    .wz-footer .btn {
+      height: 38px !important;
+      padding: 0 22px !important;
+      font-size: 0.88rem !important;
+      font-weight: 600 !important;
+      border-radius: 9999px !important;
+    }
+  </style>
 
   <!-- App Icons -->
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg"/>
@@ -91,13 +192,13 @@
 <!-- ── SCRIPTS ─────────────────────────────────────────────── -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="console.warn('Supabase CDN indisponível ou bloqueado. A aplicação funcionará em modo Local-First.')"></script>
-<script src="js/storage.js?v=63"></script>
-<script src="js/supabase_client.js?v=63"></script>
-<script src="js/similarity.js?v=63"></script>
-<script src="js/parsers.js?v=63"></script>
-<script src="js/ai_assistant.js?v=63"></script>
-<script src="js/ui.js?v=63"></script>
-<script src="js/app.js?v=63"></script>
+<script src="js/storage.js?v=64"></script>
+<script src="js/supabase_client.js?v=64"></script>
+<script src="js/similarity.js?v=64"></script>
+<script src="js/parsers.js?v=64"></script>
+<script src="js/ai_assistant.js?v=64"></script>
+<script src="js/ui.js?v=64"></script>
+<script src="js/app.js?v=64"></script>
 
 <!-- Service Worker Registration for PWA / Offline Support -->
 <script>
@@ -117,9 +218,9 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=63').then((reg) => {
+      navigator.serviceWorker.register('./sw.js?v=64').then((reg) => {
         reg.update();
-        console.log('Service Worker Gisa registrado (v63):', reg.scope);
+        console.log('Service Worker Gisa registrado (v64):', reg.scope);
       }).catch((err) => {
         console.warn('Falha no registro do Service Worker:', err);
       });
