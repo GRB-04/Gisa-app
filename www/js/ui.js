@@ -62,6 +62,8 @@ const UI = (() => {
     // Clean up any existing modal overlay from DOM first
     document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
 
+    if (!Array.isArray(actions)) actions = [];
+
     const overlay = el('div', { class: 'modal-overlay' });
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) {
@@ -84,19 +86,23 @@ const UI = (() => {
     );
     const body = el('div', { class: 'modal-body', html: bodyHtml });
     const footer = el('div', { class: 'modal-footer' });
-    actions.forEach(({ label, style, cb }) => {
-      const btn = el('button', {
-        class: `btn ${style || 'btn-ghost'}`,
-        onclick: (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
-          if (cb) cb();
-        }
-      }, label);
-      footer.appendChild(btn);
-    });
-    box.append(header, body, footer);
+    if (actions.length > 0) {
+      actions.forEach(({ label, style, cb }) => {
+        const btn = el('button', {
+          class: `btn ${style || 'btn-ghost'}`,
+          onclick: (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+            if (cb) cb();
+          }
+        }, label);
+        footer.appendChild(btn);
+      });
+      box.append(header, body, footer);
+    } else {
+      box.append(header, body);
+    }
     overlay.appendChild(box);
     document.body.appendChild(overlay);
     return overlay;
@@ -2100,7 +2106,8 @@ const UI = (() => {
       </div>
     `;
 
-    const closeFn = modal('Opções do Aplicativo', content, { maxWidth: '380px' });
+    modal('Opções do Aplicativo', content, []);
+    const closeFn = () => document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
 
     const profBtn = document.getElementById('app-menu-profile-btn');
     if (profBtn) {
