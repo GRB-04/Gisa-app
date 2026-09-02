@@ -297,15 +297,91 @@ const Parsers = (() => {
   }
 
   // ─────────────────────────────────────────────
-  // PDF Metadata & Text Extraction Heuristics
+  // ─────────────────────────────────────────────
+  // PDF Metadata & Text Extraction via PDF.js & Heuristics
   // ─────────────────────────────────────────────
   async function parsePDF(file) {
     try {
       const buffer = await file.arrayBuffer();
+      let extractedTitle = '';
+      let extractedAbstract = '';
+      let extractedAuthors = [];
+      let extractedDoi = '';
+      let extractedYear = '';
+      let extractedKeywords = [];
+      let allExtractedText = '';
+
+      // 1. Try high-fidelity text extraction via PDF.js if available
+      if (typeof window !== 'undefined' && window.pdfjsLib) {
+        try {
+          const loadingTask = window.pdfjsLib.getDocument({ data: new Uint8Array(buffer.slice(0)) });
+          const pdfDoc = await loadingTask.promise;
+          const maxPages = Math.min(pdfDoc.numPages, 3);
+          const pageLines = [];
+
+          for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+            const page = await pdfDoc.getPage(pageNum);
+            const textContent = await page.getTextContent();
+            let currentLine = '';
+            let lastY = null;
+
+            for (const item of textContent.items) {
+              const y = Math.round(item.transform[5]);
+              if (lastY !== null && Math.abs(y - lastY) > 4) {
+                if (currentLine.trim()) pageLines.push(currentLine.trim());
+                currentLine = '';
+              }
+              currentLine += (currentLine ? ' ' : '') + item.str;
+              lastY = y;
+            }
+            if (currentLine.trim()) pageLines.push(currentLine.trim());
+          }
+
+          allExtractedText = pageLines.join('\n');
+
+          // Extract DOI from PDF text
+          const doiMatch = allExtractedText.match(/10\.\d{4,9}\/[-._;()/:A-Za-z0-9]+/);
+          if (doiMatch) {
+            extractedDoi = doiMatch[0].replace(/[;,.)]+$/, '');
+          }
+
+          // Extract Year
+          const yearMatch = allExtractedText.match(/\b(19\d{2}|20\d{2})\b/);
+          if (yearMatch) {
+            extractedYear = yearMatch[1];
+          }
+
+          // Extract Abstract
+          const absRegex = /(?:abstract|resumo|resumen)[:\s\n]+([\s\S]{80,1800}?)(?=\n\s*(?:keywords|palavras-chave|tags|introdução|introduction|1\.)|\n\n\n)/i;
+          const absMatch = allExtractedText.match(absRegex);
+          if (absMatch) {
+            extractedAbstract = absMatch[1].replace(/\s+/g, ' ').trim();
+          }
+
+          // Extract Title: take candidate line from first 8 lines that has good length and isn't header/journal info
+          for (let i = 0; i < Math.min(pageLines.length, 10); i++) {
+            const line = pageLines[i];
+            if (line.length > 15 && line.length < 240 && 
+                !/^(https?|doi|vol|volume|issue|issn|isbn|page|journal|revista|original|article|artigo)/i.test(line)) {
+              extractedTitle = line;
+              break;
+            }
+          }
+
+          // Extract Keywords
+          const kwRegex = /(?:keywords|palavras-chave|tags)[:\s\n]+([\s\S]{5,300}?)(?=\n\s*(?:introduction|introdução|1\.)|\n\n)/i;
+          const kwMatch = allExtractedText.match(kwRegex);
+          if (kwMatch) {
+            kwMatch[1].split(/[,;•\n]/).map(k => k.trim()).filter(k => k.length > 2 && k.length < 50).forEach(k => extractedKeywords.push(k));
+          }
+        } catch (pdfErr) {
+          console.warn('Falha no PDF.js, aplicando fallback heurístico:', pdfErr);
+        }
+      }
+
+      // 2. Fallback byte-level extraction if PDF.js was unavailable or incomplete
       const bytes = new Uint8Array(buffer);
       let rawText = '';
-      
-      // Read first ~192KB of PDF to extract metadata and first page stream
       const sliceSize = Math.min(bytes.length, 196608);
       for (let i = 0; i < sliceSize; i++) {
         const c = bytes[i];
@@ -313,50 +389,42 @@ const Parsers = (() => {
         else if (c === 10 || c === 13) rawText += '\n';
       }
 
-      // 1. Check for DOI
-      const doiMatch = rawText.match(/10\.\d{4,9}\/[-._;()/:A-Za-z0-9]+/);
-      const doi = doiMatch ? doiMatch[0].replace(/[;,.)]+$/, '') : '';
-
-      // 2. Check for Metadata Title (/Title (....))
-      let title = '';
-      const metaTitleMatch = rawText.match(/\/Title\s*\(([^)]+)\)/);
-      if (metaTitleMatch && metaTitleMatch[1].trim().length > 5) {
-        title = metaTitleMatch[1].replace(/\\([()\\])/g, '$1').trim();
+      if (!extractedDoi) {
+        const doiMatch = rawText.match(/10\.\d{4,9}\/[-._;()/:A-Za-z0-9]+/);
+        if (doiMatch) extractedDoi = doiMatch[0].replace(/[;,.)]+$/, '');
       }
 
-      // 3. Fallback title from filename if empty or generic
-      if (!title || title.toLowerCase().includes('untitled') || title.toLowerCase().includes('microsoft word')) {
-        title = file.name.replace(/\.pdf$/i, '').replace(/[-_]/g, ' ').trim();
+      if (!extractedTitle) {
+        const metaTitleMatch = rawText.match(/\/Title\s*\(([^)]+)\)/);
+        if (metaTitleMatch && metaTitleMatch[1].trim().length > 5) {
+          extractedTitle = metaTitleMatch[1].replace(/\\([()\\])/g, '$1').trim();
+        }
       }
 
-      // 4. Abstract extraction heuristic
-      let abstract = '';
-      const absMatch = rawText.match(/(?:abstract|resumo)[:\s\n]+([\s\S]{100,1600}?)(?=\n\s*(?:keywords|palavras-chave|introduction|introdução|1\.)|\n\n)/i);
-      if (absMatch) {
-        abstract = absMatch[1].replace(/\s+/g, ' ').trim();
+      if (!extractedTitle || extractedTitle.toLowerCase().includes('untitled') || extractedTitle.toLowerCase().includes('microsoft word')) {
+        extractedTitle = file.name.replace(/\.pdf$/i, '').replace(/[-_]/g, ' ').trim();
       }
 
-      // 5. Author metadata heuristic (/Author (....))
-      const authors = [];
+      if (!extractedAbstract) {
+        const absMatch = rawText.match(/(?:abstract|resumo)[:\s\n]+([\s\S]{100,1600}?)(?=\n\s*(?:keywords|palavras-chave|introduction|introdução|1\.)|\n\n)/i);
+        if (absMatch) {
+          extractedAbstract = absMatch[1].replace(/\s+/g, ' ').trim();
+        }
+      }
+
       const metaAuthMatch = rawText.match(/\/Author\s*\(([^)]+)\)/);
       if (metaAuthMatch && metaAuthMatch[1].trim().length > 2) {
-        authors.push(metaAuthMatch[1].replace(/\\([()\\])/g, '$1').trim());
+        extractedAuthors.push(metaAuthMatch[1].replace(/\\([()\\])/g, '$1').trim());
       }
 
-      // 6. Keywords heuristic
-      const keywords = [];
-      const kwMatch = rawText.match(/(?:keywords|palavras-chave|tags)[:\s\n]+([\s\S]{5,300}?)(?=\n\s*(?:introduction|introdução|1\.|abstract)|\n\n)/i);
-      if (kwMatch) {
-        kwMatch[1].split(/[,;•\n]/).map(k => k.trim()).filter(k => k.length > 2 && k.length < 50).forEach(k => keywords.push(k));
+      if (!extractedYear) {
+        const yearMatch = rawText.match(/(?:19|20)\d{2}/);
+        if (yearMatch) extractedYear = yearMatch[0];
       }
 
-      // 7. Year heuristic
-      const yearMatch = rawText.match(/(?:19|20)\d{2}/);
-      const year = yearMatch ? yearMatch[0] : '';
-
-      // 8. Generate Data URL for local reading/previewing
+      // 3. Generate Data URL for local reading/previewing
       let pdfDataUrl = null;
-      if (file.size <= 25 * 1024 * 1024) {
+      if (file.size <= 35 * 1024 * 1024) {
         try {
           pdfDataUrl = await new Promise((resolve) => {
             const reader = new FileReader();
@@ -368,12 +436,12 @@ const Parsers = (() => {
       }
 
       return [makeArticle({
-        title,
-        abstract: abstract || 'PDF importado diretamente. Você pode visualizar o documento completo no leitor integrado.',
-        authors,
-        year,
-        doi,
-        keywords,
+        title: extractedTitle,
+        abstract: extractedAbstract || 'Documento científico em PDF importado diretamente. Você pode ler o texto integral no leitor de PDF integrado.',
+        authors: extractedAuthors,
+        year: extractedYear,
+        doi: extractedDoi,
+        keywords: extractedKeywords,
         journal: 'Documento Científico (PDF)',
         type: 'pdf',
         has_pdf: true,

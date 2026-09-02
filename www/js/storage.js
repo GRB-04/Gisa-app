@@ -161,16 +161,21 @@ const Storage = (() => {
   }
 
   /**
-   * Recalculate project stats
+   * Recalculate project stats with clear separation between raw imports, duplicates, and screening pool
    */
   function recalcStats(articles = []) {
+    const duplicates = articles.filter(a => a.is_duplicate).length;
+    const total = articles.length;
+    const screenable = Math.max(0, total - duplicates);
     return {
-      total: articles.length,
+      total,
+      screenable,
       included: articles.filter(a => a.decision === 'include').length,
-      excluded: articles.filter(a => a.decision === 'exclude').length,
+      excluded: articles.filter(a => a.decision === 'exclude' && !a.is_duplicate).length,
+      excludedDuplicates: duplicates,
       maybe: articles.filter(a => a.decision === 'maybe').length,
-      pending: articles.filter(a => !a.decision).length,
-      duplicates: articles.filter(a => a.is_duplicate).length
+      pending: articles.filter(a => !a.decision && !a.is_duplicate).length,
+      duplicates
     };
   }
 
@@ -300,12 +305,22 @@ const Storage = (() => {
             req.onerror = () => resolve([]);
           });
 
+          const calculatedStats = recalcStats(articles);
+          // Self-healing: if IDB articles count is greater than p.stats.total (e.g. truncated by cloud sync)
+          if (articles.length > (p.stats?.total || 0)) {
+            p.stats = calculatedStats;
+            try {
+              const pTx = db.transaction([STORES.PROJECTS], 'readwrite');
+              pTx.objectStore(STORES.PROJECTS).put({ ...p, stats: calculatedStats });
+            } catch {}
+          }
+
           fullProjects.push({
             ...p,
             owner_email: p.owner_email || '',
             articles,
             labels,
-            stats: recalcStats(articles)
+            stats: calculatedStats
           });
         }
 
@@ -623,6 +638,41 @@ const Storage = (() => {
     queueSyncMutation('articles', 'DELETE', articleId, { id: articleId });
   }
 
+  /**
+   * Delete all articles belonging to a specific imported source file
+   */
+  function deleteArticlesBySourceFile(projectId, sourceFileName) {
+    const pIdx = memoryProjects.findIndex(p => p.id === projectId);
+    if (pIdx === -1) return null;
+
+    const removedArticles = (memoryProjects[pIdx].articles || []).filter(a => a.source_file === sourceFileName);
+    const removedIds = removedArticles.map(a => a.id);
+
+    memoryProjects[pIdx].articles = (memoryProjects[pIdx].articles || []).filter(a => a.source_file !== sourceFileName);
+    memoryProjects[pIdx].stats = recalcStats(memoryProjects[pIdx].articles);
+    memoryProjects[pIdx].updated_at = new Date().toISOString();
+
+    openDB().then(db => {
+      if (!db) return;
+      runTx([STORES.ARTICLES, STORES.PROJECTS], 'readwrite', (tx) => {
+        const aStore = tx.objectStore(STORES.ARTICLES);
+        removedIds.forEach(id => aStore.delete(id));
+        const pStore = tx.objectStore(STORES.PROJECTS);
+        const pReq = pStore.get(projectId);
+        pReq.onsuccess = () => {
+          if (pReq.result) {
+            pReq.result.stats = memoryProjects[pIdx].stats;
+            pReq.result.updated_at = memoryProjects[pIdx].updated_at;
+            pStore.put(pReq.result);
+          }
+        };
+      });
+    });
+
+    queueSyncMutation('articles', 'BULK_DELETE', projectId, { count: removedIds.length, ids: removedIds, source_file: sourceFileName });
+    return memoryProjects[pIdx];
+  }
+
   // ─────────────────────────────────────────────────────
   // Label Management
   // ─────────────────────────────────────────────────────
@@ -845,6 +895,91 @@ const Storage = (() => {
     });
   }
 
+  /**
+   * Self-healing recovery: re-read all articles directly from IndexedDB articles store
+   * In case memory or project header was truncated by a cloud sync
+   */
+  async function restoreProjectArticlesFromIDB(projectId) {
+    const db = await openDB();
+    if (!db) return { recovered: false, total: 0 };
+
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction([STORES.ARTICLES, STORES.PROJECTS], 'readwrite');
+        const aStore = tx.objectStore(STORES.ARTICLES);
+        const pStore = tx.objectStore(STORES.PROJECTS);
+        const idx = aStore.index('project_id');
+        const req = idx.getAll(IDBKeyRange.only(projectId));
+
+        req.onsuccess = () => {
+          const idbArticles = req.result || [];
+          const pIdx = memoryProjects.findIndex(p => p.id === projectId);
+          if (pIdx !== -1) {
+            const currentCount = (memoryProjects[pIdx].articles || []).length;
+            if (idbArticles.length > currentCount) {
+              console.log(`[Gisa Recovery] Restaurando ${idbArticles.length} artigos para o projeto ${projectId} (tinha ${currentCount})`);
+              memoryProjects[pIdx].articles = idbArticles;
+              memoryProjects[pIdx].stats = recalcStats(idbArticles);
+              memoryProjects[pIdx].updated_at = new Date().toISOString();
+
+              const pReq = pStore.get(projectId);
+              pReq.onsuccess = () => {
+                if (pReq.result) {
+                  pReq.result.stats = memoryProjects[pIdx].stats;
+                  pReq.result.updated_at = memoryProjects[pIdx].updated_at;
+                  pStore.put(pReq.result);
+                }
+              };
+              resolve({ recovered: true, total: idbArticles.length, previous: currentCount });
+              return;
+            }
+          }
+          resolve({ recovered: false, total: idbArticles.length });
+        };
+
+        req.onerror = () => {
+          resolve({ recovered: false, error: req.error });
+        };
+      } catch (err) {
+        resolve({ recovered: false, error: err });
+      }
+    });
+  }
+
+  /**
+   * Auto-check all projects against IndexedDB and heal any truncated projects
+   */
+  async function checkAndRecoverAllProjects() {
+    const db = await openDB();
+    if (!db) return 0;
+    let totalRecovered = 0;
+
+    for (let i = 0; i < memoryProjects.length; i++) {
+      const p = memoryProjects[i];
+      try {
+        const idbCount = await new Promise((resolve) => {
+          const tx = db.transaction([STORES.ARTICLES], 'readonly');
+          const idx = tx.objectStore(STORES.ARTICLES).index('project_id');
+          const req = idx.count(IDBKeyRange.only(p.id));
+          req.onsuccess = () => resolve(req.result || 0);
+          req.onerror = () => resolve(0);
+        });
+
+        const currentCount = (p.articles || []).length;
+        if (idbCount > currentCount) {
+          console.log(`[Gisa Auto-Healing] Projeto "${p.name}" tem ${idbCount} artigos no IDB mas apenas ${currentCount} na memória. Recuperando...`);
+          const res = await restoreProjectArticlesFromIDB(p.id);
+          if (res && res.recovered) {
+            totalRecovered += (res.total - currentCount);
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao verificar integridade do projeto:', p.id, err);
+      }
+    }
+    return totalRecovered;
+  }
+
   function onHydrated(callback) {
     if (isHydrated) callback(memoryProjects);
     else onHydratedCallbacks.push(callback);
@@ -863,6 +998,7 @@ const Storage = (() => {
     updateArticle,
     bulkUpdateArticles,
     deleteArticle,
+    deleteArticlesBySourceFile,
     createLabel,
     updateLabel,
     deleteLabel,
@@ -878,6 +1014,8 @@ const Storage = (() => {
     persistProjectToIDB,
     getPendingSyncQueue,
     clearSyncQueue,
+    restoreProjectArticlesFromIDB,
+    checkAndRecoverAllProjects,
     LABEL_COLORS,
     STORES
   };

@@ -25,7 +25,7 @@
 
   <!-- Cache Buster & SW Sync Engine -->
   <script>
-    const GISA_VERSION = 'v65';
+    const GISA_VERSION = 'v66';
     if (localStorage.getItem('gisa_build_ver') !== GISA_VERSION) {
       localStorage.setItem('gisa_build_ver', GISA_VERSION);
       if ('caches' in window) {
@@ -35,7 +35,7 @@
   </script>
 
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=65"/>
+  <link rel="stylesheet" href="css/style.css?v=66"/>
 
   <!-- Critical Inline Styles (Guaranteed Zero-Scroll Wizard Layout) -->
   <style>
@@ -206,13 +206,19 @@
 <!-- ── SCRIPTS ─────────────────────────────────────────────── -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="console.warn('Supabase CDN indisponível ou bloqueado. A aplicação funcionará em modo Local-First.')"></script>
-<script src="js/storage.js?v=65"></script>
-<script src="js/supabase_client.js?v=65"></script>
-<script src="js/similarity.js?v=65"></script>
-<script src="js/parsers.js?v=65"></script>
-<script src="js/ai_assistant.js?v=65"></script>
-<script src="js/ui.js?v=65"></script>
-<script src="js/app.js?v=65"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  if (typeof window !== 'undefined' && window.pdfjsLib) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+</script>
+<script src="js/storage.js?v=66"></script>
+<script src="js/supabase_client.js?v=66"></script>
+<script src="js/similarity.js?v=66"></script>
+<script src="js/parsers.js?v=66"></script>
+<script src="js/ai_assistant.js?v=66"></script>
+<script src="js/ui.js?v=66"></script>
+<script src="js/app.js?v=66"></script>
 
 <!-- Service Worker Registration for PWA / Offline Support -->
 <script>
@@ -232,7 +238,7 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=65').then((reg) => {
+      navigator.serviceWorker.register('./sw.js?v=66').then((reg) => {
         reg.update();
         console.log('Service Worker Gisa registrado (v65):', reg.scope);
       }).catch((err) => {

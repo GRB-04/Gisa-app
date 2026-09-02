@@ -196,7 +196,33 @@ const SupabaseSync = (() => {
   }
 
   /**
-   * Core Bidirectional Hybrid Synchronization
+   * Paginates through Supabase to retrieve ALL articles without the 1000 limit
+   */
+  async function fetchAllRemoteArticles(sb, projectId) {
+    const all = [];
+    let from = 0;
+    const PAGE_SIZE = 1000;
+    while (true) {
+      const { data, error } = await sb
+        .from('articles')
+        .select('*')
+        .eq('project_id', projectId)
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (error) {
+        console.warn('Erro ao paginar artigos remotos do Supabase:', error);
+        break;
+      }
+      if (!data || data.length === 0) break;
+      all.push(...data);
+      if (data.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
+    }
+    return all;
+  }
+
+  /**
+   * Bidirectional synchronization execution
    */
   async function syncAll(onProgress = null) {
     if (isSyncing) return { success: false, reason: 'Sincronização já em andamento' };
@@ -268,12 +294,14 @@ const SupabaseSync = (() => {
               }
               resolvedQueueIds.push(item.id);
             } else if (item.action === 'BULK_INSERT' || item.action === 'BULK_UPDATE') {
-              // Push all articles of project in chunks of 250
+              // Push pending articles of project in chunks of 500
               const project = Storage.getProject(item.record_id);
               if (project && project.articles && project.articles.length > 0) {
-                const CHUNK_SIZE = 250;
-                for (let c = 0; c < project.articles.length; c += CHUNK_SIZE) {
-                  const chunk = project.articles.slice(c, c + CHUNK_SIZE).map(art => ({
+                const pendingArts = project.articles.filter(a => a.sync_status !== 'synced');
+                const articlesToPush = pendingArts.length > 0 ? pendingArts : project.articles;
+                const CHUNK_SIZE = 500;
+                for (let c = 0; c < articlesToPush.length; c += CHUNK_SIZE) {
+                  const chunk = articlesToPush.slice(c, c + CHUNK_SIZE).map(art => ({
                     id: art.id,
                     project_id: project.id,
                     title: art.title,
@@ -299,7 +327,12 @@ const SupabaseSync = (() => {
                     imported_at: art.imported_at || new Date().toISOString(),
                     updated_at: new Date().toISOString()
                   }));
-                  await sb.from('articles').upsert(chunk);
+                  try {
+                    await sb.from('articles').upsert(chunk);
+                  } catch (chunkErr) {
+                    console.warn('Erro ao sincronizar chunk de artigos (dados locais preservados):', chunkErr);
+                    break;
+                  }
                 }
               }
               resolvedQueueIds.push(item.id);
@@ -335,11 +368,8 @@ const SupabaseSync = (() => {
         for (const rp of remoteProjects) {
           const local = Storage.getProject(rp.id);
           
-          // Fetch articles for this project
-          const { data: remoteArticles } = await sb
-            .from('articles')
-            .select('*')
-            .eq('project_id', rp.id);
+          // Fetch articles for this project with full pagination (bypass 1000 limit)
+          const remoteArticles = await fetchAllRemoteArticles(sb, rp.id);
 
           const formattedArticles = (remoteArticles || []).map(ra => ({
             id: ra.id,
@@ -387,7 +417,38 @@ const SupabaseSync = (() => {
           };
 
           if (local) {
-            // Update existing local project with remote data
+            // CRITICAL DEFENSE: Never wipe out local articles if local has more or equal articles!
+            const localArticles = local.articles || [];
+            const localCount = localArticles.length;
+            const remoteCount = formattedArticles.length;
+
+            if (localCount >= remoteCount && localCount > 0) {
+              // Local is the authority: preserve all local articles, merging only remote decisions
+              const remoteMap = new Map(formattedArticles.map(ra => [ra.id, ra]));
+              localArticles.forEach(la => {
+                const ra = remoteMap.get(la.id);
+                if (ra) {
+                  if (!la.decision && ra.decision) {
+                    la.decision = ra.decision;
+                    la.exclusion_reason = ra.exclusion_reason;
+                  }
+                  if (ra.note) la.note = ra.note;
+                }
+              });
+              projectData.articles = localArticles;
+              projectData.stats = Storage.recalcStats(localArticles);
+            } else {
+              // Remote has more articles: merge local articles into remote so none are lost
+              const remoteMap = new Map(formattedArticles.map(ra => [ra.id, ra]));
+              localArticles.forEach(la => {
+                if (!remoteMap.has(la.id)) {
+                  remoteMap.set(la.id, la);
+                }
+              });
+              projectData.articles = Array.from(remoteMap.values());
+              projectData.stats = Storage.recalcStats(projectData.articles);
+            }
+
             Storage.updateProject(rp.id, { ...projectData, sync_status: 'synced' });
           } else {
             // Persist remote project directly preserving the original Cloud ID without queueing ghost mutations

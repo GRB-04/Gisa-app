@@ -178,6 +178,13 @@ const App = (() => {
                 <span>Entrar com Google</span>
               </button>
 
+              <!-- LOCAL / GUEST PROFILE BUTTON -->
+              <div style="margin-top:12px;text-align:center;">
+                <button type="button" class="btn btn-ghost btn-sm" id="btn-guest-login" style="color:var(--text-secondary);border:1px solid var(--border);border-radius:var(--radius-md);width:100%;padding:9px;font-size:0.84rem;">
+                  ⚡ Continuar com Perfil Local (Modo Offline / Sem Senha)
+                </button>
+              </div>
+
               <div class="auth-switch-footer">
                 ${isSignupMode 
                   ? 'Já tem uma conta? <a id="auth-switch-mode-btn">Entrar</a>' 
@@ -283,6 +290,25 @@ const App = (() => {
           const settings = Storage.getSettings();
           const clientId = (settings.google_client_id || DEFAULT_GOOGLE_CLIENT_ID).trim();
           triggerGoogleOAuth2(clientId);
+        };
+      }
+
+      // Guest / Local Profile Button
+      const guestBtn = $('btn-guest-login');
+      if (guestBtn) {
+        guestBtn.onclick = () => {
+          const profile = Storage.getProfile();
+          if (!profile.name || profile.name === 'Pesquisador(a)') {
+            profile.name = 'Pesquisador(a) Gisa';
+          }
+          if (!profile.email) {
+            profile.email = 'pesquisador@local.gisa';
+          }
+          Storage.saveProfile(profile);
+          UI.toast('Perfil local ativado com sucesso!', 'success');
+          UI.updateUserProfileNavbarUI();
+          state.view = 'home';
+          render();
         };
       }
     }
@@ -543,6 +569,16 @@ const App = (() => {
     $('home-download-app-btn')?.addEventListener('click', () => {
       UI.showInstallDownloadModal();
     });
+
+    // Auto-verify all projects against IndexedDB
+    if (Storage.checkAndRecoverAllProjects) {
+      Storage.checkAndRecoverAllProjects().then(recoveredCount => {
+        if (recoveredCount > 0) {
+          console.log(`[Gisa] Auto-recuperados ${recoveredCount} artigos nos projetos locais.`);
+          renderHome();
+        }
+      });
+    }
   }
 
   function confirmDeleteProject(project) {
@@ -769,11 +805,12 @@ const App = (() => {
     const project = Storage.getProject(state.projectId);
     if (!project) { navigate('home'); return; }
 
+    const screenableTotal = project.stats.screenable !== undefined ? project.stats.screenable : Math.max(0, project.stats.total - (project.stats.duplicates || 0));
     const tabs = [
       { id: 'overview', icon: '🏠', label: 'Visão Geral' },
       { id: 'upload',   icon: '📁', label: 'Importar' },
-      { id: 'screen',   icon: '🔍', label: 'Triagem' },
       { id: 'dedup',    icon: '🔄', label: `Duplicatas${project.stats.duplicates ? ` (${project.stats.duplicates})` : ''}` },
+      { id: 'screen',   icon: '🔍', label: `Triagem (${screenableTotal})` },
       { id: 'articles', icon: '📄', label: `Artigos (${project.stats.total})` },
       { id: 'prisma',   icon: '📐', label: 'PRISMA 2020' },
       { id: 'stats',    icon: '📊', label: 'Dashboard' },
@@ -789,11 +826,14 @@ const App = (() => {
             <h2 class="project-view-title">${project.name}</h2>
             ${project.keywords?.length ? `<div class="kw-chips">${project.keywords.map(k => `<span class="kw-chip">${k}</span>`).join('')}</div>` : ''}
           </div>
-          <div class="project-progress-mini" style="display:flex;align-items:center;gap:12px;">
-            <button class="btn btn-sm ${project.blindMode ? 'btn-primary' : 'btn-ghost'}" id="blind-mode-btn" title="Ativar/Desativar Modo Cego (oculta marcações de outros avaliadores)">
+          <div class="project-progress-mini" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-sm ${project.blindMode ? 'btn-primary' : 'btn-ghost'}" id="blind-mode-btn" title="Ativar/Desativar Modo Cego">
               ${project.blindMode ? '👁️ Modo Cego ON' : '👁️ Modo Cego OFF'}
             </button>
-            <span class="progress-mini-text">${project.stats.total - project.stats.pending} / ${project.stats.total} triados</span>
+            <span class="progress-mini-text">${screenableTotal - project.stats.pending} / ${screenableTotal} triados</span>
+            <button class="btn btn-sm btn-ghost" id="project-delete-btn" title="Excluir este projeto permanentemente" style="color:#ef4444;border:1px solid rgba(239,68,68,0.35);background:rgba(239,68,68,0.08);margin-left:4px;">
+              🗑️ Excluir Projeto
+            </button>
           </div>
         </div>
 
@@ -810,6 +850,7 @@ const App = (() => {
     `;
 
     $('back-btn').onclick = () => navigate('home');
+    $('project-delete-btn').onclick = () => confirmDeleteProject(project);
     $('blind-mode-btn').onclick = () => {
       const updated = Storage.updateProject(project.id, { blindMode: !project.blindMode });
       UI.toast(updated.blindMode ? '👁️ Modo Cego Ativado' : '👁️ Modo Cego Desativado', 'info');
@@ -820,6 +861,17 @@ const App = (() => {
     });
 
     renderProjectTab(project);
+
+    // Auto-check project integrity from IndexedDB (self-healing)
+    if (Storage.restoreProjectArticlesFromIDB) {
+      Storage.restoreProjectArticlesFromIDB(project.id).then(res => {
+        if (res && res.recovered) {
+          console.log(`[Gisa] Auto-recuperados ${res.total} artigos para ${project.name}!`);
+          UI.toast(`Restaurados ${res.total} artigos preservados no banco local!`, 'success');
+          renderProject();
+        }
+      });
+    }
   }
 
   function updateTabActive() {
@@ -832,8 +884,8 @@ const App = (() => {
     switch (state.tab) {
       case 'overview': renderOverviewTab(project); break;
       case 'upload':   renderUploadTab(project); break;
-      case 'screen':   renderScreenTab(project); break;
       case 'dedup':    renderDedupTab(project); break;
+      case 'screen':   renderScreenTab(project); break;
       case 'articles': renderArticlesTab(project); break;
       case 'prisma':   renderPrismaTab(project); break;
       case 'stats':    renderStatsTab(project); break;
@@ -946,8 +998,10 @@ const App = (() => {
             <div class="kw-chips">
               ${project.keywords?.length ? project.keywords.map(k => `<span class="kw-chip">${k}</span>`).join('') : '<span class="muted">Nenhuma</span>'}
             </div>
+          <div class="ov-info-row" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <span class="ov-info-key">Banco de Dados Local</span>
+            <button class="btn btn-sm btn-ghost" id="ov-btn-repair-articles" style="border:1px dashed var(--purple);color:var(--purple);font-size:0.78rem;padding:5px 12px;border-radius:var(--radius-sm);cursor:pointer;">🔄 Diagnóstico: Verificar e Recuperar Banco Local</button>
           </div>
-          <div class="ov-info-row"><span class="ov-info-key">Criado em</span><span>${new Date(project.created_at).toLocaleDateString('pt-BR', {day:'2-digit',month:'long',year:'numeric'})}</span></div>
         </div>
 
       </div>
@@ -957,11 +1011,22 @@ const App = (() => {
     content.querySelectorAll('.ov-action').forEach(btn => {
       btn.onclick = () => { state.tab = btn.dataset.tab; renderProject(); };
     });
+
+    document.getElementById('ov-btn-repair-articles')?.addEventListener('click', async () => {
+      const res = await Storage.restoreProjectArticlesFromIDB(project.id);
+      if (res && res.recovered) {
+        UI.toast(`Sucesso! ${res.total} artigos recuperados do banco local!`, 'success');
+        renderProject();
+      } else {
+        UI.toast(`Banco local íntegro: ${res.total} artigos confirmados.`, 'info');
+      }
+    });
   }
 
   // ─── UPLOAD TAB ──────────────────────────────────────
   function renderUploadTab(project) {
     const content = $('tab-content');
+    const screenableCount = project.stats.screenable !== undefined ? project.stats.screenable : Math.max(0, project.stats.total - (project.stats.duplicates || 0));
     content.innerHTML = `
       <div class="upload-tab">
         <div class="upload-zone" id="upload-zone">
@@ -970,40 +1035,107 @@ const App = (() => {
             <h3>Arraste arquivos aqui ou clique para selecionar</h3>
             <p>Formatos suportados: <strong>.ris · .bib · .csv · .nbib · .pdf · .txt · .json</strong></p>
             <input type="file" id="file-input" multiple accept=".ris,.bib,.csv,.nbib,.pdf,.txt,.json" style="display:none"/>
-            <button class="btn btn-primary" id="select-files-btn">Selecionar Arquivos</button>
+            <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px;">
+              <button class="btn btn-primary" id="select-files-btn">Selecionar Arquivos</button>
+              <button class="btn btn-secondary" id="select-pdf-btn" style="background:rgba(168,85,247,0.15);border-color:var(--purple);color:#fff;">📄 Subir PDFs Científicos</button>
+            </div>
           </div>
         </div>
 
         <div id="upload-progress" class="upload-progress" style="display:none"></div>
 
         <div class="import-history">
-          <h3>Arquivos importados</h3>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+            <h3 style="margin:0;">Arquivos importados</h3>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-sm btn-ghost" id="btn-repair-articles" style="border:1px dashed var(--purple);color:var(--purple);font-size:0.78rem;padding:5px 10px;border-radius:var(--radius-sm);cursor:pointer;">🔄 Recuperar do Banco Local</button>
+              <span class="muted" style="font-size:0.8rem;">Gerencie ou retire arquivos importados por engano</span>
+            </div>
+          </div>
           <div id="import-history-list">
             ${renderImportHistory(project)}
           </div>
         </div>
 
         ${project.stats.total > 0 ? `
-          <div class="upload-actions">
-            <button class="btn btn-primary" id="go-screen-btn">Ir para Triagem por Tema →</button>
-            <button class="btn btn-secondary" id="go-articles-btn">Ver todos os artigos →</button>
+          <div class="upload-actions" style="display:flex;gap:12px;margin-top:20px;flex-wrap:wrap;">
+            <button class="btn btn-primary" id="go-dedup-btn">🔄 Detectar e Resolver Duplicatas →</button>
+            <button class="btn btn-secondary" id="go-screen-btn">🔍 Ir para Triagem (${screenableCount}) →</button>
+            <button class="btn btn-ghost" id="go-articles-btn">Ver todos os artigos →</button>
           </div>` : ''}
       </div>
     `;
 
     setupDropzone(project);
     document.getElementById('select-files-btn').onclick = () => $('file-input').click();
-    $('file-input').onchange = (e) => handleFiles(Array.from(e.target.files), project);
+    document.getElementById('select-pdf-btn').onclick = () => {
+      const pdfInput = $('file-input');
+      pdfInput.accept = '.pdf';
+      pdfInput.click();
+    };
+    $('file-input').onchange = (e) => {
+      handleFiles(Array.from(e.target.files), project);
+      $('file-input').accept = '.ris,.bib,.csv,.nbib,.pdf,.txt,.json';
+    };
+    document.getElementById('go-dedup-btn')?.addEventListener('click', () => { state.tab = 'dedup'; renderProject(); });
     document.getElementById('go-screen-btn')?.addEventListener('click', () => { state.tab = 'screen'; renderProject(); });
     document.getElementById('go-articles-btn')?.addEventListener('click', () => { state.tab = 'articles'; renderProject(); });
+
+    document.getElementById('btn-repair-articles')?.addEventListener('click', async () => {
+      const res = await Storage.restoreProjectArticlesFromIDB(project.id);
+      if (res && res.recovered) {
+        UI.toast(`Sucesso! ${res.total} artigos recuperados do banco local!`, 'success');
+        renderProject();
+      } else {
+        UI.toast(`Banco local íntegro: ${res.total} artigos confirmados.`, 'info');
+      }
+    });
+
+    // Bind remove source file buttons
+    content.querySelectorAll('.btn-remove-source-file').forEach(btn => {
+      btn.onclick = () => {
+        const fileName = decodeURIComponent(btn.dataset.file);
+        const count = btn.dataset.count;
+        UI.modal(
+          'Retirar arquivo importado',
+          `<p>Deseja realmente retirar o arquivo <strong>"${UI.escapeHtml ? UI.escapeHtml(fileName) : fileName}"</strong> deste projeto?</p>
+           <p style="color:var(--text-muted);font-size:0.88rem;margin-top:10px;">Isso removerá os <strong>${count}</strong> artigos cadastrados por este arquivo. As estatísticas e duplicatas serão recalculadas automaticamente.</p>`,
+          [
+            { label: 'Cancelar', style: 'btn-ghost' },
+            {
+              label: 'Sim, Retirar Arquivo',
+              style: 'btn-danger',
+              cb: () => {
+                const updated = Storage.deleteArticlesBySourceFile(project.id, fileName);
+                UI.toast(`Arquivo "${fileName}" e seus ${count} artigos foram retirados com sucesso!`, 'success');
+                renderProject();
+              }
+            }
+          ]
+        );
+      };
+    });
   }
 
   function renderImportHistory(project) {
-    const files = [...new Set(project.articles.map(a => a.source_file))];
+    const files = [...new Set((project.articles || []).map(a => a.source_file).filter(Boolean))];
     if (!files.length) return '<p class="muted">Nenhum arquivo importado ainda.</p>';
     return files.map(f => {
       const count = project.articles.filter(a => a.source_file === f).length;
-      return `<div class="import-file-row"><span class="file-icon">📄</span><span class="file-name">${f}</span><span class="file-count">${count} artigos</span></div>`;
+      return `
+        <div class="import-file-row" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);margin-bottom:8px;flex-wrap:wrap;gap:10px;">
+          <div style="display:flex;align-items:center;gap:10px;overflow:hidden;min-width:200px;flex:1;">
+            <span class="file-icon" style="font-size:1.3rem;">📄</span>
+            <div style="overflow:hidden;">
+              <div class="file-name" style="font-weight:700;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${UI.escapeHtml ? UI.escapeHtml(f) : f}">${UI.escapeHtml ? UI.escapeHtml(f) : f}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);">${count} artigo${count !== 1 ? 's' : ''}</div>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-remove-source-file" data-file="${encodeURIComponent(f)}" data-count="${count}" title="Retirar este arquivo e seus ${count} artigos" style="color:#ef4444;border:1px solid rgba(239,68,68,0.35);background:rgba(239,68,68,0.08);padding:6px 12px;border-radius:var(--radius-sm);cursor:pointer;flex-shrink:0;font-weight:600;">
+            🗑️ Retirar Arquivo
+          </button>
+        </div>
+      `;
     }).join('');
   }
 
@@ -1060,7 +1192,7 @@ const App = (() => {
     }
   }
 
-  // ─── SCREEN (RAYYAN WORKBENCH) TAB ───────────────────
+  // ─── SCREEN (GISA WORKBENCH) TAB ───────────────────
   function renderScreenTab(project) {
     const content = $('tab-content');
     const incKws = project.keywords || [];
@@ -1068,11 +1200,14 @@ const App = (() => {
 
     // Filter articles based on current filters and facet selection
     let filteredArticles = project.articles.filter(a => {
+      // Duplicates are excluded from regular screening flow by default
+      if (state.filter.decision !== 'duplicate' && a.is_duplicate) return false;
+
       // 1. Facet Decision filter
       if (state.filter.decision === 'include' && a.decision !== 'include') return false;
-      if (state.filter.decision === 'exclude' && a.decision !== 'exclude') return false;
+      if (state.filter.decision === 'exclude' && (a.decision !== 'exclude' || a.is_duplicate)) return false;
       if (state.filter.decision === 'maybe' && a.decision !== 'maybe') return false;
-      if (state.filter.decision === 'pending' && a.decision !== null) return false;
+      if (state.filter.decision === 'pending' && (a.decision !== null || a.is_duplicate)) return false;
       if (state.filter.decision === 'duplicate' && !a.is_duplicate) return false;
 
       // 2. Facet Keyword filter
@@ -1109,7 +1244,7 @@ const App = (() => {
     const activeArticle = project.articles.find(a => a.id === state.activeArticleId);
 
     content.innerHTML = `
-      <div class="screen-tab-rayyan">
+      <div class="screen-tab-gisa">
         ${state.blindMode ? `
           <div class="blind-mode-banner">
             <span><strong>MODO CEGO ATIVADO</strong> — As decisões estão ocultas para evitar viés.</span>
@@ -1128,24 +1263,24 @@ const App = (() => {
         </div>
 
         ${state.screenMode === 'serial' ? '<div id="serial-container-slot"></div>' : `
-          <div class="rayyan-workbench">
+          <div class="gisa-workbench">
             <!-- 1. Left Panel: Facet Sidebar -->
-            <div id="rayyan-facets-slot"></div>
+            <div id="gisa-facets-slot"></div>
 
             <!-- 2. Middle Panel: Articles List -->
             <div class="articles-center-panel">
               <div class="articles-toolbar">
                 <div class="articles-search-box">
                   <span class="search-icon">🔍</span>
-                  <input id="rayyan-search-input" placeholder="Buscar título/resumo/autor (Usar setas ↑↓ ou J/K para navegar)" value="${state.filter.search || ''}"/>
+                  <input id="gisa-search-input" placeholder="Buscar título/resumo/autor (Usar setas ↑↓ ou J/K para navegar)" value="${state.filter.search || ''}"/>
                 </div>
-                <button class="btn btn-sm btn-ghost" id="rayyan-hotkeys-btn">⌨️ Atalhos [?]</button>
+                <button class="btn btn-sm btn-ghost" id="gisa-hotkeys-btn">⌨️ Atalhos [?]</button>
               </div>
-              <div class="articles-scroll-list" id="rayyan-articles-list"></div>
+              <div class="articles-scroll-list" id="gisa-articles-list"></div>
             </div>
 
             <!-- 3. Right Panel: Abstract Inspector -->
-            <div id="rayyan-inspector-slot"></div>
+            <div id="gisa-inspector-slot"></div>
           </div>
         `}
       </div>
@@ -1201,7 +1336,7 @@ const App = (() => {
     }
 
     // 1. Render Left Panel (Facets)
-    const facetsSlot = $('rayyan-facets-slot');
+    const facetsSlot = $('gisa-facets-slot');
     if (facetsSlot) {
       facetsSlot.replaceWith(UI.renderFacetSidebar(project, state.filter, (type, val) => {
         if (type === 'decision') state.filter.decision = val;
@@ -1216,28 +1351,31 @@ const App = (() => {
     }
 
     // 2. Render Middle Panel (Articles List)
-    renderRayyanArticlesListOnly(project);
+    renderGisaArticlesListOnly(project);
 
     // Search Input Listener (Smooth typing without focus loss)
-    const searchInput = $('rayyan-search-input');
+    const searchInput = $('gisa-search-input');
     if (searchInput) {
       searchInput.oninput = () => {
         state.filter.search = searchInput.value;
-        renderRayyanArticlesListOnly(Storage.getProject(state.projectId));
+        renderGisaArticlesListOnly(Storage.getProject(state.projectId));
       };
     }
 
     // Hotkeys Help Button
-    $('rayyan-hotkeys-btn')?.addEventListener('click', () => UI.showHotkeysModal());
+    $('gisa-hotkeys-btn')?.addEventListener('click', () => UI.showHotkeysModal());
   }
 
   function getFilteredArticles(project) {
-    return project.articles.filter(a => {
+    return (project.articles || []).filter(a => {
+      // Duplicates are excluded from regular screening flow by default
+      if (state.filter.decision !== 'duplicate' && a.is_duplicate) return false;
+
       // 1. Facet Decision filter
       if (state.filter.decision === 'include' && a.decision !== 'include') return false;
-      if (state.filter.decision === 'exclude' && a.decision !== 'exclude') return false;
+      if (state.filter.decision === 'exclude' && (a.decision !== 'exclude' || a.is_duplicate)) return false;
       if (state.filter.decision === 'maybe' && a.decision !== 'maybe') return false;
-      if (state.filter.decision === 'pending' && a.decision !== null) return false;
+      if (state.filter.decision === 'pending' && (a.decision !== null || a.is_duplicate)) return false;
       if (state.filter.decision === 'duplicate' && !a.is_duplicate) return false;
 
       // 2. Facet Keyword filter
@@ -1268,8 +1406,8 @@ const App = (() => {
     });
   }
 
-  function renderRayyanArticlesListOnly(project) {
-    const articlesListEl = $('rayyan-articles-list');
+  function renderGisaArticlesListOnly(project) {
+    const articlesListEl = $('gisa-articles-list');
     if (!articlesListEl) return;
 
     let filtered = getFilteredArticles(project);
@@ -1328,7 +1466,7 @@ const App = (() => {
     pagedArticles.forEach(article => {
       const isSelected = article.id === state.activeArticleId;
       const row = document.createElement('div');
-      row.className = `rayyan-article-row ${isSelected ? 'selected' : ''}`;
+      row.className = `gisa-article-row ${isSelected ? 'selected' : ''}`;
       row.dataset.id = article.id;
 
       let statusBadge = '';
@@ -1349,22 +1487,22 @@ const App = (() => {
         : '';
 
       row.innerHTML = `
-        <div class="rayyan-row-header">
-          <div class="rayyan-article-title">${UI.escapeHtml ? UI.escapeHtml(article.title) : article.title}</div>
+        <div class="gisa-row-header">
+          <div class="gisa-article-title">${UI.escapeHtml ? UI.escapeHtml(article.title) : article.title}</div>
           <div style="display:flex;gap:4px;align-items:center;flex-shrink:0;">
             ${statusBadge}
           </div>
         </div>
-        <div class="rayyan-row-meta">
+        <div class="gisa-row-meta">
           <span>${article.authors?.length ? (UI.escapeHtml ? UI.escapeHtml(article.authors[0]) : article.authors[0]) + (article.authors.length > 1 ? ' et al.' : '') : 'Autores n/d'}</span>
           ${article.journal ? `<span>· ${UI.escapeHtml ? UI.escapeHtml(article.journal) : article.journal}</span>` : ''}
           ${article.year ? `<span>· ${UI.escapeHtml ? UI.escapeHtml(article.year) : article.year}</span>` : ''}
           ${relChip}
         </div>
-        <div class="rayyan-row-actions">
-          <button class="btn-rayyan-inc ${article.decision === 'include' ? 'active' : ''}" data-act="inc" aria-pressed="${article.decision === 'include'}">Incluir (I)</button>
-          <button class="btn-rayyan-exc ${article.decision === 'exclude' ? 'active' : ''}" data-act="exc" aria-pressed="${article.decision === 'exclude'}">Excluir (E)</button>
-          <button class="btn-rayyan-maybe ${article.decision === 'maybe' ? 'active' : ''}" data-act="maybe" aria-pressed="${article.decision === 'maybe'}">Talvez (M)</button>
+        <div class="gisa-row-actions">
+          <button class="btn-gisa-inc ${article.decision === 'include' ? 'active' : ''}" data-act="inc" aria-pressed="${article.decision === 'include'}">Incluir (I)</button>
+          <button class="btn-gisa-exc ${article.decision === 'exclude' ? 'active' : ''}" data-act="exc" aria-pressed="${article.decision === 'exclude'}">Excluir (E)</button>
+          <button class="btn-gisa-maybe ${article.decision === 'maybe' ? 'active' : ''}" data-act="maybe" aria-pressed="${article.decision === 'maybe'}">Talvez (M)</button>
         </div>
       `;
 
@@ -1379,7 +1517,7 @@ const App = (() => {
           else if (act === 'exc') makeDecision(project.id, article.id, 'exclude');
           else if (act === 'maybe') makeDecision(project.id, article.id, 'maybe');
         } else {
-          document.querySelectorAll('.rayyan-article-row').forEach(r => r.classList.remove('selected'));
+          document.querySelectorAll('.gisa-article-row').forEach(r => r.classList.remove('selected'));
           row.classList.add('selected');
           updateInspectorPanel(article, project);
         }
@@ -1393,7 +1531,7 @@ const App = (() => {
       btn.onclick = () => {
         if (state.articleOffset >= pageSize) {
           state.articleOffset -= pageSize;
-          renderRayyanArticlesListOnly(Storage.getProject(state.projectId));
+          renderGisaArticlesListOnly(Storage.getProject(state.projectId));
         }
       };
     });
@@ -1402,7 +1540,7 @@ const App = (() => {
       btn.onclick = () => {
         if (state.articleOffset + pageSize < totalItems) {
           state.articleOffset += pageSize;
-          renderRayyanArticlesListOnly(Storage.getProject(state.projectId));
+          renderGisaArticlesListOnly(Storage.getProject(state.projectId));
         }
       };
     });
@@ -1411,7 +1549,7 @@ const App = (() => {
   }
 
   function updateInspectorPanel(article, project) {
-    const inspectorSlot = $('rayyan-inspector-slot') || document.querySelector('.abstract-inspector-panel');
+    const inspectorSlot = $('gisa-inspector-slot') || document.querySelector('.abstract-inspector-panel');
     if (!inspectorSlot) return;
 
     const kwObject = {
@@ -1430,7 +1568,7 @@ const App = (() => {
         article.pdf_name = fileName;
         article.pdf_data = dataUrl;
         UI.toast('Arquivo PDF anexado ao artigo com sucesso!', 'success');
-        renderRayyanArticlesListOnly(Storage.getProject(project.id));
+        renderGisaArticlesListOnly(Storage.getProject(project.id));
       }
     };
 
@@ -1858,9 +1996,9 @@ const App = (() => {
 
     const updates = [];
     if (action === 'a') {
-      updates.push({ id: pair.articleB.id, is_duplicate: true, duplicate_score: pair.score, duplicate_of: pair.articleA.id, decision: 'exclude' });
+      updates.push({ id: pair.articleB.id, is_duplicate: true, duplicate_score: pair.score, duplicate_of: pair.articleA.id, decision: 'exclude', exclusion_reason: 'Duplicata' });
     } else if (action === 'b') {
-      updates.push({ id: pair.articleA.id, is_duplicate: true, duplicate_score: pair.score, duplicate_of: pair.articleB.id, decision: 'exclude' });
+      updates.push({ id: pair.articleA.id, is_duplicate: true, duplicate_score: pair.score, duplicate_of: pair.articleB.id, decision: 'exclude', exclusion_reason: 'Duplicata' });
     } else if (action === 'both') {
       updates.push({ id: pair.articleA.id, is_duplicate: false }, { id: pair.articleB.id, is_duplicate: false });
     }
@@ -1906,7 +2044,8 @@ const App = (() => {
           is_duplicate: true,
           duplicate_score: pair.score,
           duplicate_of: keepArticle.id,
-          decision: 'exclude'
+          decision: 'exclude',
+          exclusion_reason: 'Duplicata'
         });
         markedDups.add(deleteArticle.id);
       }
@@ -1922,7 +2061,7 @@ const App = (() => {
     pairs.forEach(pair => {
       const key = `${pair.articleA.id}_${pair.articleB.id}`;
       state.dupResolved.add(key);
-      updates.push({ id: pair.articleB.id, is_duplicate: true, duplicate_score: pair.score, duplicate_of: pair.articleA.id, decision: 'exclude' });
+      updates.push({ id: pair.articleB.id, is_duplicate: true, duplicate_score: pair.score, duplicate_of: pair.articleA.id, decision: 'exclude', exclusion_reason: 'Duplicata' });
     });
     Storage.bulkUpdateArticles(project.id, updates);
     UI.toast(`${pairs.length} duplicatas resolvidas automaticamente!`, 'success');
@@ -1944,10 +2083,11 @@ const App = (() => {
           <input id="art-search" class="input input-sm" placeholder="Buscar no título…" value="${state.filter.search}"/>
           <select id="art-decision-filter" class="input input-sm select">
             <option value="all">Todas as decisões</option>
-            <option value="null">Sem decisão</option>
+            <option value="null">Sem decisão (Pendentes)</option>
             <option value="include">Incluídos</option>
             <option value="exclude">Excluídos</option>
             <option value="maybe">Talvez</option>
+            <option value="duplicate">Duplicatas</option>
           </select>
           <select id="art-sort" class="input input-sm select">
             <option value="relevance">Por relevância</option>
@@ -1981,7 +2121,9 @@ const App = (() => {
     let articles = [...project.articles];
     const q = state.filter.search.toLowerCase();
     if (q) articles = articles.filter(a => a.title.toLowerCase().includes(q) || (a.abstract||'').toLowerCase().includes(q));
-    if (state.filter.decision === 'null') articles = articles.filter(a => !a.decision);
+    if (state.filter.decision === 'null') articles = articles.filter(a => !a.decision && !a.is_duplicate);
+    else if (state.filter.decision === 'duplicate') articles = articles.filter(a => a.is_duplicate);
+    else if (state.filter.decision === 'exclude') articles = articles.filter(a => a.decision === 'exclude' && !a.is_duplicate);
     else if (state.filter.decision !== 'all') articles = articles.filter(a => a.decision === state.filter.decision);
 
     // Sort
@@ -2524,10 +2666,10 @@ Gerado por Gisa · ${date}
 
       // Update 3-Panel Workbench if active
       if (state.tab === 'screen' && state.screenMode === 'list') {
-        renderRayyanArticlesListOnly(p);
+        renderGisaArticlesListOnly(p);
 
         // Update Facets Sidebar with correct CSS class selector
-        const facetsSlot = $('rayyan-facets-slot') || document.querySelector('.rayyan-facet-sidebar') || document.querySelector('.facets-sidebar');
+        const facetsSlot = $('gisa-facets-slot') || document.querySelector('.gisa-facet-sidebar') || document.querySelector('.facets-sidebar');
         if (facetsSlot && p) {
           facetsSlot.replaceWith(UI.renderFacetSidebar(p, state.filter, (type, val) => {
             if (type === 'decision') state.filter.decision = val;

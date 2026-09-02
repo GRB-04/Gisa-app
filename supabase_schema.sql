@@ -1,5 +1,5 @@
 -- ============================================================================
--- Gisa / Rayyan Modernized — Supabase PostgreSQL Schema (Idempotent)
+-- Gisa Systematic Review Platform — Supabase PostgreSQL Schema (Idempotent)
 -- Hybrid Architecture (IndexedDB Local-First + Supabase Cloud)
 -- ============================================================================
 

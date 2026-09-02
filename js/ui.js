@@ -704,21 +704,23 @@ const UI = (() => {
     const s = project.stats;
     const articles = project.articles || [];
 
-    const excludedArticles = articles.filter(a => a.decision === 'exclude');
+    // PRISMA 2020: Duplicates are removed in Phase 2.
+    // In Phase 3 (Screening), only non-duplicate exclusions are counted and listed with their screening criteria.
+    const excludedScreening = articles.filter(a => a.decision === 'exclude' && !a.is_duplicate);
     const reasonsMap = {};
-    excludedArticles.forEach(a => {
-      const r = a.exclusion_reason || 'Sem motivo especificado';
+    excludedScreening.forEach(a => {
+      const r = a.exclusion_reason || 'Critério de exclusão não informado';
       reasonsMap[r] = (reasonsMap[r] || 0) + 1;
     });
 
     const reasonsListHtml = Object.entries(reasonsMap)
-      .map(([reason, count]) => `<li style="margin-bottom:4px">${reason}: <strong>${count}</strong></li>`)
+      .map(([reason, count]) => `<li style="margin-bottom:4px">${escapeHtml(reason)}: <strong>${count}</strong></li>`)
       .join('');
 
     const recordsIdentified = s.total;
-    const duplicatesRemoved = s.duplicates;
-    const recordsScreened = s.total - s.duplicates;
-    const recordsExcluded = s.excluded;
+    const duplicatesRemoved = s.duplicates || 0;
+    const recordsScreened = Math.max(0, s.total - duplicatesRemoved);
+    const recordsExcluded = excludedScreening.length;
     const recordsIncluded = s.included;
 
     return `
@@ -897,14 +899,19 @@ const UI = (() => {
     const articles = project.articles || [];
     const stats = project.stats || {};
 
+    const uniqueArticles = articles.filter(a => !a.is_duplicate);
+    const duplicatesCount = articles.filter(a => a.is_duplicate).length;
+    const excludedNonDups = articles.filter(a => a.decision === 'exclude' && !a.is_duplicate).length;
+    const pendingNonDups = articles.filter(a => !a.decision && !a.is_duplicate).length;
+
     // 1. Decisões
     const decisions = [
-      { key: 'all',       label: 'Todos os Artigos', count: articles.length,    dot: 'var(--text-muted)' },
-      { key: 'include',  label: 'Incluídos',       count: stats.included || 0, dot: 'var(--green)' },
-      { key: 'exclude',  label: 'Excluídos',       count: stats.excluded || 0, dot: 'var(--red)' },
-      { key: 'maybe',    label: 'Talvez',           count: stats.maybe || 0,    dot: 'var(--amber)' },
-      { key: 'pending',  label: 'Pendentes',        count: stats.pending || 0,  dot: 'var(--slate)' },
-      { key: 'duplicate',label: 'Duplicatas',       count: stats.duplicates || 0, dot: 'var(--blue)' },
+      { key: 'all',       label: 'Artigos para Triar', count: uniqueArticles.length, dot: 'var(--text-muted)' },
+      { key: 'include',  label: 'Incluídos',          count: stats.included || 0, dot: 'var(--green)' },
+      { key: 'exclude',  label: 'Excluídos',          count: excludedNonDups, dot: 'var(--red)' },
+      { key: 'maybe',    label: 'Talvez',             count: stats.maybe || 0,    dot: 'var(--amber)' },
+      { key: 'pending',  label: 'Pendentes',          count: pendingNonDups,  dot: 'var(--slate)' },
+      { key: 'duplicate',label: 'Duplicatas (Removidas)', count: duplicatesCount, dot: 'var(--blue)' },
     ];
 
     // 2. Palavras de Inclusão com contagem de ocorrências
@@ -927,7 +934,7 @@ const UI = (() => {
     const years = Object.keys(yearsMap).sort((a, b) => b - a).map(y => ({ year: y, count: yearsMap[y] }));
 
     const container = document.createElement('aside');
-    container.className = 'rayyan-facet-sidebar';
+    container.className = 'gisa-facet-sidebar';
     container.setAttribute('aria-label', 'Filtros Facetados');
 
     container.innerHTML = `
@@ -992,7 +999,7 @@ const UI = (() => {
   /** Renderiza o Painel Direito: Inspetor de Abstract Gisa */
   function renderAbstractInspector(article, projectKeywords = {}, blindMode = false, callbacks = {}) {
     const container = document.createElement('div');
-    container.id = 'rayyan-inspector-slot';
+    container.id = 'gisa-inspector-slot';
     container.className = 'abstract-inspector-panel';
 
     if (!article) {
