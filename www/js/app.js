@@ -494,7 +494,7 @@ const App = (() => {
           <h1 class="hero-title">Acelerador de <span class="gradient-text">Revisão Sistemática</span></h1>
           <p class="hero-sub">Reduza semanas de triagem manual para dias. Triagem com atalhos de teclado, Modo Cego (*Blind Mode*), desduplicação e gráficos PRISMA.</p>
           <div class="home-hero-actions">
-            <button class="btn-create-project-hero" id="new-project-btn">
+            <button class="btn btn-primary btn-create-project-hero" id="new-project-btn">
               + Criar Novo Projeto de Revisão
             </button>
           </div>
@@ -2757,11 +2757,11 @@ Gerado por Gisa · ${date}
       }
       if (blindStatusEl) blindStatusEl.textContent = state.blindMode ? 'ON' : 'OFF';
 
-      mobileMenuOverlay.style.display = 'flex';
+      mobileMenuOverlay.style.setProperty('display', 'flex', 'important');
     }
 
     function closeMobileMenu() {
-      if (mobileMenuOverlay) mobileMenuOverlay.style.display = 'none';
+      if (mobileMenuOverlay) mobileMenuOverlay.style.setProperty('display', 'none', 'important');
     }
 
     if (mobileMenuBtn) mobileMenuBtn.onclick = openMobileMenu;
