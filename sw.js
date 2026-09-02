@@ -2,19 +2,19 @@
  * Gisa — Service Worker (Offline-First Cache Engine)
  */
 
-const CACHE_NAME = 'gisa-app-v60';
+const CACHE_NAME = 'gisa-app-v61';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
-  './css/style.css?v=60',
-  './js/storage.js?v=60',
-  './js/supabase_client.js?v=60',
-  './js/similarity.js?v=60',
-  './js/parsers.js?v=60',
-  './js/ai_assistant.js?v=60',
-  './js/ui.js?v=60',
-  './js/app.js?v=60',
+  './css/style.css?v=61',
+  './js/storage.js?v=61',
+  './js/supabase_client.js?v=61',
+  './js/similarity.js?v=61',
+  './js/parsers.js?v=61',
+  './js/ai_assistant.js?v=61',
+  './js/ui.js?v=61',
+  './js/app.js?v=61',
   './icons/icon.svg',
   './icons/icon-192.png',
   './icons/icon-512.png'
@@ -46,30 +46,30 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch Event: Stale-While-Revalidate with offline fallback
+// Fetch Event: Network-First with Cache Fallback (Always Fresh on Network)
 self.addEventListener('fetch', (event) => {
   const req = event.request;
 
-  // Ignore chrome-extension / non-GET / Supabase API requests
+  // Ignore non-GET or external API requests
   if (req.method !== 'GET' || !req.url.startsWith('http')) return;
   if (req.url.includes('supabase.co')) return;
 
   event.respondWith(
-    caches.match(req).then((cachedResp) => {
-      const fetchPromise = fetch(req).then((networkResp) => {
+    fetch(req)
+      .then((networkResp) => {
         if (networkResp && networkResp.status === 200 && networkResp.type === 'basic') {
           const respToCache = networkResp.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(req, respToCache));
         }
         return networkResp;
-      }).catch(() => {
-        // Fallback for navigation
-        if (req.mode === 'navigate') {
-          return caches.match('./index.html');
-        }
-      });
-
-      return cachedResp || fetchPromise;
-    })
+      })
+      .catch(() => {
+        return caches.match(req).then((cached) => {
+          if (cached) return cached;
+          if (req.mode === 'navigate') {
+            return caches.match('./index.html');
+          }
+        });
+      })
   );
 });
