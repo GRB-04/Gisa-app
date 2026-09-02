@@ -660,8 +660,10 @@ const App = (() => {
     main.innerHTML = `
       <div class="wizard-view">
         <div class="wz-header">
-          <button class="btn-back" id="wz-cancel">← Cancelar</button>
-          <h1 class="wz-main-title">Nova Revisão Sistemática</h1>
+          <div class="wz-header-left">
+            <button class="btn-back" id="wz-cancel">← Cancelar</button>
+            <h1 class="wz-main-title">Nova Revisão Sistemática</h1>
+          </div>
           <div class="wz-step-indicator">${stepBreadcrumb}</div>
         </div>
         <div class="wz-card">
