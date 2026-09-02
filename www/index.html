@@ -212,13 +212,13 @@
     window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
 </script>
-<script src="js/storage.js?v=66"></script>
-<script src="js/supabase_client.js?v=66"></script>
-<script src="js/similarity.js?v=66"></script>
-<script src="js/parsers.js?v=66"></script>
-<script src="js/ai_assistant.js?v=66"></script>
-<script src="js/ui.js?v=66"></script>
-<script src="js/app.js?v=66"></script>
+<script src="js/storage.js?v=67"></script>
+<script src="js/supabase_client.js?v=67"></script>
+<script src="js/similarity.js?v=67"></script>
+<script src="js/parsers.js?v=67"></script>
+<script src="js/ai_assistant.js?v=67"></script>
+<script src="js/ui.js?v=67"></script>
+<script src="js/app.js?v=67"></script>
 
 <!-- Service Worker Registration for PWA / Offline Support -->
 <script>
@@ -238,9 +238,9 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=66').then((reg) => {
+      navigator.serviceWorker.register('./sw.js?v=67').then((reg) => {
         reg.update();
-        console.log('Service Worker Gisa registrado (v65):', reg.scope);
+        console.log('Service Worker Gisa registrado (v67):', reg.scope);
       }).catch((err) => {
         console.warn('Falha no registro do Service Worker:', err);
       });

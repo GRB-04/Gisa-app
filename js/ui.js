@@ -217,7 +217,7 @@ const UI = (() => {
     card.querySelector('[data-action="maybe"]').onclick = (e) => { e.stopPropagation(); onMaybe(); };
     card.querySelector('[data-action="exclude"]').onclick = (e) => { e.stopPropagation(); onExclude(); };
     card.querySelector('.note-btn').onclick = (e) => { e.stopPropagation(); onNote(); };
-    card.querySelector('.ai-analyze-btn').onclick = (e) => { e.stopPropagation(); UI.showAIAnalysisModal(article); };
+    card.querySelector('.ai-analyze-btn').onclick = (e) => { e.stopPropagation(); UI.showAIAnalysisModal(article, { onInclude, onExclude, onMaybe }); };
 
     // Click title or 'view-more-btn' to open detail modal
     const showDetail = (e) => {
@@ -246,7 +246,7 @@ const UI = (() => {
       );
       setTimeout(() => {
         const modalAiBtn = document.querySelector('.modal-ai-btn');
-        if (modalAiBtn) modalAiBtn.onclick = (e) => { e.stopPropagation(); UI.showAIAnalysisModal(article); };
+        if (modalAiBtn) modalAiBtn.onclick = (e) => { e.stopPropagation(); UI.showAIAnalysisModal(article, callbacks); };
 
         const modalPdfBtn = document.querySelector('.modal-pdf-btn');
         if (modalPdfBtn) modalPdfBtn.onclick = (e) => {
@@ -782,90 +782,300 @@ const UI = (() => {
   }
 
   /* ── AI Analysis & Research Pilot Modal ─────────────────── */
-  function showAIAnalysisModal(article) {
-    const analysis = AIAssistant.analyzeArticle(article);
-    
-    const picoHtml = `
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 180px), 1fr));gap:10px;margin-bottom:16px;">
-        <div style="padding:10px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);">
-          <strong style="color:var(--purple);font-size:0.78rem;">P - População:</strong>
-          <div style="font-size:0.82rem;color:var(--text-primary);margin-top:2px;">${analysis.population}</div>
+  async function showAIAnalysisModal(article, callbacks = {}) {
+    const isConfigured = AIAssistant.isConfigured();
+    const aiConfig = AIAssistant.getAIConfig();
+    const providerName = AIAssistant.PROVIDER_NAMES[aiConfig.provider] || aiConfig.provider;
+
+    const initialHtml = `
+      <div style="display:flex;flex-direction:column;gap:14px;max-height:76vh;overflow-y:auto;padding-right:4px;" id="ai-modal-wrapper">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
+          <div style="flex:1;">
+            <div style="font-size:0.95rem;font-weight:700;line-height:1.4;color:var(--text-primary)">${escapeHtml(article.title)}</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">
+              ${escapeHtml((article.authors || []).slice(0, 3).join(', '))} ${article.year ? `(${article.year})` : ''} · ${escapeHtml(article.journal || '')}
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            ${isConfigured 
+              ? `<span id="ai-status-badge" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:12px;font-size:0.72rem;background:rgba(16,185,129,0.15);color:var(--green);border:1px solid rgba(16,185,129,0.3);">🟢 ${escapeHtml(providerName.split('(')[0])}</span>`
+              : `<button id="btn-quick-config-ai" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:12px;font-size:0.72rem;background:rgba(168,85,247,0.15);color:var(--purple);border:1px solid rgba(168,85,247,0.3);cursor:pointer;">⚡ Conectar IA Real (Grátis)</button>`
+            }
+          </div>
         </div>
-        <div style="padding:10px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);">
-          <strong style="color:var(--cyan);font-size:0.78rem;">I - Intervenção / Foco:</strong>
-          <div style="font-size:0.82rem;color:var(--text-primary);margin-top:2px;">${analysis.intervention}</div>
+
+        <!-- Tabs inside AI Modal -->
+        <div style="display:flex;gap:6px;border-bottom:1px solid var(--border);padding-bottom:6px;">
+          <button class="ai-tab-btn active" data-tab="pico" style="background:none;border:none;color:var(--purple);font-weight:700;font-size:0.82rem;cursor:pointer;padding:5px 10px;border-bottom:2px solid var(--purple);transition:all 0.2s;">🔬 PICO & Triagem</button>
+          <button class="ai-tab-btn" data-tab="chat" style="background:none;border:none;color:var(--text-muted);font-weight:600;font-size:0.82rem;cursor:pointer;padding:5px 10px;transition:all 0.2s;">💬 Conversar com o Artigo</button>
+          <button class="ai-tab-btn" data-tab="settings" style="background:none;border:none;color:var(--text-muted);font-weight:600;font-size:0.82rem;cursor:pointer;padding:5px 10px;transition:all 0.2s;">⚙️ Provedores de IA</button>
         </div>
-        <div style="padding:10px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);">
-          <strong style="color:var(--amber);font-size:0.78rem;">C - Comparador:</strong>
-          <div style="font-size:0.82rem;color:var(--text-primary);margin-top:2px;">${analysis.comparator}</div>
+
+        <!-- Tab 1: PICO & Screening -->
+        <div id="ai-tab-content-pico">
+          <div id="ai-pico-loading" style="padding:28px 16px;text-align:center;color:var(--text-muted);font-size:0.85rem;">
+            <div style="display:inline-block;width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--purple);border-radius:50%;animation:spin 0.8s linear infinite;margin-bottom:12px;"></div>
+            <div>Gisa AI está analisando o artigo e sintetizando o PICO...</div>
+          </div>
+          <div id="ai-pico-result" style="display:none;flex-direction:column;gap:14px;"></div>
         </div>
-        <div style="padding:10px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);">
-          <strong style="color:var(--green);font-size:0.78rem;">O - Desfecho (Outcome):</strong>
-          <div style="font-size:0.82rem;color:var(--text-primary);margin-top:2px;">${analysis.outcome}</div>
+
+        <!-- Tab 2: Chat with Article -->
+        <div id="ai-tab-content-chat" style="display:none;flex-direction:column;gap:10px;">
+          <div id="ai-chat-history" style="min-height:160px;max-height:280px;overflow-y:auto;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;font-size:0.82rem;display:flex;flex-direction:column;gap:10px;">
+            <div style="color:var(--text-muted);line-height:1.5;">
+              🤖 <strong>Gisa Research Pilot:</strong> Olá! Estou pronto para responder qualquer dúvida sobre <em>"${escapeHtml(article.title)}"</em>. Pergunte sobre tamanho da amostra, metodologia, dosagem, instrumentos ou conclusões.
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <input id="ai-chat-input" class="input input-sm" style="flex:1" placeholder="Ex: Qual foi a amostra exata? Houve grupo controle?"/>
+            <button id="ai-chat-send" class="btn btn-sm btn-primary">Perguntar</button>
+          </div>
+        </div>
+
+        <!-- Tab 3: AI Configuration -->
+        <div id="ai-tab-content-settings" style="display:none;flex-direction:column;gap:12px;padding:6px 0;">
+          <div style="font-size:0.85rem;color:var(--text-secondary);line-height:1.4;">
+            Conecte sua chave de API para habilitar <strong>respostas em tempo real e triagem inteligente com LLMs avançados</strong>:
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <label style="font-size:0.78rem;font-weight:600;color:var(--text-muted);">Provedor de IA:</label>
+            <select id="ai-cfg-provider" class="select select-sm" style="background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px;">
+              <option value="groq" ${aiConfig.provider === 'groq' ? 'selected' : ''}>🚀 Groq Cloud (Llama 3.3 70B - 100% Grátis e Mais Rápido do Mundo)</option>
+              <option value="gemini" ${aiConfig.provider === 'gemini' ? 'selected' : ''}>🌟 Google Gemini (1.5 Flash - 100% Grátis)</option>
+              <option value="openai" ${aiConfig.provider === 'openai' ? 'selected' : ''}>🧠 OpenAI (ChatGPT GPT-4o-mini)</option>
+              <option value="openrouter" ${aiConfig.provider === 'openrouter' ? 'selected' : ''}>🌐 OpenRouter (Modelos Abertos)</option>
+            </select>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <label style="font-size:0.78rem;font-weight:600;color:var(--text-muted);">Chave de API (API Key):</label>
+              <a id="ai-get-key-link" href="${aiConfig.provider === 'gemini' ? 'https://aistudio.google.com/app/apikey' : aiConfig.provider === 'openai' ? 'https://platform.openai.com/api-keys' : 'https://console.groq.com/keys'}" target="_blank" rel="noopener" style="font-size:0.74rem;color:var(--purple);text-decoration:underline;">Pegar chave gratuita ↗</a>
+            </div>
+            <div style="display:flex;gap:6px;">
+              <input type="password" id="ai-cfg-key" class="input input-sm" style="flex:1" placeholder="Cole sua chave aqui..." value="${escapeHtml(aiConfig.apiKey)}"/>
+              <button id="ai-toggle-key-vis" class="btn btn-sm btn-ghost" style="padding:4px 8px;" title="Ver/Ocultar chave">👁️</button>
+            </div>
+          </div>
+          <div id="ai-test-result" style="display:none;padding:8px 12px;border-radius:var(--radius-sm);font-size:0.8rem;"></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px;">
+            <button id="ai-cfg-test-btn" class="btn btn-sm btn-secondary">⚡ Testar Conexão</button>
+            <button id="ai-cfg-save-btn" class="btn btn-sm btn-primary">💾 Salvar Configuração</button>
+          </div>
+        </div>
+
+        <!-- Quick Actions (Apply Decision) -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid var(--border);flex-wrap:wrap;gap:8px;">
+          <span style="font-size:0.78rem;color:var(--text-muted);">Aplicar decisão na triagem:</span>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-sm" id="ai-act-include" style="background:var(--green);color:#fff;font-weight:600;">✓ Incluir</button>
+            <button class="btn btn-sm" id="ai-act-exclude" style="background:var(--red);color:#fff;font-weight:600;">✗ Excluir</button>
+            <button class="btn btn-sm" id="ai-act-maybe" style="background:var(--amber);color:#fff;font-weight:600;">? Talvez</button>
+          </div>
         </div>
       </div>
     `;
 
-    const verdictColor = analysis.verdict === 'include' ? 'var(--green)' : analysis.verdict === 'exclude' ? 'var(--red)' : 'var(--amber)';
-    const verdictLabel = analysis.verdict === 'include' ? 'Recomendado para INCLUSÃO' : analysis.verdict === 'exclude' ? 'Recomendado para EXCLUSÃO' : 'Recomenda-se leitura estendida (TALVEZ)';
+    modal('Gisa AI — Assistente Científico & Triagem', initialHtml, [{ label: 'Fechar', style: 'btn-ghost' }]);
 
-    modal(
-      'LitScan Pilot — Análise de IA do Artigo',
-      `<div style="display:flex;flex-direction:column;gap:14px;max-height:70vh;overflow-y:auto;padding-right:4px;">
-        <div style="font-size:0.95rem;font-weight:700;line-height:1.4;color:var(--text-primary)">${article.title}</div>
-        
-        <!-- PICO Framework -->
-        <h4 style="font-size:0.85rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em">Estrutura PICO Automática</h4>
-        ${picoHtml}
+    // Trigger analysis asynchronously
+    setTimeout(async () => {
+      const loadingEl = document.getElementById('ai-pico-loading');
+      const resultEl = document.getElementById('ai-pico-result');
+      const wrapper = document.getElementById('ai-modal-wrapper');
+      if (!wrapper) return;
 
-        <!-- AI Decision Recommendation -->
-        <div style="padding:12px 16px;background:rgba(99,102,241,0.08);border:1px solid ${verdictColor};border-radius:var(--radius-md);">
-          <div style="font-size:0.85rem;font-weight:700;color:${verdictColor};margin-bottom:4px;">${verdictLabel}</div>
-          <div style="font-size:0.82rem;color:var(--text-secondary);">${analysis.reasoning}</div>
-        </div>
+      // 1. Tab Switching
+      const tabBtns = wrapper.querySelectorAll('.ai-tab-btn');
+      const tabContents = {
+        pico: document.getElementById('ai-tab-content-pico'),
+        chat: document.getElementById('ai-tab-content-chat'),
+        settings: document.getElementById('ai-tab-content-settings')
+      };
 
-        <!-- Chat with Article -->
-        <hr style="border:none;border-top:1px solid var(--border);margin:4px 0;"/>
-        <h4 style="font-size:0.85rem;color:var(--purple);font-weight:700">Converse com este Artigo</h4>
-        <div id="ai-chat-history" style="min-height:80px;max-height:160px;overflow-y:auto;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px;font-size:0.82rem;display:flex;flex-direction:column;gap:8px;">
-          <div style="color:var(--text-muted)">Pergunte qualquer coisa (ex: "Qual foi a amostra?", "Qual a metodologia?")</div>
-        </div>
-        <div style="display:flex;gap:6px;">
-          <input id="ai-chat-input" class="input input-sm" style="flex:1" placeholder="Digite sua pergunta..."/>
-          <button id="ai-chat-send" class="btn btn-sm btn-primary">Perguntar</button>
-        </div>
-      </div>`,
-      [{ label: 'Fechar', style: 'btn-ghost' }]
-    );
+      tabBtns.forEach(btn => {
+        btn.onclick = () => {
+          tabBtns.forEach(b => {
+            b.classList.toggle('active', b === btn);
+            b.style.color = b === btn ? 'var(--purple)' : 'var(--text-muted)';
+            b.style.borderBottom = b === btn ? '2px solid var(--purple)' : 'none';
+          });
+          const target = btn.dataset.tab;
+          Object.keys(tabContents).forEach(k => {
+            if (tabContents[k]) tabContents[k].style.display = k === target ? 'flex' : 'none';
+          });
+        };
+      });
 
-    setTimeout(() => {
+      document.getElementById('btn-quick-config-ai')?.addEventListener('click', () => {
+        const settingsTab = wrapper.querySelector('[data-tab="settings"]');
+        if (settingsTab) settingsTab.click();
+      });
+
+      // 2. Decision Shortcuts
+      document.getElementById('ai-act-include')?.addEventListener('click', () => {
+        if (callbacks.onInclude) callbacks.onInclude();
+        document.querySelector('.modal-overlay')?.remove();
+      });
+      document.getElementById('ai-act-exclude')?.addEventListener('click', () => {
+        if (callbacks.onExclude) callbacks.onExclude();
+        document.querySelector('.modal-overlay')?.remove();
+      });
+      document.getElementById('ai-act-maybe')?.addEventListener('click', () => {
+        if (callbacks.onMaybe) callbacks.onMaybe();
+        document.querySelector('.modal-overlay')?.remove();
+      });
+
+      // 3. Chat Handler
       const sendBtn = document.getElementById('ai-chat-send');
       const input = document.getElementById('ai-chat-input');
       const history = document.getElementById('ai-chat-history');
 
-      const handleAsk = () => {
+      const handleAsk = async () => {
         const q = input?.value?.trim();
         if (!q) return;
-        
-        // Append user question
+
         const userMsg = document.createElement('div');
         userMsg.style.cssText = 'align-self:flex-end;background:var(--purple-glow);color:var(--purple);padding:6px 12px;border-radius:12px;max-width:85%;';
         userMsg.textContent = '👤 ' + q;
         history.appendChild(userMsg);
         input.value = '';
 
-        // Get AI answer
-        const ans = AIAssistant.answerQuestion(article, q);
-        const aiMsg = document.createElement('div');
-        aiMsg.style.cssText = 'align-self:flex-start;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-primary);padding:8px 12px;border-radius:12px;max-width:90%;line-height:1.5;';
-        aiMsg.innerHTML = ans;
-        history.appendChild(aiMsg);
+        const typingMsg = document.createElement('div');
+        typingMsg.style.cssText = 'align-self:flex-start;background:var(--bg-elevated);border:1px solid var(--border);color:var(--text-muted);padding:8px 12px;border-radius:12px;max-width:90%;font-style:italic;';
+        typingMsg.innerHTML = '🤖 Gisa AI está consultando o artigo e redigindo a resposta...';
+        history.appendChild(typingMsg);
+        history.scrollTop = history.scrollHeight;
+
+        try {
+          const ans = await AIAssistant.answerQuestion(article, q);
+          typingMsg.style.fontStyle = 'normal';
+          typingMsg.style.color = 'var(--text-primary)';
+          typingMsg.style.lineHeight = '1.5';
+          typingMsg.innerHTML = ans.replace(/\n/g, '<br/>');
+        } catch (err) {
+          typingMsg.innerHTML = `❌ Erro: ${err.message}`;
+        }
         history.scrollTop = history.scrollHeight;
       };
 
       sendBtn?.addEventListener('click', handleAsk);
       input?.addEventListener('keydown', e => { if (e.key === 'Enter') handleAsk(); });
-    }, 50);
+
+      // 4. Settings Form Handler
+      const providerSel = document.getElementById('ai-cfg-provider');
+      const keyInput = document.getElementById('ai-cfg-key');
+      const testBtn = document.getElementById('ai-cfg-test-btn');
+      const saveBtn = document.getElementById('ai-cfg-save-btn');
+      const testRes = document.getElementById('ai-test-result');
+      const toggleKey = document.getElementById('ai-toggle-key-vis');
+      const getKeyLink = document.getElementById('ai-get-key-link');
+
+      providerSel?.addEventListener('change', () => {
+        const p = providerSel.value;
+        if (getKeyLink) {
+          if (p === 'gemini') getKeyLink.href = 'https://aistudio.google.com/app/apikey';
+          else if (p === 'openai') getKeyLink.href = 'https://platform.openai.com/api-keys';
+          else if (p === 'openrouter') getKeyLink.href = 'https://openrouter.ai/keys';
+          else getKeyLink.href = 'https://console.groq.com/keys';
+        }
+      });
+
+      toggleKey?.addEventListener('click', () => {
+        if (keyInput) keyInput.type = keyInput.type === 'password' ? 'text' : 'password';
+      });
+
+      testBtn?.addEventListener('click', async () => {
+        testBtn.disabled = true;
+        testBtn.textContent = '⏳ Testando...';
+        testRes.style.display = 'block';
+        testRes.style.background = 'var(--bg-card2)';
+        testRes.style.color = 'var(--text-muted)';
+        testRes.textContent = 'Enviando requisição de teste para o provedor...';
+
+        const res = await AIAssistant.testConnection(providerSel.value, keyInput.value);
+        testBtn.disabled = false;
+        testBtn.textContent = '⚡ Testar Conexão';
+
+        if (res.ok) {
+          testRes.style.background = 'rgba(16,185,129,0.15)';
+          testRes.style.color = 'var(--green)';
+          testRes.textContent = '✓ ' + res.message;
+        } else {
+          testRes.style.background = 'rgba(239,68,68,0.15)';
+          testRes.style.color = 'var(--red)';
+          testRes.textContent = '✗ ' + res.error;
+        }
+      });
+
+      saveBtn?.addEventListener('click', () => {
+        AIAssistant.saveAIConfig({
+          provider: providerSel.value,
+          apiKey: keyInput.value
+        });
+        toast('Configuração de IA salva com sucesso!', 'success');
+        document.querySelector('.modal-overlay')?.remove();
+        showAIAnalysisModal(article, callbacks);
+      });
+
+      // 5. Fetch PICO & Screening Analysis
+      try {
+        const analysis = await AIAssistant.analyzeArticle(article);
+        if (loadingEl) loadingEl.style.display = 'none';
+        if (resultEl) {
+          const verdictColor = analysis.verdict === 'include' ? 'var(--green)' : analysis.verdict === 'exclude' ? 'var(--red)' : 'var(--amber)';
+          const verdictLabel = analysis.verdict === 'include' ? '✓ Recomendado para INCLUSÃO' : analysis.verdict === 'exclude' ? '✗ Recomendado para EXCLUSÃO' : '? Recomenda-se leitura estendida (TALVEZ)';
+
+          resultEl.innerHTML = `
+            ${analysis.warning ? `<div style="padding:8px 12px;background:rgba(245,158,11,0.12);border:1px solid var(--amber);border-radius:var(--radius-sm);font-size:0.78rem;color:var(--amber);">${analysis.warning}</div>` : ''}
+
+            <!-- Verdict Card -->
+            <div style="padding:12px 16px;background:rgba(99,102,241,0.08);border:1.5px solid ${verdictColor};border-radius:var(--radius-md);">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <span style="font-size:0.88rem;font-weight:700;color:${verdictColor};">${verdictLabel}</span>
+                <span style="font-size:0.72rem;padding:2px 8px;border-radius:10px;background:var(--bg-elevated);color:var(--text-muted);">${analysis.isRealLLM ? `IA Ativa: ${analysis.providerName || 'LLM'}` : 'Heurística Local'}</span>
+              </div>
+              <div style="font-size:0.84rem;line-height:1.5;color:var(--text-secondary);">${escapeHtml(analysis.reasoning)}</div>
+            </div>
+
+            <!-- PICO Grid -->
+            <div>
+              <h4 style="font-size:0.78rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Framework PICO Estruturado</h4>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 180px), 1fr));gap:8px;">
+                <div style="padding:10px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);">
+                  <strong style="color:var(--purple);font-size:0.76rem;display:block;margin-bottom:3px;">P · População / Amostra:</strong>
+                  <div style="font-size:0.82rem;color:var(--text-primary);">${escapeHtml(analysis.population)}</div>
+                </div>
+                <div style="padding:10px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);">
+                  <strong style="color:var(--cyan);font-size:0.76rem;display:block;margin-bottom:3px;">I · Intervenção / Fenômeno:</strong>
+                  <div style="font-size:0.82rem;color:var(--text-primary);">${escapeHtml(analysis.intervention)}</div>
+                </div>
+                <div style="padding:10px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);">
+                  <strong style="color:var(--amber);font-size:0.76rem;display:block;margin-bottom:3px;">C · Comparador / Controle:</strong>
+                  <div style="font-size:0.82rem;color:var(--text-primary);">${escapeHtml(analysis.comparator)}</div>
+                </div>
+                <div style="padding:10px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);">
+                  <strong style="color:var(--green);font-size:0.76rem;display:block;margin-bottom:3px;">O · Desfechos (Outcomes):</strong>
+                  <div style="font-size:0.82rem;color:var(--text-primary);">${escapeHtml(analysis.outcome)}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Key Points -->
+            ${analysis.keyPoints && analysis.keyPoints.length ? `
+              <div style="padding:10px 12px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);">
+                <strong style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:6px;">Síntese Metodológica e Achados:</strong>
+                <ul style="margin:0;padding-left:18px;font-size:0.82rem;line-height:1.5;color:var(--text-secondary);">
+                  ${analysis.keyPoints.map(kp => `<li style="margin-bottom:4px;">${kp}</li>`).join('')}
+                </ul>
+              </div>` : ''}
+          `;
+          resultEl.style.display = 'flex';
+        }
+      } catch (err) {
+        if (loadingEl) loadingEl.innerHTML = `<span style="color:var(--red);">Erro ao analisar artigo: ${err.message}</span>`;
+      }
+    }, 40);
   }
 
   /** Realce de palavras-chave no resumo (Verde para Inclusão, Vermelho para Exclusão) */
@@ -1100,7 +1310,7 @@ const UI = (() => {
     container.querySelector('#insp-btn-include')?.addEventListener('click', () => callbacks.onInclude && callbacks.onInclude());
     container.querySelector('#insp-btn-exclude')?.addEventListener('click', () => callbacks.onExclude && callbacks.onExclude());
     container.querySelector('#insp-btn-maybe')?.addEventListener('click', () => callbacks.onMaybe && callbacks.onMaybe());
-    container.querySelector('#insp-btn-ai-analysis')?.addEventListener('click', () => showAIAnalysisModal(article));
+    container.querySelector('#insp-btn-ai-analysis')?.addEventListener('click', () => showAIAnalysisModal(article, callbacks));
     
     // PDF Actions
     container.querySelector('#insp-btn-read-pdf')?.addEventListener('click', () => {
