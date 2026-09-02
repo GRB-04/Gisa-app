@@ -2102,7 +2102,7 @@ const UI = (() => {
 
     const closeFn = modal('Opções do Aplicativo', content, { maxWidth: '380px' });
 
-    const profBtn = $('app-menu-profile-btn');
+    const profBtn = document.getElementById('app-menu-profile-btn');
     if (profBtn) {
       profBtn.onclick = () => {
         closeFn();
@@ -2110,7 +2110,7 @@ const UI = (() => {
       };
     }
 
-    const dlBtn = $('app-menu-download-btn');
+    const dlBtn = document.getElementById('app-menu-download-btn');
     if (dlBtn) {
       dlBtn.onclick = () => {
         closeFn();
@@ -2118,7 +2118,7 @@ const UI = (() => {
       };
     }
 
-    const hkBtn = $('app-menu-hotkeys-btn');
+    const hkBtn = document.getElementById('app-menu-hotkeys-btn');
     if (hkBtn) {
       hkBtn.onclick = () => {
         closeFn();
@@ -2126,12 +2126,12 @@ const UI = (() => {
       };
     }
 
-    const blBtn = $('app-menu-blind-btn');
+    const blBtn = document.getElementById('app-menu-blind-btn');
     if (blBtn) {
       blBtn.onclick = () => {
         if (callbacks.onToggleBlind) callbacks.onToggleBlind();
         const curBlind = !!(window.state && window.state.blindMode);
-        const statusEl = $('app-menu-blind-status');
+        const statusEl = document.getElementById('app-menu-blind-status');
         if (statusEl) {
           statusEl.textContent = curBlind ? 'ATIVADO' : 'DESATIVADO';
           statusEl.style.color = curBlind ? '#fca5a5' : 'var(--purple-light)';
@@ -2139,7 +2139,7 @@ const UI = (() => {
       };
     }
 
-    const lgBtn = $('app-menu-logout-btn');
+    const lgBtn = document.getElementById('app-menu-logout-btn');
     if (lgBtn) {
       lgBtn.onclick = () => {
         closeFn();
