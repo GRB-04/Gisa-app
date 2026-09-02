@@ -2736,6 +2736,81 @@ Gerado por Gisa · ${date}
       hotkeysBtn.onclick = () => UI.showHotkeysModal();
     }
 
+    // ─── Mobile Hamburger Menu Drawer Handlers ───
+    const mobileMenuBtn = $('mobile-menu-btn');
+    const mobileMenuOverlay = $('mobile-menu-overlay');
+    const closeMobileMenuBtn = $('close-mobile-menu-btn');
+
+    function openMobileMenu() {
+      if (!mobileMenuOverlay) return;
+      const profile = Storage.getProfile();
+      const nameEl = $('mobile-user-name');
+      const emailEl = $('mobile-user-email');
+      const avatarEl = $('mobile-user-avatar');
+      const blindStatusEl = $('mobile-blind-status');
+
+      if (nameEl) nameEl.textContent = profile.name || 'Pesquisador(a)';
+      if (emailEl) emailEl.textContent = profile.email || '';
+      if (avatarEl) {
+        if (profile.avatar && profile.avatar.startsWith('http')) {
+          avatarEl.innerHTML = `<img src="${profile.avatar}" alt="Avatar" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:1.5px solid var(--purple);" />`;
+        } else {
+          avatarEl.textContent = profile.avatar || '👩‍🔬';
+        }
+      }
+      if (blindStatusEl) blindStatusEl.textContent = state.blindMode ? 'ON' : 'OFF';
+
+      mobileMenuOverlay.style.display = 'flex';
+    }
+
+    function closeMobileMenu() {
+      if (mobileMenuOverlay) mobileMenuOverlay.style.display = 'none';
+    }
+
+    if (mobileMenuBtn) mobileMenuBtn.onclick = openMobileMenu;
+    if (closeMobileMenuBtn) closeMobileMenuBtn.onclick = closeMobileMenu;
+    if (mobileMenuOverlay) {
+      mobileMenuOverlay.onclick = (e) => {
+        if (e.target === mobileMenuOverlay) closeMobileMenu();
+      };
+    }
+
+    const mobileProfileBtn = $('mobile-profile-btn');
+    if (mobileProfileBtn) {
+      mobileProfileBtn.onclick = () => {
+        closeMobileMenu();
+        UI.showProfileModal(() => UI.updateUserProfileNavbarUI());
+      };
+    }
+
+    const mobileDownloadBtn = $('mobile-download-btn');
+    if (mobileDownloadBtn) {
+      mobileDownloadBtn.onclick = () => {
+        closeMobileMenu();
+        UI.showInstallDownloadModal();
+      };
+    }
+
+    const mobileBlindBtn = $('mobile-blind-btn');
+    if (mobileBlindBtn) {
+      mobileBlindBtn.onclick = () => {
+        state.blindMode = !state.blindMode;
+        updateBlindModeUI();
+        const blindStatusEl = $('mobile-blind-status');
+        if (blindStatusEl) blindStatusEl.textContent = state.blindMode ? 'ON' : 'OFF';
+        UI.toast(`Modo Cego: ${state.blindMode ? 'ATIVADO' : 'DESATIVADO'}`, state.blindMode ? 'info' : 'success');
+        render();
+      };
+    }
+
+    const mobileLogoutBtn = $('mobile-logout-btn');
+    if (mobileLogoutBtn) {
+      mobileLogoutBtn.onclick = async () => {
+        closeMobileMenu();
+        await logout();
+      };
+    }
+
     // ─── Global keyboard shortcuts (Gisa Hotkeys Engine) ───
     document.addEventListener('keydown', e => {
       // Skip when typing in any input, textarea or active element

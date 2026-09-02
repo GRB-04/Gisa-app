@@ -3459,19 +3459,20 @@ input, textarea, [contenteditable="true"] {
 }
 
 .home-hero-actions .btn {
-  height: 44px;
-  padding: 0 26px;
-  font-size: 0.92rem;
+  height: 50px;
+  min-height: 50px;
+  padding: 0 32px;
+  font-size: 0.98rem;
   font-weight: 700;
   border-radius: var(--radius-full);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+  gap: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
   transition: all 0.2s cubic-bezier(0.23, 1, 0.32, 1);
   width: auto;
-  min-width: 190px;
+  min-width: 210px;
   cursor: pointer;
 }
 
@@ -3482,7 +3483,7 @@ input, textarea, [contenteditable="true"] {
 }
 .home-hero-actions .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 24px var(--purple-glow);
+  box-shadow: 0 6px 26px var(--purple-glow);
 }
 
 .home-hero-actions .btn-secondary {
@@ -3628,6 +3629,86 @@ input, textarea, [contenteditable="true"] {
   font-weight: 700;
   box-shadow: 0 0 14px rgba(239, 68, 68, 0.35);
 }
+
+/* ── Mobile Menu Drawer (Apple Glass Modal) ── */
+.mobile-menu-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(10px);
+  z-index: 9999;
+  display: flex;
+  justify-content: flex-end;
+  animation: fadeIn 0.2s ease;
+}
+
+.mobile-menu-drawer {
+  width: 84%;
+  max-width: 320px;
+  height: 100%;
+  background: #140d28;
+  border-left: 1px solid rgba(168, 85, 247, 0.3);
+  padding: 24px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  box-shadow: -10px 0 40px rgba(0, 0, 0, 0.7);
+  animation: slideLeft 0.25s cubic-bezier(0, 0, 0.2, 1);
+  box-sizing: border-box;
+}
+
+.mobile-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mobile-menu-user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mobile-menu-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mobile-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-card2);
+  border: 1px solid rgba(168, 85, 247, 0.15);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.mobile-menu-item:hover, .mobile-menu-item:active {
+  background: rgba(168, 85, 247, 0.2);
+  border-color: var(--purple);
+}
+
+.mobile-menu-item .m-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+@keyframes slideLeft {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
 .pdf-viewer-modal-content {
   animation: fadeIn 0.2s ease-out;
 }
@@ -3723,61 +3804,85 @@ input, textarea, [contenteditable="true"] {
 /* ── Mobile Screen (max-width: 640px) ── */
 @media (max-width: 640px) {
   .navbar {
-    padding: 6px 10px;
-    height: 50px;
-    min-height: 50px;
+    padding: 8px 14px;
+    height: 52px;
+    min-height: 52px;
   }
   .navbar-brand {
-    gap: 6px;
+    gap: 8px;
   }
   .navbar-logo {
-    width: 28px;
-    height: 28px;
-    font-size: 0.95rem;
+    width: 30px;
+    height: 30px;
+    font-size: 1rem;
   }
   .navbar-name {
-    font-size: 1.05rem;
+    font-size: 1.1rem;
   }
   .navbar-controls {
-    gap: 5px;
+    gap: 8px;
   }
 
-  /* Hide keyboard shortcuts on touch devices */
-  .hotkeys-help-btn {
+  /* On mobile: Hide desktop pills and show clean hamburger menu button */
+  .navbar-controls .install-app-nav-btn,
+  .navbar-controls .hotkeys-help-btn,
+  .navbar-controls .blind-toggle-btn {
     display: none !important;
   }
 
-  /* Compact Navbar Pills on Mobile */
-  .install-app-nav-btn,
-  .user-profile-nav-btn,
-  .blind-toggle-btn {
-    height: 32px !important;
-    min-height: 32px !important;
-    padding: 0 10px !important;
-    font-size: 0.78rem !important;
-    gap: 5px !important;
+  .mobile-menu-toggle-btn {
+    display: inline-flex !important;
+    height: 36px;
+    width: 36px;
+    padding: 0;
+    border-radius: 50%;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    background: rgba(168, 85, 247, 0.12);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .mobile-menu-toggle-btn:hover {
+    background: rgba(168, 85, 247, 0.25);
+    border-color: var(--purple);
+    transform: scale(1.05);
   }
 
   .user-profile-nav-btn {
-    padding: 0 10px 0 5px !important;
+    height: 36px !important;
+    padding: 0 12px 0 6px !important;
+    font-size: 0.82rem !important;
   }
   .user-avatar-badge img {
-    width: 20px !important;
-    height: 20px !important;
+    width: 22px !important;
+    height: 22px !important;
   }
   .nav-user-name {
     display: inline-block !important;
-    font-size: 0.78rem !important;
+    font-size: 0.82rem !important;
   }
 
   .home-hero {
-    padding: 24px 8px 16px;
+    padding: 20px 8px 12px;
+    gap: 12px;
   }
   .home-hero h1 {
-    font-size: 1.6rem !important;
+    font-size: 1.55rem !important;
   }
   .home-hero p {
-    font-size: 0.88rem !important;
+    font-size: 0.86rem !important;
+  }
+  .home-hero-actions {
+    flex-direction: column;
+    width: 100%;
+    gap: 10px;
+  }
+  .home-hero-actions .btn {
+    width: 100%;
+    min-width: unset;
+    height: 48px;
   }
     grid-template-columns: 1fr;
     padding: 12px;
