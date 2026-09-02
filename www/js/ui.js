@@ -2129,8 +2129,14 @@ const UI = (() => {
     const blBtn = document.getElementById('app-menu-blind-btn');
     if (blBtn) {
       blBtn.onclick = () => {
-        if (callbacks.onToggleBlind) callbacks.onToggleBlind();
-        const curBlind = !!(window.state && window.state.blindMode);
+        if (callbacks && typeof callbacks.onToggleBlind === 'function') {
+          callbacks.onToggleBlind();
+        } else if (typeof state !== 'undefined') {
+          state.blindMode = !state.blindMode;
+          if (typeof updateBlindModeUI === 'function') updateBlindModeUI();
+          if (typeof render === 'function') render();
+        }
+        const curBlind = typeof state !== 'undefined' ? !!state.blindMode : false;
         const statusEl = document.getElementById('app-menu-blind-status');
         if (statusEl) {
           statusEl.textContent = curBlind ? 'ATIVADO' : 'DESATIVADO';
@@ -2143,7 +2149,14 @@ const UI = (() => {
     if (lgBtn) {
       lgBtn.onclick = () => {
         closeFn();
-        if (callbacks.onLogout) callbacks.onLogout();
+        if (callbacks && typeof callbacks.onLogout === 'function') {
+          callbacks.onLogout();
+        } else if (typeof logout === 'function') {
+          logout();
+        } else {
+          Storage.clearSession();
+          window.location.reload();
+        }
       };
     }
   }
