@@ -494,11 +494,8 @@ const App = (() => {
           <h1 class="hero-title">Acelerador de <span class="gradient-text">Revisão Sistemática</span></h1>
           <p class="hero-sub">Reduza semanas de triagem manual para dias. Triagem com atalhos de teclado, Modo Cego (*Blind Mode*), desduplicação e gráficos PRISMA.</p>
           <div class="home-hero-actions">
-            <button class="btn btn-primary" id="new-project-btn">
+            <button class="btn-create-project-hero" id="new-project-btn">
               + Criar Novo Projeto de Revisão
-            </button>
-            <button class="btn btn-secondary" id="home-download-app-btn">
-              📲 Baixar APK
             </button>
           </div>
         </div>
@@ -2788,6 +2785,14 @@ Gerado por Gisa · ${date}
       mobileDownloadBtn.onclick = () => {
         closeMobileMenu();
         UI.showInstallDownloadModal();
+      };
+    }
+
+    const mobileHotkeysBtn = $('mobile-hotkeys-btn');
+    if (mobileHotkeysBtn) {
+      mobileHotkeysBtn.onclick = () => {
+        closeMobileMenu();
+        UI.showHotkeysModal();
       };
     }
 
