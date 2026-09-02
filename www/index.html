@@ -25,7 +25,7 @@
 
   <!-- Cache Buster & SW Sync Engine -->
   <script>
-    const GISA_VERSION = 'v62';
+    const GISA_VERSION = 'v63';
     if (localStorage.getItem('gisa_build_ver') !== GISA_VERSION) {
       localStorage.setItem('gisa_build_ver', GISA_VERSION);
       if ('caches' in window) {
@@ -35,7 +35,7 @@
   </script>
 
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=62"/>
+  <link rel="stylesheet" href="css/style.css?v=63"/>
 
   <!-- App Icons -->
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg"/>
@@ -77,7 +77,7 @@
   </header>
 
   <!-- ── MAIN CONTENT (ROUTER OUTLET) ─────────────────────── -->
-  <main id="main-content" class="auth-mode">
+  <main id="main-content">
     <!-- Populated by App.render() -->
   </main>
 
@@ -91,13 +91,13 @@
 <!-- ── SCRIPTS ─────────────────────────────────────────────── -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="console.warn('Supabase CDN indisponível ou bloqueado. A aplicação funcionará em modo Local-First.')"></script>
-<script src="js/storage.js?v=62"></script>
-<script src="js/supabase_client.js?v=62"></script>
-<script src="js/similarity.js?v=62"></script>
-<script src="js/parsers.js?v=62"></script>
-<script src="js/ai_assistant.js?v=62"></script>
-<script src="js/ui.js?v=62"></script>
-<script src="js/app.js?v=62"></script>
+<script src="js/storage.js?v=63"></script>
+<script src="js/supabase_client.js?v=63"></script>
+<script src="js/similarity.js?v=63"></script>
+<script src="js/parsers.js?v=63"></script>
+<script src="js/ai_assistant.js?v=63"></script>
+<script src="js/ui.js?v=63"></script>
+<script src="js/app.js?v=63"></script>
 
 <!-- Service Worker Registration for PWA / Offline Support -->
 <script>
@@ -117,9 +117,9 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=62').then((reg) => {
+      navigator.serviceWorker.register('./sw.js?v=63').then((reg) => {
         reg.update();
-        console.log('Service Worker Gisa registrado (v62):', reg.scope);
+        console.log('Service Worker Gisa registrado (v63):', reg.scope);
       }).catch((err) => {
         console.warn('Falha no registro do Service Worker:', err);
       });

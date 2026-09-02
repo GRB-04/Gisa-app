@@ -565,6 +565,7 @@ const App = (() => {
   // ─────────────────────────────────────────────────────
   function renderWizard() {
     const main = $('main-content');
+    main.className = 'wizard-main-wrapper';
     const step = state.wizard.step;
 
     const steps = [

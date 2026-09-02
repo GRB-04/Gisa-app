@@ -3412,11 +3412,17 @@ input, textarea, [contenteditable="true"] {
   box-shadow: var(--shadow-sm);
 }
 /* ─── NEW PROJECT WIZARD (Compact Viewport Fit) ──── */
+.wizard-main-wrapper {
+  display: block !important;
+  width: 100% !important;
+  padding: 10px 16px 20px !important;
+}
+
 .wizard-view {
   width: 100% !important;
   max-width: 880px !important;
   margin: 0 auto !important;
-  padding: 10px 16px 20px !important;
+  padding: 0 !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 12px !important;
