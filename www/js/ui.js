@@ -2051,6 +2051,103 @@ const UI = (() => {
     }, 50);
   }
 
+  function showAppMenuModal(callbacks = {}) {
+    document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+
+    const profile = Storage.getProfile();
+    const isBlind = !!(window.state && window.state.blindMode);
+    const photoUrl = profile.avatar && profile.avatar.startsWith('http')
+      ? profile.avatar
+      : (profile.picture && profile.picture.startsWith('http') ? profile.picture : null);
+
+    const avatarHtml = photoUrl
+      ? `<img src="${photoUrl}" alt="Avatar" style="width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid var(--purple);" />`
+      : `<div style="width:38px;height:38px;border-radius:50%;background:rgba(168,85,247,0.25);border:1px solid var(--purple);display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:var(--text-primary);font-weight:700;">${(profile.name || 'P').charAt(0).toUpperCase()}</div>`;
+
+    const content = `
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <!-- User header card -->
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg-card2);border:1px solid rgba(168,85,247,0.2);border-radius:var(--radius-md);">
+          ${avatarHtml}
+          <div style="min-width:0;flex:1;">
+            <strong style="color:var(--text-primary);font-size:0.95rem;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${profile.name || 'Pesquisador(a)'}</strong>
+            <span style="color:var(--text-muted);font-size:0.76rem;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${profile.email || ''}</span>
+          </div>
+        </div>
+
+        <!-- Menu Options -->
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <button type="button" class="btn btn-ghost" id="app-menu-profile-btn" style="width:100%;justify-content:flex-start;padding:12px 14px;gap:12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:var(--radius-md);font-size:0.9rem;cursor:pointer;">
+            <span style="font-size:1.2rem;">👤</span> <span>Meu Perfil & Configurações</span>
+          </button>
+          
+          <button type="button" class="btn btn-ghost" id="app-menu-download-btn" style="width:100%;justify-content:flex-start;padding:12px 14px;gap:12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:var(--radius-md);font-size:0.9rem;cursor:pointer;">
+            <span style="font-size:1.2rem;">📲</span> <span>Baixar APK Android</span>
+          </button>
+
+          <button type="button" class="btn btn-ghost" id="app-menu-hotkeys-btn" style="width:100%;justify-content:flex-start;padding:12px 14px;gap:12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:var(--radius-md);font-size:0.9rem;cursor:pointer;">
+            <span style="font-size:1.2rem;">⌨️</span> <span>Atalhos do Teclado (Pressione ?)</span>
+          </button>
+
+          <button type="button" class="btn btn-ghost" id="app-menu-blind-btn" style="width:100%;justify-content:flex-start;padding:12px 14px;gap:12px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:var(--radius-md);font-size:0.9rem;cursor:pointer;">
+            <span style="font-size:1.2rem;">👁️</span> <span>Modo Cego: <strong id="app-menu-blind-status" style="color:${isBlind ? '#fca5a5' : 'var(--purple-light)'};">${isBlind ? 'ATIVADO' : 'DESATIVADO'}</strong></span>
+          </button>
+
+          <button type="button" class="btn btn-ghost" id="app-menu-logout-btn" style="width:100%;justify-content:flex-start;padding:12px 14px;gap:12px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:var(--radius-md);font-size:0.9rem;color:#ef4444;margin-top:6px;cursor:pointer;">
+            <span style="font-size:1.2rem;">🚪</span> <span>Sair da Conta</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    const closeFn = modal('Opções do Aplicativo', content, { maxWidth: '380px' });
+
+    const profBtn = $('app-menu-profile-btn');
+    if (profBtn) {
+      profBtn.onclick = () => {
+        closeFn();
+        showProfileModal(callbacks.onProfileUpdate);
+      };
+    }
+
+    const dlBtn = $('app-menu-download-btn');
+    if (dlBtn) {
+      dlBtn.onclick = () => {
+        closeFn();
+        showInstallDownloadModal();
+      };
+    }
+
+    const hkBtn = $('app-menu-hotkeys-btn');
+    if (hkBtn) {
+      hkBtn.onclick = () => {
+        closeFn();
+        showHotkeysModal();
+      };
+    }
+
+    const blBtn = $('app-menu-blind-btn');
+    if (blBtn) {
+      blBtn.onclick = () => {
+        if (callbacks.onToggleBlind) callbacks.onToggleBlind();
+        const curBlind = !!(window.state && window.state.blindMode);
+        const statusEl = $('app-menu-blind-status');
+        if (statusEl) {
+          statusEl.textContent = curBlind ? 'ATIVADO' : 'DESATIVADO';
+          statusEl.style.color = curBlind ? '#fca5a5' : 'var(--purple-light)';
+        }
+      };
+    }
+
+    const lgBtn = $('app-menu-logout-btn');
+    if (lgBtn) {
+      lgBtn.onclick = () => {
+        closeFn();
+        if (callbacks.onLogout) callbacks.onLogout();
+      };
+    }
+  }
+
   function updateUserProfileNavbarUI() {
     const profile = Storage.getProfile();
     const avatarEl = document.getElementById('nav-user-avatar');
@@ -2093,6 +2190,6 @@ const UI = (() => {
     renderLabelChips, showLabelPicker, renderHotkeysPanel, renderLabelsManager, showAIAnalysisModal,
     highlightKeywords, renderFacetSidebar, renderAbstractInspector, showHotkeysModal,
     showSupabaseModal, updateCloudStatusUI, showAutoResolverModal, showPdfViewerModal,
-    showProfileModal, showInstallDownloadModal, updateUserProfileNavbarUI
+    showProfileModal, showInstallDownloadModal, updateUserProfileNavbarUI, showAppMenuModal
   };
 })();
