@@ -6,14 +6,14 @@
 const AIAssistant = (() => {
 
   const DEFAULT_MODELS = {
-    groq: 'llama-3.3-70b-versatile',
+    groq: 'qwen/qwen3.8-27b',
     gemini: 'gemini-1.5-flash',
     openai: 'gpt-4o-mini',
     openrouter: 'meta-llama/llama-3.3-70b-instruct:free'
   };
 
   const PROVIDER_NAMES = {
-    groq: 'Groq Cloud (Llama 3.3 70B - Grátis e Ultra Rápido)',
+    groq: 'Groq Cloud (Qwen 3.8 27B - Ultra Rápido)',
     gemini: 'Google Gemini (1.5 Flash - Grátis)',
     openai: 'OpenAI (ChatGPT GPT-4o-mini)',
     openrouter: 'OpenRouter (Modelos Abertos)'
