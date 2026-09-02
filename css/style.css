@@ -3414,12 +3414,12 @@ input, textarea, [contenteditable="true"] {
 /* ─── NEW PROJECT WIZARD (Compact Viewport Optimization) ──── */
 .wizard-view {
   width: 100%;
-  max-width: 820px;
+  max-width: 860px;
   margin: 0 auto;
-  padding: 16px 20px 24px;
+  padding: 8px 18px 16px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   animation: fadeIn 0.2s ease-out;
 }
 
@@ -3533,6 +3533,37 @@ input, textarea, [contenteditable="true"] {
   color: var(--text-secondary);
   line-height: 1.35;
   margin-bottom: 2px;
+}
+
+.wz-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: 100%;
+}
+
+.wz-field-title {
+  grid-column: 1 / 2;
+}
+
+.wz-field-type {
+  grid-column: 2 / 3;
+}
+
+.wz-field-desc {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+  .wz-form-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .wz-field-title,
+  .wz-field-type,
+  .wz-field-desc {
+    grid-column: 1 / -1;
+  }
 }
 
 .wz-body .form-group {

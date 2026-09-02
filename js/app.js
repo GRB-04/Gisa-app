@@ -585,27 +585,32 @@ const App = (() => {
     if (step === 1) {
       bodyHtml = `
         <div class="wz-body">
-          <h2 class="wz-title">Sobre a revisão</h2>
-          <p class="wz-sub">Dê um nome e descreva o objetivo desta revisão sistemática.</p>
-          <div class="form-group">
-            <label>Título da revisão *</label>
-            <input id="wz-name" class="input" placeholder="Ex: Feminicídio no Brasil 2020–2025"
-              value="${state.wizard.name}" autocomplete="off"/>
+          <div class="wz-title-wrap">
+            <h2 class="wz-title">Sobre a revisão</h2>
+            <p class="wz-sub">Dê um nome e descreva o objetivo desta revisão sistemática.</p>
           </div>
-          <div class="form-group">
-            <label>Tipo de revisão</label>
-            <select id="wz-type" class="input select">
-              <option value="">Selecione o tipo</option>
-              <option value="Revisão Sistemática">Revisão Sistemática</option>
-              <option value="Scoping Review">Scoping Review</option>
-              <option value="Meta-análise">Meta-análise</option>
-              <option value="Revisão Narrativa">Revisão Narrativa</option>
-              <option value="Estado da Arte">Estado da Arte</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Descrição (opcional)</label>
-            <textarea id="wz-desc" class="input" rows="3" placeholder="Descreva o objetivo e escopo desta revisão…">${state.wizard.desc}</textarea>
+          
+          <div class="wz-form-grid">
+            <div class="form-group wz-field-title">
+              <label>Título da revisão *</label>
+              <input id="wz-name" class="input" placeholder="Ex: Feminicídio no Brasil 2020–2025"
+                value="${state.wizard.name}" autocomplete="off"/>
+            </div>
+            <div class="form-group wz-field-type">
+              <label>Tipo de revisão</label>
+              <select id="wz-type" class="input select">
+                <option value="">Selecione o tipo</option>
+                <option value="Revisão Sistemática">Revisão Sistemática</option>
+                <option value="Scoping Review">Scoping Review</option>
+                <option value="Meta-análise">Meta-análise</option>
+                <option value="Revisão Narrativa">Revisão Narrativa</option>
+                <option value="Estado da Arte">Estado da Arte</option>
+              </select>
+            </div>
+            <div class="form-group wz-field-desc">
+              <label>Descrição (opcional)</label>
+              <textarea id="wz-desc" class="input" rows="2" placeholder="Descreva o objetivo e escopo desta revisão…">${state.wizard.desc}</textarea>
+            </div>
           </div>
         </div>`;
     } else if (step === 2) {
@@ -614,25 +619,24 @@ const App = (() => {
         : '';
       bodyHtml = `
         <div class="wz-body">
-          <h2 class="wz-title">Importar artigos</h2>
-          <p class="wz-sub">Faça upload dos arquivos de referências. Você também pode pular e importar depois.</p>
-          <div class="wz-formats">
-            <div class="wz-format-label">Formatos suportados:</div>
-            <div class="wz-format-chips">
-              <span class="format-chip">.ris</span>
-              <span class="format-chip">.bib</span>
-              <span class="format-chip">.csv</span>
-              <span class="format-chip">.nbib</span>
-              <span class="format-chip" style="background:rgba(168,85,247,0.2);color:var(--violet);font-weight:700;">.pdf</span>
-              <span class="format-chip">.txt</span>
-              <span class="format-chip">.json</span>
-            </div>
+          <div class="wz-title-wrap">
+            <h2 class="wz-title">Importar artigos</h2>
+            <p class="wz-sub">Faça upload dos arquivos de referências (.ris, .bib, .csv, .pdf). Você também pode pular e importar depois.</p>
           </div>
           <div class="wz-drop-zone" id="wz-drop">
             <div class="upload-icon">📂</div>
-            <p>Arraste os arquivos aqui ou clique para selecionar (inclusive arquivos PDF)</p>
+            <p>Arraste os arquivos aqui ou clique no botão abaixo (inclusive PDFs)</p>
             <input type="file" id="wz-file-input" multiple accept=".ris,.bib,.csv,.nbib,.pdf,.txt,.json" style="display:none"/>
-            <button class="btn btn-secondary" id="wz-select-btn">Selecionar arquivos</button>
+            <button class="btn btn-secondary btn-sm" id="wz-select-btn">Selecionar arquivos</button>
+          </div>
+          <div class="wz-formats">
+            <span class="wz-format-label">Formatos suportados:</span>
+            <span class="format-chip">.ris</span>
+            <span class="format-chip">.bib</span>
+            <span class="format-chip">.csv</span>
+            <span class="format-chip">.pdf</span>
+            <span class="format-chip">.nbib</span>
+            <span class="format-chip">.txt</span>
           </div>
           <div id="wz-file-list" class="wz-file-list">${fileList}</div>
         </div>`;
@@ -642,18 +646,20 @@ const App = (() => {
       ).join('');
       bodyHtml = `
         <div class="wz-body">
-          <h2 class="wz-title">Palavras-chave do tema</h2>
-          <p class="wz-sub">Defina os termos do seu tema de pesquisa. Eles serão usados para medir a relevância de cada artigo automaticamente.</p>
+          <div class="wz-title-wrap">
+            <h2 class="wz-title">Palavras-chave do tema</h2>
+            <p class="wz-sub">Defina os termos para medir a relevância de cada artigo automaticamente.</p>
+          </div>
           <div class="form-group">
             <label>Adicionar palavra-chave</label>
             <div class="kw-add-row">
               <input id="wz-kw-input" class="input" placeholder="Ex: feminicídio, violência doméstica…"/>
               <button class="btn btn-primary btn-sm" id="wz-kw-add">+ Adicionar</button>
             </div>
-            <small class="input-hint">Pressione Enter ou clique em Adicionar. Pode digitar várias separadas por vírgula.</small>
+            <small class="input-hint">Pressione Enter ou clique em Adicionar (separe por vírgula para adicionar várias).</small>
           </div>
           <div class="kw-tags" id="wz-kw-tags">${kwChips}</div>
-          ${state.wizard.keywords.length === 0 ? '<p class="muted" style="margin-top:12px">Nenhuma palavra-chave adicionada ainda.</p>' : ''}
+          ${state.wizard.keywords.length === 0 ? '<p class="muted" style="margin-top:6px;font-size:0.8rem;">Nenhuma palavra-chave adicionada ainda.</p>' : ''}
         </div>`;
     }
 
