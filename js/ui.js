@@ -144,7 +144,7 @@ const UI = (() => {
 
   /* ── Article Card ────────────────────────────────────── */
   function renderArticleCard(article, keywords, callbacks) {
-    const { onInclude, onExclude, onMaybe, onNote, onDelete } = callbacks;
+    const { onInclude, onExclude, onMaybe, onNote, onDelete, onToggleFinalSelection, onCategories, onFullTextExclude, isIncludedTab } = callbacks;
     const hasKw = keywords && (Array.isArray(keywords) ? keywords.length > 0 : ((keywords.include && keywords.include.length > 0) || (keywords.exclude && keywords.exclude.length > 0)));
 
     const titleHtml = hasKw
@@ -155,7 +155,7 @@ const UI = (() => {
       : escapeHtml((article.abstract || '').substring(0, 400));
 
     const card = el('div', {
-      class: `article-card ${article.decision ? 'decided' : ''} decision-${article.decision || 'none'}`,
+      class: `article-card ${article.decision ? 'decided' : ''} decision-${article.decision || 'none'} ${article.final_selection ? 'final-selected' : ''}`,
       id: `art-${article.id}`
     });
 
@@ -169,11 +169,19 @@ const UI = (() => {
       ? `<span class="badge badge-purple" title="Possui PDF anexado">📄 PDF</span>`
       : '';
 
+    const finalBadge = article.final_selection
+      ? `<span class="badge" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-weight:700;box-shadow:0 2px 10px rgba(245,158,11,0.4);">⭐ Seleção Definitiva</span>`
+      : (isIncludedTab ? `<span class="badge" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);color:var(--text-muted);">⏳ Leitura Integral</span>` : '');
+
+    const catBadges = (article.categories || []).map(cat =>
+      `<span class="badge" style="background:rgba(168,85,247,0.18);border:1px solid rgba(168,85,247,0.35);color:#d8b4fe;padding:2px 8px;border-radius:9999px;font-size:0.74rem;font-weight:600;">🏷️ ${escapeHtml(cat)}</span>`
+    ).join(' ');
+
     const scholarUrl = `https://scholar.google.com/scholar?q=${encodeURIComponent(article.title)}`;
     const doiUrl = article.doi ? `https://doi.org/${article.doi}` : scholarUrl;
 
     const abstractDisplay = abstractHtml
-      ? `<p class="article-abstract">${abstractHtml}${(article.abstract||'').length > 400 ? '… <a href="#" class="view-more-btn" style="color:var(--purple);font-size:0.8rem;font-weight:600">Ler resumo completo</a>' : ''}</p>`
+      ? `<p class="article-abstract" style="text-align:justify;text-justify:inter-word;text-align-last:left;line-height:1.65;">${abstractHtml}${(article.abstract||'').length > 400 ? '… <a href="#" class="view-more-btn" style="color:var(--purple);font-size:0.8rem;font-weight:600">Ler resumo completo</a>' : ''}</p>`
       : `<div style="margin:8px 0;padding:8px 12px;background:var(--bg-card2);border-radius:var(--radius-sm);font-size:0.8rem;color:var(--text-muted);display:flex;align-items:center;justify-content:space-between;gap:8px;">
           <span>O arquivo não possui resumo.</span>
           <a href="${scholarUrl}" target="_blank" onclick="event.stopPropagation()" class="btn btn-sm btn-secondary" style="font-size:0.75rem">Abrir no Scholar</a>
@@ -185,9 +193,28 @@ const UI = (() => {
 
     card.innerHTML = `
       <div class="article-card-inner">
-        <div class="article-card-top">
-          <div class="article-badges">${relevBadge}${dupBadge}${pdfBadge}${decisionLabel(article.decision)}${exReasonBadge}</div>
-          <span style="font-size:0.78rem;color:var(--text-muted)">${article.year ? `📅 ${escapeHtml(article.year)}` : ''}${article.journal ? ` · ${escapeHtml(article.journal)}` : ''}</span>
+        <div class="article-card-top" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+          <div class="article-badges" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            ${relevBadge}${dupBadge}${pdfBadge}${decisionLabel(article.decision)}${finalBadge}${catBadges}${exReasonBadge}
+          </div>
+          <div class="article-card-top-actions" style="display:flex;align-items:center;gap:6px;margin-left:auto;">
+            ${isIncludedTab ? `
+              <button class="btn btn-sm ${article.final_selection ? 'btn-primary' : 'btn-ghost'} btn-final-top" title="Alternar Seleção Definitiva" style="border-radius:9999px;padding:4px 12px;font-size:0.78rem;font-weight:700;${article.final_selection ? 'background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;' : 'color:#f59e0b;border:1px solid rgba(245,158,11,0.4);'}">
+                ${article.final_selection ? '⭐ Selecionado (Final)' : '☆ Selecionar Definitivo'}
+              </button>
+              <button class="btn btn-sm btn-ghost btn-cat-top" title="Gerenciar Temas / Categorias" style="border-radius:9999px;padding:4px 10px;font-size:0.78rem;color:#c084fc;border:1px solid rgba(168,85,247,0.35);">
+                🏷️ Categorizar
+              </button>
+              <button class="btn btn-sm btn-exclude btn-exclude-top" title="Excluir do estudo na leitura integral" style="border-radius:9999px;padding:4px 10px;font-size:0.78rem;">
+                ✗ Excluir
+              </button>
+            ` : `
+              <button class="btn btn-sm btn-include ${article.decision === 'include' ? 'active' : ''}" data-top-action="include" title="Marcar como Incluído" style="border-radius:9999px;padding:4px 12px;font-size:0.78rem;font-weight:600;">✓ Incluído</button>
+              <button class="btn btn-sm btn-maybe ${article.decision === 'maybe' ? 'active' : ''}" data-top-action="maybe" title="Dúvida / Talvez" style="border-radius:9999px;padding:4px 12px;font-size:0.78rem;font-weight:600;">? Talvez</button>
+              <button class="btn btn-sm btn-exclude ${article.decision === 'exclude' ? 'active' : ''}" data-top-action="exclude" title="Excluir estudo" style="border-radius:9999px;padding:4px 12px;font-size:0.78rem;font-weight:600;">✗ Excluir</button>
+            `}
+            <span style="font-size:0.75rem;color:var(--text-muted);margin-left:4px;">${article.year ? `📅 ${escapeHtml(article.year)}` : ''}${article.journal ? ` · ${escapeHtml(article.journal)}` : ''}</span>
+          </div>
         </div>
         <h4 class="article-title" style="cursor:pointer" title="Clique para abrir detalhes">${titleHtml}</h4>
         <div class="article-meta">
@@ -200,23 +227,53 @@ const UI = (() => {
         ${article.note ? `<div class="article-note">Nota: ${escapeHtml(article.note)}</div>` : ''}
         <div class="article-footer" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
           <div class="article-actions-row">
-            <button class="btn btn-sm btn-include ${article.decision === 'include' ? 'active' : ''}" data-action="include" title="Incluir" aria-pressed="${article.decision === 'include'}">Incluir</button>
-            <button class="btn btn-sm btn-maybe ${article.decision === 'maybe' ? 'active' : ''}" data-action="maybe" title="Talvez" aria-pressed="${article.decision === 'maybe'}">Talvez</button>
-            <button class="btn btn-sm btn-exclude ${article.decision === 'exclude' ? 'active' : ''}" data-action="exclude" title="Excluir" aria-pressed="${article.decision === 'exclude'}">Excluir</button>
+            ${isIncludedTab ? `
+              <button class="btn btn-sm ${article.final_selection ? 'btn-primary' : 'btn-secondary'} btn-final-action" style="border-radius:9999px;font-weight:700;${article.final_selection ? 'background:linear-gradient(135deg,#f59e0b,#d97706);border-color:#b45309;color:#fff;' : 'border-color:rgba(245,158,11,0.5);color:#f59e0b;background:rgba(245,158,11,0.1);'}">
+                ${article.final_selection ? '✓ Estudo Selecionado Definitivo' : '⭐ Confirmar Seleção Final'}
+              </button>
+              <button class="btn btn-sm btn-ghost btn-cat-action" style="border-radius:9999px;border:1px solid rgba(168,85,247,0.35);color:#c084fc;background:rgba(168,85,247,0.08);font-weight:600;">
+                🏷️ Temas (${(article.categories || []).length})
+              </button>
+              <button class="btn btn-sm btn-exclude btn-exclude-action" style="border-radius:9999px;font-weight:600;">
+                ✗ Excluir (Texto Completo)
+              </button>
+            ` : `
+              <button class="btn btn-sm btn-include ${article.decision === 'include' ? 'active' : ''}" data-action="include" title="Incluir" aria-pressed="${article.decision === 'include'}" style="border-radius:9999px;">✓ Incluir</button>
+              <button class="btn btn-sm btn-maybe ${article.decision === 'maybe' ? 'active' : ''}" data-action="maybe" title="Talvez" aria-pressed="${article.decision === 'maybe'}" style="border-radius:9999px;">? Talvez</button>
+              <button class="btn btn-sm btn-exclude ${article.decision === 'exclude' ? 'active' : ''}" data-action="exclude" title="Excluir" aria-pressed="${article.decision === 'exclude'}" style="border-radius:9999px;">✗ Excluir</button>
+            `}
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <button class="btn btn-sm ai-analyze-btn" style="background:linear-gradient(135deg,var(--purple-dark),var(--violet));color:white;box-shadow:0 2px 10px var(--purple-glow)" title="Analisar com IA (PICO, Resumo e Chat)">Analisar com IA</button>
-            <button class="btn btn-sm btn-ghost note-btn" title="Adicionar nota">Nota</button>
+            <button class="btn btn-sm ai-analyze-btn" style="border-radius:9999px;background:linear-gradient(135deg,var(--purple-dark),var(--violet));color:white;box-shadow:0 2px 10px var(--purple-glow)" title="Analisar com IA (PICO, Resumo e Chat)">Analisar com IA</button>
+            <button class="btn btn-sm btn-ghost note-btn" style="border-radius:9999px;" title="Adicionar nota">Nota</button>
             <a href="${scholarUrl}" target="_blank" rel="noopener noreferrer" style="font-size:0.75rem;color:var(--purple);text-decoration:none;font-weight:600">Scholar ↗</a>
           </div>
         </div>
       </div>
     `;
 
-    card.querySelector('[data-action="include"]').onclick = (e) => { e.stopPropagation(); onInclude(); };
-    card.querySelector('[data-action="maybe"]').onclick = (e) => { e.stopPropagation(); onMaybe(); };
-    card.querySelector('[data-action="exclude"]').onclick = (e) => { e.stopPropagation(); onExclude(); };
-    card.querySelector('.note-btn').onclick = (e) => { e.stopPropagation(); onNote(); };
+    // Decision Handlers
+    card.querySelectorAll('[data-action="include"], [data-top-action="include"]').forEach(b => {
+      b.onclick = (e) => { e.stopPropagation(); onInclude && onInclude(); };
+    });
+    card.querySelectorAll('[data-action="maybe"], [data-top-action="maybe"]').forEach(b => {
+      b.onclick = (e) => { e.stopPropagation(); onMaybe && onMaybe(); };
+    });
+    card.querySelectorAll('[data-action="exclude"], [data-top-action="exclude"]').forEach(b => {
+      b.onclick = (e) => { e.stopPropagation(); onExclude && onExclude(); };
+    });
+
+    // Included Tab Special Actions
+    card.querySelectorAll('.btn-final-top, .btn-final-action').forEach(b => {
+      b.onclick = (e) => { e.stopPropagation(); onToggleFinalSelection && onToggleFinalSelection(); };
+    });
+    card.querySelectorAll('.btn-cat-top, .btn-cat-action').forEach(b => {
+      b.onclick = (e) => { e.stopPropagation(); onCategories && onCategories(); };
+    });
+    card.querySelectorAll('.btn-exclude-top, .btn-exclude-action').forEach(b => {
+      b.onclick = (e) => { e.stopPropagation(); onFullTextExclude && onFullTextExclude(); };
+    });
+    card.querySelector('.note-btn').onclick = (e) => { e.stopPropagation(); onNote && onNote(); };
     card.querySelector('.ai-analyze-btn').onclick = (e) => { e.stopPropagation(); UI.showAIAnalysisModal(article, { onInclude, onExclude, onMaybe }); };
 
     // Click title or 'view-more-btn' to open detail modal
@@ -232,9 +289,9 @@ const UI = (() => {
             ${article.has_pdf || article.pdf_data ? `<div><strong>PDF Anexo:</strong> <span style="color:var(--purple);font-weight:600;">📄 ${escapeHtml(article.pdf_name || 'Documento disponível')}</span></div>` : ''}
           </div>
           <hr style="border:none;border-top:1px solid var(--border)"/>
-          <div style="font-size:0.9rem;line-height:1.7;color:var(--text-primary)">
-            <h4 style="margin-bottom:8px;font-size:0.95rem;color:var(--purple)">Resumo:</h4>
-            ${article.abstract ? (hasKw ? Similarity.highlightKeywords(article.abstract, keywords) : escapeHtml(article.abstract)) : '<p class="muted">Nenhum resumo no arquivo importado.</p>'}
+          <div class="article-modal-abstract" style="font-size:0.9rem;line-height:1.72;color:var(--text-primary);text-align:justify;text-justify:inter-word;text-align-last:left;">
+            <h4 style="margin-bottom:8px;font-size:0.95rem;color:var(--purple);text-align:left;">Resumo:</h4>
+            ${article.abstract ? (hasKw ? Similarity.highlightKeywords(article.abstract, keywords) : escapeHtml(article.abstract)) : '<p class="muted" style="text-align:left;">Nenhum resumo no arquivo importado.</p>'}
           </div>
           <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;">
             <button class="btn btn-secondary btn-sm modal-pdf-btn">📄 Ler PDF / Anexar</button>
@@ -788,7 +845,7 @@ const UI = (() => {
     const providerName = AIAssistant.PROVIDER_NAMES[aiConfig.provider] || aiConfig.provider;
 
     const initialHtml = `
-      <div style="display:flex;flex-direction:column;gap:14px;max-height:76vh;overflow-y:auto;padding-right:4px;" id="ai-modal-wrapper">
+      <div style="display:flex;flex-direction:column;gap:14px;" id="ai-modal-wrapper">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;">
           <div style="flex:1;">
             <div style="font-size:0.95rem;font-weight:700;line-height:1.4;color:var(--text-primary)">${escapeHtml(article.title)}</div>
@@ -797,18 +854,14 @@ const UI = (() => {
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:6px;">
-            ${isConfigured 
-              ? `<span id="ai-status-badge" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:12px;font-size:0.72rem;background:rgba(16,185,129,0.15);color:var(--green);border:1px solid rgba(16,185,129,0.3);">🟢 ${escapeHtml(providerName.split('(')[0])}</span>`
-              : `<button id="btn-quick-config-ai" style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:12px;font-size:0.72rem;background:rgba(168,85,247,0.15);color:var(--purple);border:1px solid rgba(168,85,247,0.3);cursor:pointer;">⚡ Conectar IA Real (Grátis)</button>`
-            }
+            <span id="ai-status-badge" style="display:inline-flex;align-items:center;gap:5px;padding:5px 12px;border-radius:9999px;font-size:0.75rem;background:rgba(16,185,129,0.14);color:var(--green);border:1px solid rgba(16,185,129,0.3);font-weight:700;backdrop-filter:blur(10px);">🟢 IA Conectada</span>
           </div>
         </div>
 
-        <!-- Tabs inside AI Modal -->
-        <div style="display:flex;gap:6px;border-bottom:1px solid var(--border);padding-bottom:6px;">
-          <button class="ai-tab-btn active" data-tab="pico" style="background:none;border:none;color:var(--purple);font-weight:700;font-size:0.82rem;cursor:pointer;padding:5px 10px;border-bottom:2px solid var(--purple);transition:all 0.2s;">🔬 PICO & Triagem</button>
-          <button class="ai-tab-btn" data-tab="chat" style="background:none;border:none;color:var(--text-muted);font-weight:600;font-size:0.82rem;cursor:pointer;padding:5px 10px;transition:all 0.2s;">💬 Conversar com o Artigo</button>
-          <button class="ai-tab-btn" data-tab="settings" style="background:none;border:none;color:var(--text-muted);font-weight:600;font-size:0.82rem;cursor:pointer;padding:5px 10px;transition:all 0.2s;">⚙️ Provedores de IA</button>
+        <!-- Apple Liquid Glass Segmented Pill Control -->
+        <div style="display:flex;gap:4px;background:rgba(0,0,0,0.35);padding:4px;border-radius:9999px;border:1px solid rgba(255,255,255,0.12);backdrop-filter:blur(20px);">
+          <button class="ai-tab-btn active" data-tab="pico" style="flex:1;background:linear-gradient(135deg,rgba(168,85,247,0.35),rgba(99,102,241,0.45));border:1px solid rgba(255,255,255,0.22);border-radius:9999px;color:#fff;font-weight:700;font-size:0.84rem;cursor:pointer;padding:10px 18px;display:flex;align-items:center;justify-content:center;gap:6px;transition:all 0.25s cubic-bezier(0.16,1,0.3,1);box-shadow:0 4px 18px rgba(124,58,237,0.35),inset 0 1px 1px rgba(255,255,255,0.35);">🔬 Síntese PICO</button>
+          <button class="ai-tab-btn" data-tab="chat" style="flex:1;background:transparent;border:1px solid transparent;border-radius:9999px;color:var(--text-muted);font-weight:600;font-size:0.84rem;cursor:pointer;padding:10px 18px;display:flex;align-items:center;justify-content:center;gap:6px;transition:all 0.25s cubic-bezier(0.16,1,0.3,1);">💬 Conversar com Artigo</button>
         </div>
 
         <!-- Tab 1: PICO & Screening -->
@@ -820,57 +873,38 @@ const UI = (() => {
           <div id="ai-pico-result" style="display:none;flex-direction:column;gap:14px;"></div>
         </div>
 
-        <!-- Tab 2: Chat with Article -->
-        <div id="ai-tab-content-chat" style="display:none;flex-direction:column;gap:10px;">
-          <div id="ai-chat-history" style="min-height:160px;max-height:280px;overflow-y:auto;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;font-size:0.82rem;display:flex;flex-direction:column;gap:10px;">
-            <div style="color:var(--text-muted);line-height:1.5;">
-              🤖 <strong>Gisa Research Pilot:</strong> Olá! Estou pronto para responder qualquer dúvida sobre <em>"${escapeHtml(article.title)}"</em>. Pergunte sobre tamanho da amostra, metodologia, dosagem, instrumentos ou conclusões.
+        <!-- Tab 2: Chat with Article (Apple Liquid Glass) -->
+        <div id="ai-tab-content-chat" style="display:none;flex-direction:column;gap:12px;">
+          <div id="ai-chat-history" style="min-height:180px;max-height:280px;overflow-y:auto;background:rgba(12,8,26,0.6);border:1px solid rgba(255,255,255,0.08);border-radius:20px;padding:14px;font-size:0.84rem;display:flex;flex-direction:column;gap:12px;backdrop-filter:blur(24px);box-shadow:inset 0 2px 8px rgba(0,0,0,0.3);">
+            <div style="color:var(--text-secondary);line-height:1.5;background:rgba(36,26,68,0.7);padding:10px 14px;border-radius:18px 18px 18px 4px;border:1px solid rgba(255,255,255,0.1);max-width:90%;backdrop-filter:blur(16px);">
+              🤖 <strong>Gisa Research Pilot:</strong> Olá! Estou pronto para responder qualquer dúvida metodológica ou clínica sobre <em>"${escapeHtml(article.title)}"</em>.
             </div>
           </div>
-          <div style="display:flex;gap:6px;">
-            <input id="ai-chat-input" class="input input-sm" style="flex:1" placeholder="Ex: Qual foi a amostra exata? Houve grupo controle?"/>
-            <button id="ai-chat-send" class="btn btn-sm btn-primary">Perguntar</button>
-          </div>
-        </div>
 
-        <!-- Tab 3: AI Configuration -->
-        <div id="ai-tab-content-settings" style="display:none;flex-direction:column;gap:12px;padding:6px 0;">
-          <div style="font-size:0.85rem;color:var(--text-secondary);line-height:1.4;">
-            Conecte sua chave de API para habilitar <strong>respostas em tempo real e triagem inteligente com LLMs avançados</strong>:
+          <!-- Quick Question Suggestions (Frosted Pills) -->
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            <span style="font-size:0.72rem;color:var(--text-muted);font-weight:600;">Perguntas rápidas:</span>
+            <button type="button" class="ai-quick-chip" data-q="Qual o objetivo principal do estudo e hipótese investigada pelos autores?" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);border-radius:9999px;color:#c084fc;font-size:0.74rem;font-weight:600;padding:5px 12px;cursor:pointer;backdrop-filter:blur(12px);transition:all 0.2s;">🎯 Objetivo do Estudo</button>
+            <button type="button" class="ai-quick-chip" data-q="Qual foi a metodologia exata, desenho do estudo e características da amostra/população?" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);border-radius:9999px;color:#c084fc;font-size:0.74rem;font-weight:600;padding:5px 12px;cursor:pointer;backdrop-filter:blur(12px);transition:all 0.2s;">🔬 Metodologia & População</button>
+            <button type="button" class="ai-quick-chip" data-q="Quais foram os principais resultados quantitativos ou qualitativos e desfechos encontrados?" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);border-radius:9999px;color:#c084fc;font-size:0.74rem;font-weight:600;padding:5px 12px;cursor:pointer;backdrop-filter:blur(12px);transition:all 0.2s;">📊 Principais Resultados</button>
+            <button type="button" class="ai-quick-chip" data-q="Quais as conclusões finais dos autores e limitações do estudo?" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);border-radius:9999px;color:#c084fc;font-size:0.74rem;font-weight:600;padding:5px 12px;cursor:pointer;backdrop-filter:blur(12px);transition:all 0.2s;">💡 Conclusões & Limitações</button>
+            <button type="button" class="ai-quick-chip" data-q="Com base no objetivo e nos achados, este estudo deve ser selecionado para a síntese final da revisão?" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.35);border-radius:9999px;color:#fbbf24;font-size:0.74rem;font-weight:700;padding:5px 12px;cursor:pointer;backdrop-filter:blur(12px);transition:all 0.2s;">⭐ Avaliação de Seleção Final</button>
           </div>
-          <div style="display:flex;flex-direction:column;gap:6px;">
-            <label style="font-size:0.78rem;font-weight:600;color:var(--text-muted);">Provedor de IA:</label>
-            <select id="ai-cfg-provider" class="select select-sm" style="background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px;">
-              <option value="groq" ${aiConfig.provider === 'groq' ? 'selected' : ''}>🚀 Groq Cloud (Llama 3.3 70B - 100% Grátis e Mais Rápido do Mundo)</option>
-              <option value="gemini" ${aiConfig.provider === 'gemini' ? 'selected' : ''}>🌟 Google Gemini (1.5 Flash - 100% Grátis)</option>
-              <option value="openai" ${aiConfig.provider === 'openai' ? 'selected' : ''}>🧠 OpenAI (ChatGPT GPT-4o-mini)</option>
-              <option value="openrouter" ${aiConfig.provider === 'openrouter' ? 'selected' : ''}>🌐 OpenRouter (Modelos Abertos)</option>
-            </select>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:6px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <label style="font-size:0.78rem;font-weight:600;color:var(--text-muted);">Chave de API (API Key):</label>
-              <a id="ai-get-key-link" href="${aiConfig.provider === 'gemini' ? 'https://aistudio.google.com/app/apikey' : aiConfig.provider === 'openai' ? 'https://platform.openai.com/api-keys' : 'https://console.groq.com/keys'}" target="_blank" rel="noopener" style="font-size:0.74rem;color:var(--purple);text-decoration:underline;">Pegar chave gratuita ↗</a>
-            </div>
-            <div style="display:flex;gap:6px;">
-              <input type="password" id="ai-cfg-key" class="input input-sm" style="flex:1" placeholder="Cole sua chave aqui..." value="${escapeHtml(aiConfig.apiKey)}"/>
-              <button id="ai-toggle-key-vis" class="btn btn-sm btn-ghost" style="padding:4px 8px;" title="Ver/Ocultar chave">👁️</button>
-            </div>
-          </div>
-          <div id="ai-test-result" style="display:none;padding:8px 12px;border-radius:var(--radius-sm);font-size:0.8rem;"></div>
-          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px;">
-            <button id="ai-cfg-test-btn" class="btn btn-sm btn-secondary">⚡ Testar Conexão</button>
-            <button id="ai-cfg-save-btn" class="btn btn-sm btn-primary">💾 Salvar Configuração</button>
+
+          <!-- Frosted Capsule Input Bar -->
+          <div style="display:flex;gap:8px;align-items:center;background:rgba(0,0,0,0.3);padding:4px 6px 4px 16px;border-radius:9999px;border:1px solid rgba(255,255,255,0.12);backdrop-filter:blur(16px);">
+            <input id="ai-chat-input" style="flex:1;background:transparent;border:none;outline:none;color:#fff;font-size:0.84rem;" placeholder="Pergunte qualquer detalhe sobre o estudo..."/>
+            <button id="ai-chat-send" style="border:none;border-radius:9999px;padding:9px 20px;background:linear-gradient(135deg,#a855f7,#6366f1);color:#fff;font-weight:700;font-size:0.82rem;cursor:pointer;box-shadow:0 3px 12px rgba(124,58,237,0.4);transition:all 0.2s;">Perguntar</button>
           </div>
         </div>
 
         <!-- Quick Actions (Apply Decision) -->
-        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid var(--border);flex-wrap:wrap;gap:8px;">
-          <span style="font-size:0.78rem;color:var(--text-muted);">Aplicar decisão na triagem:</span>
-          <div style="display:flex;gap:6px;">
-            <button class="btn btn-sm" id="ai-act-include" style="background:var(--green);color:#fff;font-weight:600;">✓ Incluir</button>
-            <button class="btn btn-sm" id="ai-act-exclude" style="background:var(--red);color:#fff;font-weight:600;">✗ Excluir</button>
-            <button class="btn btn-sm" id="ai-act-maybe" style="background:var(--amber);color:#fff;font-weight:600;">? Talvez</button>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;border-top:1px solid rgba(255,255,255,0.08);flex-wrap:wrap;gap:8px;">
+          <span style="font-size:0.78rem;color:var(--text-muted);font-weight:600;">Aplicar decisão na triagem:</span>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-sm" id="ai-act-include" style="background:rgba(34,197,94,0.2);border:1px solid rgba(34,197,94,0.4);color:var(--green);font-weight:700;border-radius:9999px;padding:6px 16px;">✓ Incluir</button>
+            <button class="btn btn-sm" id="ai-act-exclude" style="background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.4);color:var(--red);font-weight:700;border-radius:9999px;padding:6px 16px;">✗ Excluir</button>
+            <button class="btn btn-sm" id="ai-act-maybe" style="background:rgba(245,158,11,0.2);border:1px solid rgba(245,158,11,0.4);color:var(--amber);font-weight:700;border-radius:9999px;padding:6px 16px;">? Talvez</button>
           </div>
         </div>
       </div>
@@ -885,26 +919,50 @@ const UI = (() => {
       const wrapper = document.getElementById('ai-modal-wrapper');
       if (!wrapper) return;
 
-      // 1. Tab Switching
+      // 1. Apple Pill Tab Switching
       const tabBtns = wrapper.querySelectorAll('.ai-tab-btn');
       const tabContents = {
         pico: document.getElementById('ai-tab-content-pico'),
-        chat: document.getElementById('ai-tab-content-chat'),
-        settings: document.getElementById('ai-tab-content-settings')
+        chat: document.getElementById('ai-tab-content-chat')
       };
 
       tabBtns.forEach(btn => {
         btn.onclick = () => {
           tabBtns.forEach(b => {
-            b.classList.toggle('active', b === btn);
-            b.style.color = b === btn ? 'var(--purple)' : 'var(--text-muted)';
-            b.style.borderBottom = b === btn ? '2px solid var(--purple)' : 'none';
+            const isActive = b === btn;
+            b.classList.toggle('active', isActive);
+            if (isActive) {
+              b.style.background = 'linear-gradient(135deg,rgba(168,85,247,0.35),rgba(99,102,241,0.45))';
+              b.style.border = '1px solid rgba(255,255,255,0.22)';
+              b.style.color = '#fff';
+              b.style.boxShadow = '0 4px 18px rgba(124,58,237,0.35),inset 0 1px 1px rgba(255,255,255,0.35)';
+              b.style.fontWeight = '700';
+            } else {
+              b.style.background = 'transparent';
+              b.style.border = '1px solid transparent';
+              b.style.color = 'var(--text-muted)';
+              b.style.boxShadow = 'none';
+              b.style.fontWeight = '600';
+            }
           });
           const target = btn.dataset.tab;
           Object.keys(tabContents).forEach(k => {
             if (tabContents[k]) tabContents[k].style.display = k === target ? 'flex' : 'none';
           });
         };
+      });
+
+      // Quick Chips Handler (switch to Chat tab and ask)
+      wrapper.querySelectorAll('.ai-quick-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          const chatTabBtn = wrapper.querySelector('.ai-tab-btn[data-tab="chat"]');
+          if (chatTabBtn) chatTabBtn.click();
+          const inputEl = document.getElementById('ai-chat-input');
+          if (inputEl) {
+            inputEl.value = chip.dataset.q;
+            document.getElementById('ai-chat-send')?.click();
+          }
+        });
       });
 
       document.getElementById('btn-quick-config-ai')?.addEventListener('click', () => {
@@ -962,61 +1020,7 @@ const UI = (() => {
       sendBtn?.addEventListener('click', handleAsk);
       input?.addEventListener('keydown', e => { if (e.key === 'Enter') handleAsk(); });
 
-      // 4. Settings Form Handler
-      const providerSel = document.getElementById('ai-cfg-provider');
-      const keyInput = document.getElementById('ai-cfg-key');
-      const testBtn = document.getElementById('ai-cfg-test-btn');
-      const saveBtn = document.getElementById('ai-cfg-save-btn');
-      const testRes = document.getElementById('ai-test-result');
-      const toggleKey = document.getElementById('ai-toggle-key-vis');
-      const getKeyLink = document.getElementById('ai-get-key-link');
-
-      providerSel?.addEventListener('change', () => {
-        const p = providerSel.value;
-        if (getKeyLink) {
-          if (p === 'gemini') getKeyLink.href = 'https://aistudio.google.com/app/apikey';
-          else if (p === 'openai') getKeyLink.href = 'https://platform.openai.com/api-keys';
-          else if (p === 'openrouter') getKeyLink.href = 'https://openrouter.ai/keys';
-          else getKeyLink.href = 'https://console.groq.com/keys';
-        }
-      });
-
-      toggleKey?.addEventListener('click', () => {
-        if (keyInput) keyInput.type = keyInput.type === 'password' ? 'text' : 'password';
-      });
-
-      testBtn?.addEventListener('click', async () => {
-        testBtn.disabled = true;
-        testBtn.textContent = '⏳ Testando...';
-        testRes.style.display = 'block';
-        testRes.style.background = 'var(--bg-card2)';
-        testRes.style.color = 'var(--text-muted)';
-        testRes.textContent = 'Enviando requisição de teste para o provedor...';
-
-        const res = await AIAssistant.testConnection(providerSel.value, keyInput.value);
-        testBtn.disabled = false;
-        testBtn.textContent = '⚡ Testar Conexão';
-
-        if (res.ok) {
-          testRes.style.background = 'rgba(16,185,129,0.15)';
-          testRes.style.color = 'var(--green)';
-          testRes.textContent = '✓ ' + res.message;
-        } else {
-          testRes.style.background = 'rgba(239,68,68,0.15)';
-          testRes.style.color = 'var(--red)';
-          testRes.textContent = '✗ ' + res.error;
-        }
-      });
-
-      saveBtn?.addEventListener('click', () => {
-        AIAssistant.saveAIConfig({
-          provider: providerSel.value,
-          apiKey: keyInput.value
-        });
-        toast('Configuração de IA salva com sucesso!', 'success');
-        document.querySelector('.modal-overlay')?.remove();
-        showAIAnalysisModal(article, callbacks);
-      });
+      // Settings are handled seamlessly in the background with Groq Cloud Qwen 3.8 27B
 
       // 5. Fetch PICO & Screening Analysis
       try {
@@ -1029,43 +1033,43 @@ const UI = (() => {
           resultEl.innerHTML = `
             ${analysis.warning ? `<div style="padding:8px 12px;background:rgba(245,158,11,0.12);border:1px solid var(--amber);border-radius:var(--radius-sm);font-size:0.78rem;color:var(--amber);">${analysis.warning}</div>` : ''}
 
-            <!-- Verdict Card -->
-            <div style="padding:12px 16px;background:rgba(99,102,241,0.08);border:1.5px solid ${verdictColor};border-radius:var(--radius-md);">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                <span style="font-size:0.88rem;font-weight:700;color:${verdictColor};">${verdictLabel}</span>
-                <span style="font-size:0.72rem;padding:2px 8px;border-radius:10px;background:var(--bg-elevated);color:var(--text-muted);">${analysis.isRealLLM ? `IA Ativa: ${analysis.providerName || 'LLM'}` : 'Heurística Local'}</span>
+            <!-- Verdict Card (iOS 26 Liquid Glass) -->
+            <div style="padding:14px 18px;background:rgba(255,255,255,0.03);border:1.5px solid ${verdictColor};border-radius:18px;backdrop-filter:blur(16px);box-shadow:0 8px 30px rgba(0,0,0,0.25),inset 0 1px 1px rgba(255,255,255,0.15);">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <span style="font-size:0.92rem;font-weight:700;color:${verdictColor};">${verdictLabel}</span>
+                <span style="font-size:0.72rem;padding:3px 10px;border-radius:9999px;background:rgba(255,255,255,0.06);color:var(--text-muted);border:1px solid rgba(255,255,255,0.1);font-weight:600;">⚡ Análise Concluída</span>
               </div>
-              <div style="font-size:0.84rem;line-height:1.5;color:var(--text-secondary);">${escapeHtml(analysis.reasoning)}</div>
+              <div style="font-size:0.85rem;line-height:1.6;color:var(--text-secondary);">${escapeHtml(analysis.reasoning)}</div>
             </div>
 
-            <!-- PICO Grid -->
+            <!-- PICO Grid (iOS 26 Liquid Glass Platters) -->
             <div>
-              <h4 style="font-size:0.78rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Framework PICO Estruturado</h4>
-              <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 180px), 1fr));gap:8px;">
-                <div style="padding:10px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);">
-                  <strong style="color:var(--purple);font-size:0.76rem;display:block;margin-bottom:3px;">P · População / Amostra:</strong>
-                  <div style="font-size:0.82rem;color:var(--text-primary);">${escapeHtml(analysis.population)}</div>
+              <h4 style="font-size:0.76rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;font-weight:700;">Framework PICO Estruturado</h4>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 180px), 1fr));gap:10px;">
+                <div style="padding:12px;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.1);border-radius:16px;backdrop-filter:blur(12px);box-shadow:inset 0 1px 1px rgba(255,255,255,0.15);">
+                  <strong style="color:#c084fc;font-size:0.76rem;display:block;margin-bottom:4px;font-weight:700;">P · População / Amostra</strong>
+                  <div style="font-size:0.83rem;color:var(--text-primary);line-height:1.4;">${escapeHtml(analysis.population)}</div>
                 </div>
-                <div style="padding:10px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);">
-                  <strong style="color:var(--cyan);font-size:0.76rem;display:block;margin-bottom:3px;">I · Intervenção / Fenômeno:</strong>
-                  <div style="font-size:0.82rem;color:var(--text-primary);">${escapeHtml(analysis.intervention)}</div>
+                <div style="padding:12px;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.1);border-radius:16px;backdrop-filter:blur(12px);box-shadow:inset 0 1px 1px rgba(255,255,255,0.15);">
+                  <strong style="color:#818cf8;font-size:0.76rem;display:block;margin-bottom:4px;font-weight:700;">I · Intervenção / Fenômeno</strong>
+                  <div style="font-size:0.83rem;color:var(--text-primary);line-height:1.4;">${escapeHtml(analysis.intervention)}</div>
                 </div>
-                <div style="padding:10px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);">
-                  <strong style="color:var(--amber);font-size:0.76rem;display:block;margin-bottom:3px;">C · Comparador / Controle:</strong>
-                  <div style="font-size:0.82rem;color:var(--text-primary);">${escapeHtml(analysis.comparator)}</div>
+                <div style="padding:12px;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.1);border-radius:16px;backdrop-filter:blur(12px);box-shadow:inset 0 1px 1px rgba(255,255,255,0.15);">
+                  <strong style="color:#f59e0b;font-size:0.76rem;display:block;margin-bottom:4px;font-weight:700;">C · Comparador / Controle</strong>
+                  <div style="font-size:0.83rem;color:var(--text-primary);line-height:1.4;">${escapeHtml(analysis.comparator)}</div>
                 </div>
-                <div style="padding:10px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);">
-                  <strong style="color:var(--green);font-size:0.76rem;display:block;margin-bottom:3px;">O · Desfechos (Outcomes):</strong>
-                  <div style="font-size:0.82rem;color:var(--text-primary);">${escapeHtml(analysis.outcome)}</div>
+                <div style="padding:12px;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.1);border-radius:16px;backdrop-filter:blur(12px);box-shadow:inset 0 1px 1px rgba(255,255,255,0.15);">
+                  <strong style="color:#34d399;font-size:0.76rem;display:block;margin-bottom:4px;font-weight:700;">O · Desfechos (Outcomes)</strong>
+                  <div style="font-size:0.83rem;color:var(--text-primary);line-height:1.4;">${escapeHtml(analysis.outcome)}</div>
                 </div>
               </div>
             </div>
 
             <!-- Key Points -->
             ${analysis.keyPoints && analysis.keyPoints.length ? `
-              <div style="padding:10px 12px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);">
-                <strong style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:6px;">Síntese Metodológica e Achados:</strong>
-                <ul style="margin:0;padding-left:18px;font-size:0.82rem;line-height:1.5;color:var(--text-secondary);">
+              <div style="padding:12px 16px;background:rgba(255,255,255,0.035);border:1px solid rgba(255,255,255,0.1);border-radius:16px;backdrop-filter:blur(12px);box-shadow:inset 0 1px 1px rgba(255,255,255,0.15);">
+                <strong style="font-size:0.78rem;color:var(--text-muted);display:block;margin-bottom:8px;font-weight:700;">Síntese Metodológica e Achados:</strong>
+                <ul style="margin:0;padding-left:18px;font-size:0.83rem;line-height:1.55;color:var(--text-secondary);">
                   ${analysis.keyPoints.map(kp => `<li style="margin-bottom:4px;">${kp}</li>`).join('')}
                 </ul>
               </div>` : ''}
@@ -1243,15 +1247,38 @@ const UI = (() => {
     const hasPdf = Boolean(article.has_pdf || article.pdf_data);
 
     container.innerHTML = `
-      <div class="inspector-header" role="banner">
-        <h3>Leitor de Resumo</h3>
-        <div style="display:flex;gap:6px;align-items:center;">
-          ${hasPdf ? '<span class="badge badge-purple" style="font-size:0.72rem;">📄 PDF Anexo</span>' : ''}
+      <div class="inspector-header" role="banner" style="display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <h3 style="margin:0;font-size:0.85rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--text-muted);">Leitor de Resumo</h3>
           ${decisionBadge}
         </div>
+        
+        <!-- Compact Utility Toolbar -->
+        <div class="inspector-toolbar" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-xs btn-ghost btn-translate" id="insp-btn-translate" title="Traduzir título e resumo para Português" style="display:inline-flex;align-items:center;gap:4px;padding:5px 11px;font-size:0.75rem;border:1px solid rgba(99,102,241,0.3);border-radius:14px;background:rgba(99,102,241,0.1);color:var(--purple);font-weight:700;cursor:pointer;transition:all 0.2s;">
+            <span id="insp-translate-icon">🌐</span>
+            <span id="insp-translate-label">Traduzir (PT)</span>
+          </button>
+
+          ${hasPdf ? `
+            <button class="btn btn-xs btn-secondary" id="insp-btn-read-pdf" title="Ler PDF completo" style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;font-size:0.75rem;border-radius:14px;background:rgba(99,102,241,0.2);color:var(--purple);border:1px solid rgba(99,102,241,0.4);font-weight:600;cursor:pointer;">
+              📄 Ler PDF
+            </button>
+          ` : ''}
+
+          <button class="btn btn-xs btn-ghost" id="insp-btn-attach-pdf" title="${hasPdf ? 'Trocar arquivo PDF' : 'Anexar PDF a este artigo'}" style="display:inline-flex;align-items:center;gap:4px;padding:5px 9px;font-size:0.75rem;border:1px solid var(--border);border-radius:14px;color:var(--text-muted);cursor:pointer;">
+            📎 ${hasPdf ? 'Trocar PDF' : 'Anexar PDF'}
+          </button>
+          <input type="file" id="insp-pdf-file-input" accept=".pdf" style="display:none;" />
+
+          <button class="btn btn-xs btn-ghost" id="insp-btn-ai-analysis" title="Assistente IA (PICO & Chat)" style="display:inline-flex;align-items:center;gap:4px;padding:5px 10px;font-size:0.75rem;border:1px solid rgba(168,85,247,0.3);border-radius:14px;background:rgba(168,85,247,0.12);color:var(--purple);font-weight:700;cursor:pointer;">
+            🤖 IA PICO & Chat
+          </button>
+        </div>
       </div>
-      <div class="inspector-content">
-        <h2 class="inspector-title">${escapeHtml(article.title)}</h2>
+
+      <div class="inspector-content" style="padding-top:12px;display:flex;flex-direction:column;gap:12px;">
+        <h2 class="inspector-title" id="inspector-title" style="margin:0;line-height:1.45;">${escapeHtml(article.title)}</h2>
 
         <div class="inspector-meta-box">
           <div><strong>Autores:</strong> ${article.authors?.length ? escapeHtml(article.authors.join('; ')) : 'Não informado'}</div>
@@ -1268,41 +1295,27 @@ const UI = (() => {
           ` : ''}
         </div>
 
-        <div class="inspector-actions">
+        <!-- Clean Decisions Toolbar -->
+        <div class="inspector-actions" style="margin:0;">
           <button class="btn btn-include" id="insp-btn-include">Incluir (I)</button>
           <button class="btn btn-exclude" id="insp-btn-exclude">Excluir (E)</button>
           <button class="btn btn-maybe"   id="insp-btn-maybe">Talvez (M)</button>
         </div>
 
-        <!-- PDF Actions & AI Analysis -->
-        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
-          ${hasPdf ? `
-            <button class="btn btn-sm btn-secondary" id="insp-btn-read-pdf" style="flex:1;background:rgba(99,102,241,0.15);border-color:rgba(99,102,241,0.4);color:var(--purple);">
-              📄 Ler PDF Completo
-            </button>
-          ` : ''}
-          <button class="btn btn-sm btn-ghost" id="insp-btn-attach-pdf" style="flex:1;border:1px solid var(--border);">
-            📎 ${hasPdf ? 'Trocar PDF' : 'Anexar PDF'}
-          </button>
-          <input type="file" id="insp-pdf-file-input" accept=".pdf" style="display:none;" />
-        </div>
-
-        <div style="margin-top:8px;">
-          <button class="btn btn-ai-chat" id="insp-btn-ai-analysis" style="width:100%;">
-            🤖 Analisar com IA (PICO & Chat)
-          </button>
-        </div>
-
-        <div class="inspector-abstract-wrap">
+        <!-- Abstract Area (Spacious & Clean) -->
+        <div class="inspector-abstract-wrap" style="margin-top:4px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <span style="font-size:0.75rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;">Resumo (Abstract)</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:0.75rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;">Resumo (Abstract)</span>
+              <span id="insp-trans-badge" style="display:none;font-size:0.68rem;padding:2px 7px;border-radius:10px;background:rgba(16,185,129,0.15);color:var(--green);border:1px solid rgba(16,185,129,0.3);font-weight:700;">✓ Traduzido (PT-BR)</span>
+            </div>
             <div class="highlighter-legend" style="display:flex;gap:8px;">
               <span class="hl-dot inc"></span><small style="font-size:0.7rem;color:var(--green)">Inclusão</small>
               <span class="hl-dot exc"></span><small style="font-size:0.7rem;color:var(--red)">Exclusão</small>
             </div>
           </div>
-          <div class="inspector-abstract-text" id="inspector-abstract-body">
-            ${highlightedAbstract || '<p style="color:var(--text-muted);font-style:italic">Resumo não disponível para este artigo.</p>'}
+          <div class="inspector-abstract-text" id="inspector-abstract-body" style="line-height:1.75;font-size:0.88rem;text-align:justify;text-justify:inter-word;text-align-last:left;hyphens:auto;-webkit-hyphens:auto;word-break:break-word;">
+            ${highlightedAbstract || '<p style="color:var(--text-muted);font-style:italic;text-align:left;">Resumo não disponível para este artigo.</p>'}
           </div>
         </div>
       </div>`;
@@ -1332,6 +1345,88 @@ const UI = (() => {
             }
           };
           reader.readAsDataURL(file);
+        }
+      });
+    }
+
+    // Google Translate Engine (Instant, Free, Academic Quality)
+    let isTranslated = false;
+    const translateBtn = container.querySelector('#insp-btn-translate');
+    const translateIcon = container.querySelector('#insp-translate-icon');
+    const translateLabel = container.querySelector('#insp-translate-label');
+    const titleEl = container.querySelector('#inspector-title');
+    const abstractEl = container.querySelector('#inspector-abstract-body');
+    const transBadge = container.querySelector('#insp-trans-badge');
+
+    async function translateText(text) {
+      if (!text || !text.trim()) return text;
+      try {
+        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=pt&dt=t&q=${encodeURIComponent(text)}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Falha na resposta de tradução');
+        const data = await res.json();
+        if (Array.isArray(data) && Array.isArray(data[0])) {
+          return data[0].map(segment => segment[0]).join('');
+        }
+        return text;
+      } catch (err) {
+        console.warn('[Gisa Translation]', err);
+        throw err;
+      }
+    }
+
+    if (translateBtn) {
+      translateBtn.addEventListener('click', async () => {
+        if (isTranslated) {
+          // Revert to English
+          isTranslated = false;
+          if (titleEl) titleEl.textContent = article.title;
+          if (abstractEl) {
+            abstractEl.innerHTML = highlightKeywords(article.abstract, incKws, excKws) || '<p style="color:var(--text-muted);font-style:italic">Resumo não disponível.</p>';
+          }
+          if (transBadge) transBadge.style.display = 'none';
+          if (translateIcon) translateIcon.textContent = '🌐';
+          if (translateLabel) translateLabel.textContent = 'Traduzir (PT)';
+          translateBtn.style.background = 'rgba(99,102,241,0.1)';
+          translateBtn.style.color = 'var(--purple)';
+          translateBtn.style.borderColor = 'rgba(99,102,241,0.3)';
+          return;
+        }
+
+        // Translate to Portuguese
+        translateBtn.disabled = true;
+        if (translateIcon) translateIcon.textContent = '⏳';
+        if (translateLabel) translateLabel.textContent = 'Traduzindo...';
+
+        try {
+          // Check cached translations on article instance
+          if (!article._pt_title && article.title) {
+            article._pt_title = await translateText(article.title);
+          }
+          if (!article._pt_abstract && article.abstract) {
+            article._pt_abstract = await translateText(article.abstract);
+          }
+
+          isTranslated = true;
+          if (titleEl && article._pt_title) {
+            titleEl.textContent = article._pt_title;
+          }
+          if (abstractEl && article._pt_abstract) {
+            abstractEl.innerHTML = highlightKeywords(article._pt_abstract, incKws, excKws);
+          }
+          if (transBadge) transBadge.style.display = 'inline-block';
+          if (translateIcon) translateIcon.textContent = '🇧🇷';
+          if (translateLabel) translateLabel.textContent = 'Ver Original (EN)';
+          translateBtn.style.background = 'rgba(16,185,129,0.15)';
+          translateBtn.style.color = 'var(--green)';
+          translateBtn.style.borderColor = 'rgba(16,185,129,0.4)';
+          toast('Artigo traduzido para o Português!', 'success');
+        } catch (err) {
+          toast('Não foi possível traduzir agora. Verifique a conexão.', 'error');
+          if (translateIcon) translateIcon.textContent = '🌐';
+          if (translateLabel) translateLabel.textContent = 'Traduzir (PT)';
+        } finally {
+          translateBtn.disabled = false;
         }
       });
     }
@@ -1784,107 +1879,72 @@ const UI = (() => {
     ].join('');
 
     const bodyHtml = `
-      <div class="auto-resolver-dialog" style="display:flex;flex-direction:column;gap:18px;">
-        <div class="auto-resolver-banner" style="background:linear-gradient(135deg, rgba(99,102,241,0.12), rgba(168,85,247,0.08));border:1px solid rgba(99,102,241,0.25);border-radius:var(--radius-lg);padding:14px 18px;display:flex;align-items:center;gap:12px;">
-          <span style="font-size:1.8rem;">⚡</span>
-          <div style="font-size:0.85rem;color:var(--text-secondary);line-height:1.4;">
-            <strong style="color:var(--text-primary);display:block;margin-bottom:2px;">Systematic Auto Resolver (Gisa Pro)</strong>
-            O Gisa manterá a melhor versão de cada artigo com base nos seus critérios selecionados e descartará as cópias de forma 100% auditável.
+      <div class="auto-resolver-dialog" style="display:flex;flex-direction:column;gap:16px;">
+        <div class="auto-resolver-banner" style="background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.22);border-radius:16px;padding:14px 18px;display:flex;align-items:center;gap:12px;">
+          <span style="font-size:1.6rem;">⚡</span>
+          <div style="font-size:0.84rem;color:var(--text-secondary);line-height:1.45;">
+            <strong style="color:var(--text-primary);display:block;margin-bottom:2px;font-size:0.9rem;">Resolução Automática Inteligente</strong>
+            O Gisa manterá a versão mais completa de cada artigo (com resumo e DOI) e descartará as cópias duplicadas com 100% de segurança.
           </div>
         </div>
 
-        <div class="resolver-section">
-          <label style="font-size:0.82rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:8px;">
-            1. Versão preferencial para manter (Duplicate best version to keep):
+        <div class="resolver-section" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:16px 18px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <div>
+              <span style="font-size:0.86rem;font-weight:700;color:var(--text-primary);">Nível de Similaridade</span>
+              <p style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">97% (Rigoroso) é o padrão científico para evitar descartes incorretos.</p>
+            </div>
+            <span id="ar-thresh-val" style="font-size:1.25rem;font-weight:800;color:var(--purple);background:rgba(168,85,247,0.15);padding:4px 14px;border-radius:9999px;border:1px solid rgba(168,85,247,0.3);">97%</span>
+          </div>
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <input type="range" id="ar-thresh-slider" min="50" max="100" value="97" style="flex:1;min-width:180px;cursor:pointer;accent-color:var(--purple);" />
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-sm btn-ghost ar-preset-btn" data-val="97" style="border-radius:9999px;padding:4px 12px;font-size:0.75rem;font-weight:600;border:1px solid rgba(255,255,255,0.12);">97% (Estrito)</button>
+              <button class="btn btn-sm btn-ghost ar-preset-btn" data-val="85" style="border-radius:9999px;padding:4px 12px;font-size:0.75rem;font-weight:600;border:1px solid rgba(255,255,255,0.12);">85%</button>
+              <button class="btn btn-sm btn-ghost ar-preset-btn" data-val="65" style="border-radius:9999px;padding:4px 12px;font-size:0.75rem;font-weight:600;border:1px solid rgba(255,255,255,0.12);">65% (Amplo)</button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size:0.76rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:8px;">
+            Campos comparados na identificação:
           </label>
-          <select id="ar-pref-file" class="input" style="width:100%;font-size:0.86rem;padding:10px 14px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);color:var(--text-primary);">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <span style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);padding:5px 12px;border-radius:9999px;font-size:0.78rem;color:var(--text-secondary);">✓ Título</span>
+            <span style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);padding:5px 12px;border-radius:9999px;font-size:0.78rem;color:var(--text-secondary);">✓ DOI (Identificador)</span>
+            <span style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);padding:5px 12px;border-radius:9999px;font-size:0.78rem;color:var(--text-secondary);">✓ Autores</span>
+            <span style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);padding:5px 12px;border-radius:9999px;font-size:0.78rem;color:var(--text-secondary);">✓ Revista</span>
+            <span style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);padding:5px 12px;border-radius:9999px;font-size:0.78rem;color:var(--text-secondary);">✓ Ano</span>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size:0.76rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:8px;">
+            Critério de preservação:
+          </label>
+          <select id="ar-pref-file" class="input" style="width:100%;font-size:0.85rem;padding:9px 14px;background:rgba(22,16,44,0.8);border:1px solid rgba(255,255,255,0.14);border-radius:12px;color:var(--text-primary);">
             ${fileOptionsHtml}
           </select>
         </div>
 
-        <div class="resolver-section">
-          <label style="font-size:0.82rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:10px;">
-            2. Critérios de Correspondência (Duplicates resolving criteria):
-          </label>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 130px), 1fr));gap:10px;">
-            <label style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);cursor:pointer;font-size:0.82rem;">
-              <input type="checkbox" id="crit-title" checked /> <span>Title (Título)</span>
-            </label>
-            <label style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);cursor:pointer;font-size:0.82rem;">
-              <input type="checkbox" id="crit-doi" checked /> <span>DOI (Identificador)</span>
-            </label>
-            <label style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);cursor:pointer;font-size:0.82rem;">
-              <input type="checkbox" id="crit-authors" checked /> <span>Authors (Autores)</span>
-            </label>
-            <label style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);cursor:pointer;font-size:0.82rem;">
-              <input type="checkbox" id="crit-journal" checked /> <span>Journal (Revista)</span>
-            </label>
-            <label style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);cursor:pointer;font-size:0.82rem;">
-              <input type="checkbox" id="crit-year" checked /> <span>Year (Ano)</span>
-            </label>
-            <label style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md);cursor:pointer;font-size:0.82rem;">
-              <input type="checkbox" id="crit-pubtype" checked /> <span>Publication Type</span>
-            </label>
-          </div>
-        </div>
-
-        <div class="resolver-section" style="background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <div>
-              <span style="font-size:0.88rem;font-weight:700;color:var(--text-primary);">Porcentagem Mínima de Similaridade (Articles Similarity %)</span>
-              <p style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">Padrão Estrito = 97% | Padrão Abrangente = 65%</p>
-            </div>
-            <span id="ar-thresh-val" style="font-size:1.3rem;font-weight:800;color:var(--purple);background:var(--purple-glow);padding:4px 12px;border-radius:var(--radius-sm);border:1px solid rgba(99,102,241,0.3);">97%</span>
-          </div>
-          <div style="display:flex;gap:12px;align-items:center;">
-            <input type="range" id="ar-thresh-slider" min="50" max="100" value="97" style="flex:1;cursor:pointer;" />
-            <div style="display:flex;gap:6px;">
-              <button class="btn btn-sm btn-ghost ar-preset-btn" data-val="97" style="padding:4px 8px;font-size:0.75rem;">97% (Estrito)</button>
-              <button class="btn btn-sm btn-ghost ar-preset-btn" data-val="85" style="padding:4px 8px;font-size:0.75rem;">85%</button>
-              <button class="btn btn-sm btn-ghost ar-preset-btn" data-val="65" style="padding:4px 8px;font-size:0.75rem;">65% (Amplo)</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="resolver-section">
-          <label style="font-size:0.82rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:8px;">
-            3. Configurações Avançadas (Auto-Resolver Settings):
-          </label>
-          <div style="display:flex;flex-direction:column;gap:8px;">
-            <label style="display:flex;align-items:flex-start;gap:10px;font-size:0.84rem;color:var(--text-secondary);cursor:pointer;">
-              <input type="checkbox" id="sett-norm" checked style="margin-top:3px;" />
-              <div>
-                <strong style="color:var(--text-primary);">Normalização Avançada de Texto (Text Normalization)</strong>
-                <div style="font-size:0.75rem;color:var(--text-muted);">Remove acentos, hífens, pontuações, maiúsculas/minúsculas e tags HTML para evitar falsos negativos.</div>
-              </div>
-            </label>
-            <label style="display:flex;align-items:flex-start;gap:10px;font-size:0.84rem;color:var(--text-secondary);cursor:pointer;">
-              <input type="checkbox" id="sett-protect" checked style="margin-top:3px;" />
-              <div>
-                <strong style="color:var(--text-primary);">Proteção de Customizações (Articles Customization Protection)</strong>
-                <div style="font-size:0.75rem;color:var(--text-muted);">Se um artigo já recebeu notas ou decisões manuais da equipe, essa versão é preservada automaticamente.</div>
-              </div>
-            </label>
-          </div>
-        </div>
-
-        <div id="ar-impact-box" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);border-radius:var(--radius-lg);padding:14px 18px;display:flex;justify-content:space-between;align-items:center;">
+        <div id="ar-impact-box" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:16px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;">
           <div>
-            <span style="font-size:0.75rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.06em;">Impacto da Resolução</span>
-            <div style="font-size:0.95rem;font-weight:700;color:var(--text-primary);margin-top:2px;">
-              <span id="ar-impact-dups" style="color:var(--purple);font-size:1.2rem;font-weight:800;">${initialImpact.count}</span> duplicatas serão descartadas
+            <span style="font-size:0.72rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.06em;">Resultado</span>
+            <div style="font-size:0.92rem;font-weight:700;color:var(--text-primary);margin-top:2px;">
+              <span id="ar-impact-dups" style="color:var(--purple);font-size:1.25rem;font-weight:800;">${initialImpact.count}</span> duplicatas serão descartadas
             </div>
           </div>
           <div style="text-align:right;">
-            <span style="font-size:0.75rem;color:var(--text-muted);">Artigos únicos restantes</span>
-            <div id="ar-impact-unique" style="font-size:1.2rem;font-weight:800;color:var(--green);">${project.articles.length - initialImpact.count}</div>
+            <span style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;">Artigos únicos restantes</span>
+            <div id="ar-impact-unique" style="font-size:1.25rem;font-weight:800;color:var(--green);">${project.articles.length - initialImpact.count}</div>
           </div>
         </div>
       </div>
     `;
 
     const m = modal(
-      '⚡ Systematic Auto Resolver — Configurações Avançadas',
+      '⚡ Resolução Automática de Duplicatas',
       bodyHtml,
       [
         { label: 'Cancelar', style: 'btn-ghost', cb: () => {} },
@@ -1918,11 +1978,13 @@ const UI = (() => {
         if (confirmBtn) confirmBtn.textContent = `⚡ Resolver ${impact.count} Duplicatas Agora`;
       }
 
+      let debounceTimer = null;
       if (slider) {
         slider.oninput = () => {
           currentThreshold = parseInt(slider.value);
           if (displayVal) displayVal.textContent = currentThreshold + '%';
-          updateLivePreview();
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(updateLivePreview, 60);
         };
       }
 
@@ -1932,7 +1994,8 @@ const UI = (() => {
           currentThreshold = val;
           if (slider) slider.value = val;
           if (displayVal) displayVal.textContent = val + '%';
-          updateLivePreview();
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(updateLivePreview, 20);
         };
       });
 

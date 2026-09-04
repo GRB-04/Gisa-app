@@ -28,16 +28,45 @@ const App = (() => {
   const $$ = sel => document.querySelectorAll(sel);
 
   // ─── Navigation ───────────────────────────────────────
-  function navigate(view, opts = {}) {
+  async function navigate(view, opts = {}, pushHistory = true) {
     state.view = view;
     if (opts.projectId) state.projectId = opts.projectId;
     if (opts.tab) state.tab = opts.tab;
+    if (view === 'wizard') {
+      if (!state.wizard || opts.resetWizard) {
+        state.wizard = { step: opts.wizardStep || 1, name: '', desc: '', keywords: [], files: [] };
+      } else if (opts.wizardStep) {
+        state.wizard.step = opts.wizardStep;
+      }
+    }
     state.filter = { decision: 'all', search: '', relevance: 'all', label: null };
     state.dupPairs = [];
     state.dupResolved = new Set();
     state.articleOffset = 0;
     state.serialIndex = 0;
     state.screenMode = 'list';
+
+    if (pushHistory && typeof history !== 'undefined') {
+      const step = (view === 'wizard' && state.wizard) ? state.wizard.step : 1;
+      const stateObj = { view, projectId: state.projectId, tab: state.tab, wizardStep: step };
+      let hash = '';
+      if (view === 'wizard') {
+        hash = `#novo-projeto-etapa-${step}`;
+      } else if (view === 'project' && state.projectId) {
+        hash = `#projeto-${state.projectId}-${state.tab || 'screen'}`;
+      } else if (view === 'home') {
+        hash = '#home';
+      }
+      history.pushState(stateObj, '', hash || window.location.pathname);
+    }
+
+    if (view === 'project' && state.projectId) {
+      const proj = Storage.getProject(state.projectId);
+      if (proj && !proj._articlesLoaded && Storage.loadProjectArticles) {
+        await Storage.loadProjectArticles(state.projectId);
+      }
+    }
+
     render();
   }
 
@@ -561,23 +590,24 @@ const App = (() => {
     }
 
     $('new-project-btn').onclick = () => {
-      state.wizard = { step: 1, name: '', desc: '', keywords: [], files: [] };
-      state.view = 'wizard';
-      render();
+      navigate('wizard', { resetWizard: true, wizardStep: 1 });
     };
 
     $('home-download-app-btn')?.addEventListener('click', () => {
       UI.showInstallDownloadModal();
     });
 
-    // Auto-verify all projects against IndexedDB
-    if (Storage.checkAndRecoverAllProjects) {
-      Storage.checkAndRecoverAllProjects().then(recoveredCount => {
-        if (recoveredCount > 0) {
-          console.log(`[Gisa] Auto-recuperados ${recoveredCount} artigos nos projetos locais.`);
-          renderHome();
-        }
-      });
+    // Auto-verify all projects against IndexedDB in background idle (runs once per session)
+    if (!window.__gisaCheckedRecovery && Storage.checkAndRecoverAllProjects) {
+      window.__gisaCheckedRecovery = true;
+      setTimeout(() => {
+        Storage.checkAndRecoverAllProjects().then(recoveredCount => {
+          if (recoveredCount > 0) {
+            console.log(`[Gisa] Auto-recuperados ${recoveredCount} artigos nos projetos locais.`);
+            if (state.view === 'home') renderHome();
+          }
+        }).catch(() => {});
+      }, 1500);
     }
   }
 
@@ -607,7 +637,6 @@ const App = (() => {
     const steps = [
       { n: 1, label: 'Informações' },
       { n: 2, label: 'Importar Artigos' },
-      { n: 3, label: 'Palavras-chave' },
     ];
 
     const stepBreadcrumb = steps.map(s => `
@@ -652,19 +681,23 @@ const App = (() => {
         </div>`;
     } else if (step === 2) {
       const fileList = state.wizard.files.length
-        ? state.wizard.files.map(f => `<div class="wz-file-item">📄 <span>${f.name}</span></div>`).join('')
+        ? state.wizard.files.map(f => `<div class="wz-file-item">📄 <span>${escapeHtml(f.name)}</span></div>`).join('')
         : '';
       bodyHtml = `
         <div class="wz-body">
           <div class="wz-title-wrap">
             <h2 class="wz-title">Importar artigos</h2>
-            <p class="wz-sub">Faça upload dos arquivos de referências (.ris, .bib, .csv, .pdf). Você também pode pular e importar depois.</p>
+            <p class="wz-sub">Faça upload dos arquivos de referências (.ris, .bib, .csv, .pdf, .zip ou pastas). Você também pode pular e importar depois.</p>
           </div>
           <div class="wz-drop-zone" id="wz-drop">
             <div class="upload-icon">📂</div>
-            <p>Arraste os arquivos aqui ou clique no botão abaixo (inclusive PDFs)</p>
-            <input type="file" id="wz-file-input" multiple accept=".ris,.bib,.csv,.nbib,.pdf,.txt,.json" style="display:none"/>
-            <button class="btn btn-secondary btn-sm" id="wz-select-btn">Selecionar arquivos</button>
+            <p>Arraste arquivos, pastas ou arquivo .ZIP aqui</p>
+            <input type="file" id="wz-file-input" multiple accept=".ris,.bib,.csv,.nbib,.pdf,.txt,.json,.zip,application/zip,application/x-zip-compressed" style="display:none"/>
+            <input type="file" id="wz-folder-input" webkitdirectory directory multiple style="display:none"/>
+            <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px;">
+              <button class="btn btn-secondary btn-sm" id="wz-select-btn">Selecionar Arquivos / .ZIP</button>
+              <button class="btn btn-secondary btn-sm" id="wz-select-folder-btn" style="background:rgba(16,185,129,0.15);border-color:rgba(16,185,129,0.35);color:#fff;">📁 Selecionar Pasta</button>
+            </div>
           </div>
           <div class="wz-formats">
             <span class="wz-format-label">Formatos suportados:</span>
@@ -674,29 +707,9 @@ const App = (() => {
             <span class="format-chip">.pdf</span>
             <span class="format-chip">.nbib</span>
             <span class="format-chip">.txt</span>
+            <span class="format-chip" style="background:rgba(59,130,246,0.2);color:#93c5fd;border-color:rgba(59,130,246,0.4)">.zip</span>
           </div>
           <div id="wz-file-list" class="wz-file-list">${fileList}</div>
-        </div>`;
-    } else if (step === 3) {
-      const kwChips = state.wizard.keywords.map((k, i) =>
-        `<span class="kw-tag">${k}<button class="kw-remove" data-idx="${i}">×</button></span>`
-      ).join('');
-      bodyHtml = `
-        <div class="wz-body">
-          <div class="wz-title-wrap">
-            <h2 class="wz-title">Palavras-chave do tema</h2>
-            <p class="wz-sub">Defina os termos para medir a relevância de cada artigo automaticamente.</p>
-          </div>
-          <div class="form-group">
-            <label>Adicionar palavra-chave</label>
-            <div class="kw-add-row">
-              <input id="wz-kw-input" class="input" placeholder="Ex: feminicídio, violência doméstica…"/>
-              <button class="btn btn-primary btn-sm" id="wz-kw-add">+ Adicionar</button>
-            </div>
-            <small class="input-hint">Pressione Enter ou clique em Adicionar (separe por vírgula para adicionar várias).</small>
-          </div>
-          <div class="kw-tags" id="wz-kw-tags">${kwChips}</div>
-          ${state.wizard.keywords.length === 0 ? '<p class="muted" style="margin-top:6px;font-size:0.8rem;">Nenhuma palavra-chave adicionada ainda.</p>' : ''}
         </div>`;
     }
 
@@ -714,18 +727,33 @@ const App = (() => {
           <div class="wz-footer">
             ${step > 1 ? '<button class="btn btn-ghost" id="wz-prev">← Voltar</button>' : ''}
             <div style="flex:1"></div>
-            ${step === 2 ? '<button class="btn btn-ghost" id="wz-skip">Pular esta etapa →</button>' : ''}
-            ${step < 3
-              ? '<button class="btn btn-primary" id="wz-next">Próximo →</button>'
-              : '<button class="btn btn-primary" id="wz-finish">✓ Criar Revisão</button>'}
+            ${step === 2 ? '<button class="btn btn-ghost" id="wz-skip">Pular importação e criar →</button>' : ''}
+            ${step === 1
+              ? '<button class="btn btn-primary" id="wz-next">Avançar para Importação →</button>'
+              : '<button class="btn btn-primary" id="wz-finish">✓ Criar e Abrir Revisão</button>'}
           </div>
         </div>
       </div>
     `;
 
-    $('wz-cancel').onclick = () => { state.view = 'home'; render(); };
-    const prevBtn = $('wz-prev'); if (prevBtn) prevBtn.onclick = () => { state.wizard.step--; renderWizard(); };
-    const skipBtn = $('wz-skip'); if (skipBtn) skipBtn.onclick = () => { state.wizard.step++; renderWizard(); };
+    $('wz-cancel').onclick = () => {
+      if (window.history.length > 1 && window.location.hash.startsWith('#novo-projeto')) {
+        history.back();
+      } else {
+        navigate('home');
+      }
+    };
+    const prevBtn = $('wz-prev');
+    if (prevBtn) {
+      prevBtn.onclick = () => {
+        if (window.history.length > 1 && window.location.hash.startsWith('#novo-projeto')) {
+          history.back();
+        } else {
+          state.wizard.step--;
+          renderWizard();
+        }
+      };
+    }
 
     if (step === 1) {
       $('wz-next').onclick = () => {
@@ -735,6 +763,9 @@ const App = (() => {
         state.wizard.desc = $('wz-desc')?.value?.trim() || '';
         state.wizard.type = $('wz-type')?.value || '';
         state.wizard.step = 2;
+        if (typeof history !== 'undefined') {
+          history.pushState({ view: 'wizard', wizardStep: 2 }, '', '#novo-projeto-etapa-2');
+        }
         renderWizard();
       };
     }
@@ -742,7 +773,11 @@ const App = (() => {
     if (step === 2) {
       const dropZone = $('wz-drop');
       const fileInput = $('wz-file-input');
+      const folderInput = $('wz-folder-input');
+
       $('wz-select-btn').onclick = () => fileInput.click();
+      if (folderInput) $('wz-select-folder-btn').onclick = () => folderInput.click();
+
       dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
       dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
       dropZone.addEventListener('drop', e => {
@@ -750,51 +785,45 @@ const App = (() => {
         state.wizard.files = [...(state.wizard.files || []), ...Array.from(e.dataTransfer.files)];
         renderWizard();
       });
+
       fileInput.onchange = e => {
         state.wizard.files = [...(state.wizard.files || []), ...Array.from(e.target.files)];
         renderWizard();
       };
-      $('wz-next').onclick = () => { state.wizard.step = 3; renderWizard(); };
-    }
 
-    if (step === 3) {
-      const addKw = () => {
-        const val = $('wz-kw-input')?.value?.trim();
-        if (!val) return;
-        const newKws = [...(state.wizard.keywords || []), ...val.split(',').map(k => k.trim()).filter(Boolean)];
-        state.wizard.keywords = newKws;
-        $('wz-kw-input').value = '';
-        renderWizard();
-      };
-      $('wz-kw-add').onclick = addKw;
-      $('wz-kw-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') addKw(); });
-      document.getElementById('wz-kw-tags')?.addEventListener('click', e => {
-        const btn = e.target.closest('.kw-remove');
-        if (!btn) return;
-        state.wizard.keywords.splice(parseInt(btn.dataset.idx), 1);
-        renderWizard();
-      });
-      $('wz-finish').onclick = async () => {
-        const project = Storage.createProject(state.wizard.name, state.wizard.desc, state.wizard.keywords);
+      if (folderInput) {
+        folderInput.onchange = e => {
+          state.wizard.files = [...(state.wizard.files || []), ...Array.from(e.target.files)];
+          renderWizard();
+        };
+      }
+
+      const finishCreation = async (skipFiles = false) => {
+        const project = Storage.createProject(state.wizard.name, state.wizard.desc, state.wizard.keywords || []);
         if (state.wizard.type) Storage.updateProject(project.id, { reviewType: state.wizard.type });
 
-        // Import files if any
-        if (state.wizard.files?.length) {
-          $('wz-finish').disabled = true;
-          $('wz-finish').textContent = '⏳ Importando…';
+        if (!skipFiles && state.wizard.files?.length) {
+          const btn = $('wz-finish');
+          if (btn) {
+            btn.disabled = true;
+            btn.textContent = '⏳ Importando artigos…';
+          }
           try {
             const articles = await Parsers.parseFiles(state.wizard.files);
-            if (state.wizard.keywords?.length) {
-              articles.forEach(a => { a.relevance_score = Similarity.relevanceScore(a, state.wizard.keywords); });
-            }
             Storage.addArticles(project.id, articles);
-            UI.toast(`${articles.length} artigos importados!`, 'success');
-          } catch(e) { UI.toast('Erro ao importar arquivos', 'error'); }
+            UI.toast(`${articles.length} artigos importados com sucesso!`, 'success');
+          } catch(e) {
+            console.error(e);
+            UI.toast('Erro ao importar alguns arquivos: ' + (e.message || ''), 'error');
+          }
         }
 
-        UI.toast(`Revisão "${project.name}" criada!`, 'success');
+        UI.toast(`Revisão "${project.name}" criada com sucesso!`, 'success');
         navigate('project', { projectId: project.id, tab: 'overview' });
       };
+
+      $('wz-finish').onclick = () => finishCreation(false);
+      $('wz-skip').onclick = () => finishCreation(true);
     }
   }
 
@@ -805,13 +834,17 @@ const App = (() => {
     const project = Storage.getProject(state.projectId);
     if (!project) { navigate('home'); return; }
 
-    const screenableTotal = project.stats.screenable !== undefined ? project.stats.screenable : Math.max(0, project.stats.total - (project.stats.duplicates || 0));
+    const duplicatesTotal = project.articles ? project.articles.filter(a => a.is_duplicate).length : (project.stats?.duplicates || 0);
+    const screenableTotal = project.articles ? project.articles.filter(a => !a.is_duplicate).length : Math.max(0, (project.stats?.total || 0) - duplicatesTotal);
+    const includedTotal = project.articles ? project.articles.filter(a => a.decision === 'include' && !a.is_duplicate).length : (project.stats?.included || 0);
+    const triadosTotal = project.articles ? project.articles.filter(a => a.decision && !a.is_duplicate).length : Math.max(0, screenableTotal - (project.stats?.pending || 0));
+
     const tabs = [
       { id: 'overview', icon: '🏠', label: 'Visão Geral' },
       { id: 'upload',   icon: '📁', label: 'Importar' },
-      { id: 'dedup',    icon: '🔄', label: `Duplicatas${project.stats.duplicates ? ` (${project.stats.duplicates})` : ''}` },
+      { id: 'dedup',    icon: '🔄', label: `Duplicatas${duplicatesTotal ? ` (${duplicatesTotal})` : ''}` },
       { id: 'screen',   icon: '🔍', label: `Triagem (${screenableTotal})` },
-      { id: 'articles', icon: '📄', label: `Artigos (${project.stats.total})` },
+      { id: 'articles', icon: '✅', label: `Incluídos (${includedTotal})` },
       { id: 'prisma',   icon: '📐', label: 'PRISMA 2020' },
       { id: 'stats',    icon: '📊', label: 'Dashboard' },
       { id: 'export',   icon: '💾', label: 'Exportar' },
@@ -830,7 +863,7 @@ const App = (() => {
             <button class="btn btn-sm ${project.blindMode ? 'btn-primary' : 'btn-ghost'}" id="blind-mode-btn" title="Ativar/Desativar Modo Cego">
               ${project.blindMode ? '👁️ Modo Cego ON' : '👁️ Modo Cego OFF'}
             </button>
-            <span class="progress-mini-text">${screenableTotal - project.stats.pending} / ${screenableTotal} triados</span>
+            <span class="progress-mini-text">${triadosTotal} / ${screenableTotal} triados</span>
             <button class="btn btn-sm btn-ghost" id="project-delete-btn" title="Excluir este projeto permanentemente" style="color:#ef4444;border:1px solid rgba(239,68,68,0.35);background:rgba(239,68,68,0.08);margin-left:4px;">
               🗑️ Excluir Projeto
             </button>
@@ -900,21 +933,28 @@ const App = (() => {
 
   // ─── OVERVIEW TAB ─────────────────────────────────────
   function renderOverviewTab(project) {
-    const s = project.stats;
+    const rawTotal = project.articles ? project.articles.length : (project.stats?.total || 0);
+    const duplicatesTotal = project.articles ? project.articles.filter(a => a.is_duplicate).length : (project.stats?.duplicates || 0);
+    const screenableTotal = project.articles ? project.articles.filter(a => !a.is_duplicate).length : Math.max(0, rawTotal - duplicatesTotal);
+    const includedTotal = project.articles ? project.articles.filter(a => a.decision === 'include' && !a.is_duplicate).length : (project.stats?.included || 0);
+    const excludedTotal = project.articles ? project.articles.filter(a => a.decision === 'exclude' && !a.is_duplicate).length : (project.stats?.excluded || 0);
+    const maybeTotal = project.articles ? project.articles.filter(a => a.decision === 'maybe' && !a.is_duplicate).length : (project.stats?.maybe || 0);
+    const pendingTotal = project.articles ? project.articles.filter(a => !a.decision && !a.is_duplicate).length : Math.max(0, screenableTotal - includedTotal - excludedTotal - maybeTotal);
+    const triadosTotal = screenableTotal - pendingTotal;
+    const pct = screenableTotal > 0 ? Math.round((triadosTotal / screenableTotal) * 100) : 0;
     const content = $('tab-content');
-    const pct = s.total > 0 ? Math.round(((s.total - s.pending) / s.total) * 100) : 0;
 
     // Determine next recommended step
     let nextStep = null;
-    if (s.total === 0) nextStep = 'upload';
-    else if (s.total > 0 && s.duplicates === 0) nextStep = 'dedup';
-    else if (s.pending > 0) nextStep = 'screen';
+    if (rawTotal === 0) nextStep = 'upload';
+    else if (rawTotal > 0 && duplicatesTotal === 0 && !state.dupPairs?.length) nextStep = 'dedup';
+    else if (pendingTotal > 0) nextStep = 'screen';
     else nextStep = 'export';
 
     const nextLabels = {
       upload: { icon: '📁', text: 'Importe artigos para começar', tab: 'upload', btn: 'Importar artigos' },
       dedup: { icon: '🔄', text: 'Detecte duplicatas antes de triar', tab: 'dedup', btn: 'Detectar duplicatas' },
-      screen: { icon: '🔍', text: `${s.pending} artigos aguardando triagem`, tab: 'screen', btn: 'Iniciar triagem' },
+      screen: { icon: '🔍', text: `${pendingTotal} artigos únicos aguardando triagem`, tab: 'screen', btn: 'Iniciar triagem' },
       export: { icon: '💾', text: 'Triagem concluída! Exporte os resultados', tab: 'export', btn: 'Exportar resultados' },
     };
     const next = nextLabels[nextStep];
@@ -932,12 +972,12 @@ const App = (() => {
           <button class="btn btn-primary" id="next-step-btn">${next.btn} →</button>
         </div>
 
-        <!-- Quick Stats -->
+        <!-- Quick Stats (Clean Scientific Breakdown) -->
         <div class="overview-stats">
           <div class="ov-stat" id="ov-import">
             <div class="ov-stat-icon">📥</div>
             <div class="ov-stat-body">
-              <div class="ov-stat-num">${s.total}</div>
+              <div class="ov-stat-num">${rawTotal}</div>
               <div class="ov-stat-label">Referências importadas</div>
             </div>
             <button class="btn btn-sm btn-secondary ov-action" data-tab="upload">Adicionar mais</button>
@@ -945,45 +985,45 @@ const App = (() => {
           <div class="ov-stat" id="ov-dedup">
             <div class="ov-stat-icon">🔄</div>
             <div class="ov-stat-body">
-              <div class="ov-stat-num">${s.duplicates}</div>
-              <div class="ov-stat-label">Duplicatas detectadas</div>
+              <div class="ov-stat-num">${duplicatesTotal}</div>
+              <div class="ov-stat-label">Duplicatas descartadas</div>
             </div>
-            <button class="btn btn-sm btn-secondary ov-action" data-tab="dedup">${s.duplicates > 0 ? 'Resolver' : 'Detectar'}</button>
+            <button class="btn btn-sm btn-secondary ov-action" data-tab="dedup">${duplicatesTotal > 0 ? 'Gerenciar' : 'Detectar'}</button>
           </div>
           <div class="ov-stat" id="ov-screen">
             <div class="ov-stat-icon">🔍</div>
             <div class="ov-stat-body">
-              <div class="ov-stat-num">${s.pending}</div>
-              <div class="ov-stat-label">Aguardando triagem</div>
+              <div class="ov-stat-num">${screenableTotal}</div>
+              <div class="ov-stat-label">Artigos únicos para triagem</div>
             </div>
             <button class="btn btn-sm btn-secondary ov-action" data-tab="screen">Triar agora</button>
           </div>
           <div class="ov-stat" id="ov-results">
             <div class="ov-stat-icon">✅</div>
             <div class="ov-stat-body">
-              <div class="ov-stat-num">${s.included}</div>
+              <div class="ov-stat-num">${includedTotal}</div>
               <div class="ov-stat-label">Artigos incluídos</div>
             </div>
-            <button class="btn btn-sm btn-secondary ov-action" data-tab="export">Exportar</button>
+            <button class="btn btn-sm btn-secondary ov-action" data-tab="articles">Ver incluídos</button>
           </div>
         </div>
 
-        <!-- Progress Bar -->
+        <!-- Progress Bar (Based on Screenable Unique Pool) -->
         <div class="overview-progress-card">
           <div class="ov-progress-header">
-            <span class="ov-progress-title">Progresso da triagem</span>
+            <span class="ov-progress-title">Progresso da triagem (${triadosTotal} de ${screenableTotal} únicos)</span>
             <span class="ov-progress-pct">${pct}%</span>
           </div>
           <div class="ov-progress-track">
-            <div class="ov-progress-fill include" style="width:${s.total ? (s.included/s.total*100) : 0}%"></div>
-            <div class="ov-progress-fill exclude" style="width:${s.total ? (s.excluded/s.total*100) : 0}%"></div>
-            <div class="ov-progress-fill maybe" style="width:${s.total ? (s.maybe/s.total*100) : 0}%"></div>
+            <div class="ov-progress-fill include" style="width:${screenableTotal ? (includedTotal/screenableTotal*100) : 0}%"></div>
+            <div class="ov-progress-fill exclude" style="width:${screenableTotal ? (excludedTotal/screenableTotal*100) : 0}%"></div>
+            <div class="ov-progress-fill maybe" style="width:${screenableTotal ? (maybeTotal/screenableTotal*100) : 0}%"></div>
           </div>
           <div class="ov-progress-legend">
-            <span class="leg include">✓ ${s.included} incluídos</span>
-            <span class="leg exclude">✗ ${s.excluded} excluídos</span>
-            <span class="leg maybe">? ${s.maybe} talvez</span>
-            <span class="leg pending">· ${s.pending} pendentes</span>
+            <span class="leg include">✓ ${includedTotal} incluídos</span>
+            <span class="leg exclude">✗ ${excludedTotal} excluídos</span>
+            <span class="leg maybe">? ${maybeTotal} talvez</span>
+            <span class="leg pending">· ${pendingTotal} pendentes</span>
           </div>
         </div>
 
@@ -1032,12 +1072,15 @@ const App = (() => {
         <div class="upload-zone" id="upload-zone">
           <div class="upload-zone-inner">
             <div class="upload-icon">📂</div>
-            <h3>Arraste arquivos aqui ou clique para selecionar</h3>
-            <p>Formatos suportados: <strong>.ris · .bib · .csv · .nbib · .pdf · .txt · .json</strong></p>
-            <input type="file" id="file-input" multiple accept=".ris,.bib,.csv,.nbib,.pdf,.txt,.json" style="display:none"/>
-            <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px;">
-              <button class="btn btn-primary" id="select-files-btn">Selecionar Arquivos</button>
-              <button class="btn btn-secondary" id="select-pdf-btn" style="background:rgba(168,85,247,0.15);border-color:var(--purple);color:#fff;">📄 Subir PDFs Científicos</button>
+            <h3>Arraste arquivos, pastas ou arquivo .ZIP aqui</h3>
+            <p>Formatos suportados: <strong>.ris · .bib · .csv · .nbib · .pdf · .txt · .json · .zip (pasta compactada)</strong></p>
+            <input type="file" id="file-input" multiple accept=".ris,.bib,.csv,.nbib,.pdf,.txt,.json,.zip,application/zip,application/x-zip-compressed" style="display:none"/>
+            <input type="file" id="folder-input" webkitdirectory directory multiple style="display:none"/>
+            <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:14px;">
+              <button class="btn btn-primary" id="select-files-btn" style="border-radius:9999px;">Selecionar Arquivos</button>
+              <button class="btn btn-secondary" id="select-zip-btn" style="border-radius:9999px;background:rgba(59,130,246,0.15);border-color:rgba(59,130,246,0.4);color:#fff;">📦 Pasta ZIP (.zip)</button>
+              <button class="btn btn-secondary" id="select-folder-btn" style="border-radius:9999px;background:rgba(16,185,129,0.15);border-color:rgba(16,185,129,0.4);color:#fff;">📁 Selecionar Pasta</button>
+              <button class="btn btn-secondary" id="select-pdf-btn" style="border-radius:9999px;background:rgba(168,85,247,0.15);border-color:var(--purple);color:#fff;">📄 PDFs Científicos</button>
             </div>
           </div>
         </div>
@@ -1067,15 +1110,30 @@ const App = (() => {
     `;
 
     setupDropzone(project);
-    document.getElementById('select-files-btn').onclick = () => $('file-input').click();
+    document.getElementById('select-files-btn').onclick = () => {
+      const fi = $('file-input');
+      fi.accept = '.ris,.bib,.csv,.nbib,.pdf,.txt,.json,.zip,application/zip,application/x-zip-compressed';
+      fi.click();
+    };
+    document.getElementById('select-zip-btn').onclick = () => {
+      const fi = $('file-input');
+      fi.accept = '.zip,application/zip,application/x-zip-compressed';
+      fi.click();
+    };
+    document.getElementById('select-folder-btn').onclick = () => {
+      $('folder-input').click();
+    };
     document.getElementById('select-pdf-btn').onclick = () => {
       const pdfInput = $('file-input');
-      pdfInput.accept = '.pdf';
+      pdfInput.accept = '.pdf,application/pdf';
       pdfInput.click();
     };
     $('file-input').onchange = (e) => {
       handleFiles(Array.from(e.target.files), project);
-      $('file-input').accept = '.ris,.bib,.csv,.nbib,.pdf,.txt,.json';
+      $('file-input').accept = '.ris,.bib,.csv,.nbib,.pdf,.txt,.json,.zip,application/zip,application/x-zip-compressed';
+    };
+    $('folder-input').onchange = (e) => {
+      handleFiles(Array.from(e.target.files), project);
     };
     document.getElementById('go-dedup-btn')?.addEventListener('click', () => { state.tab = 'dedup'; renderProject(); });
     document.getElementById('go-screen-btn')?.addEventListener('click', () => { state.tab = 'screen'; renderProject(); });
@@ -1143,10 +1201,42 @@ const App = (() => {
     const zone = $('upload-zone');
     zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
     zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-    zone.addEventListener('drop', e => {
+    zone.addEventListener('drop', async e => {
       e.preventDefault();
       zone.classList.remove('drag-over');
-      handleFiles(Array.from(e.dataTransfer.files), project);
+
+      const files = [];
+      const items = e.dataTransfer.items;
+
+      if (items && items.length && items[0].webkitGetAsEntry) {
+        // Traverse dropped folders/directories recursively
+        const traverseEntry = async (entry) => {
+          if (entry.isFile) {
+            const file = await new Promise(res => entry.file(res));
+            files.push(file);
+          } else if (entry.isDirectory) {
+            const reader = entry.createReader();
+            const entries = await new Promise(res => reader.readEntries(res));
+            for (const child of entries) {
+              await traverseEntry(child);
+            }
+          }
+        };
+
+        for (let i = 0; i < items.length; i++) {
+          const entry = items[i].webkitGetAsEntry();
+          if (entry) {
+            await traverseEntry(entry);
+          } else {
+            const f = items[i].getAsFile();
+            if (f) files.push(f);
+          }
+        }
+      } else {
+        files.push(...Array.from(e.dataTransfer.files));
+      }
+
+      handleFiles(files, project);
     });
     zone.addEventListener('click', e => {
       if (e.target.closest('button')) return;
@@ -1158,12 +1248,17 @@ const App = (() => {
     if (!files.length) return;
     const progress = $('upload-progress');
     progress.style.display = 'block';
-    progress.innerHTML = UI.loadingState(`Processando ${files.length} arquivo(s)…`);
+
+    const hasZip = files.some(f => f.name.toLowerCase().endsWith('.zip') || f.type.includes('zip'));
+    progress.innerHTML = UI.loadingState(hasZip ? `Descompactando e lendo pasta ZIP…` : `Processando ${files.length} arquivo(s)…`);
 
     try {
-      const articles = await Parsers.parseFiles(files);
+      const articles = await Parsers.parseFiles(files, (msg) => {
+        progress.innerHTML = UI.loadingState(msg);
+      });
+
       if (!articles.length) {
-        progress.innerHTML = '<p class="error-msg">Nenhum artigo encontrado nos arquivos. Verifique o formato.</p>';
+        progress.innerHTML = '<p class="error-msg">Nenhum artigo encontrado nos arquivos ou na pasta ZIP. Verifique os formatos (.ris, .bib, .csv, .pdf, .zip).</p>';
         return;
       }
 
@@ -1178,7 +1273,7 @@ const App = (() => {
       const newTotal = updated.stats.total;
       progress.innerHTML = `
         <div class="upload-success">
-          ✅ <strong>${articles.length} artigos importados!</strong>
+          ✅ <strong>${articles.length} artigos importados com sucesso!</strong>
           Total no projeto: ${newTotal} artigos.
         </div>`;
       UI.toast(`${articles.length} artigos importados com sucesso!`, 'success');
@@ -1801,7 +1896,7 @@ const App = (() => {
           </div>
 
           ${abstractHtml
-            ? `<div class="serial-abstract">${abstractHtml}</div>`
+            ? `<div class="serial-abstract" style="text-align:justify;text-justify:inter-word;text-align-last:left;line-height:1.75;">${abstractHtml}</div>`
             : `<div class="serial-no-abstract">ℹ️ Nenhum resumo disponível no arquivo importado.</div>`
           }
 
@@ -1911,16 +2006,40 @@ const App = (() => {
     if (!btn || !results) return;
     btn.disabled = true;
     btn.textContent = '⏳ Analisando…';
-    results.innerHTML = UI.loadingState(`Comparando ${project.articles.length} artigos entre si… Isso pode levar alguns segundos.`);
+    results.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:45px 20px;gap:14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:20px;margin:20px 0;backdrop-filter:blur(12px);">
+        <div class="spinner" style="width:36px;height:36px;border-width:3px;border-top-color:var(--purple);"></div>
+        <div style="font-weight:700;font-size:0.95rem;color:var(--text-primary);" id="dedup-prog-text">
+          Comparando ${project.articles.length} artigos entre si…
+        </div>
+        <div style="width:260px;height:7px;background:rgba(255,255,255,0.12);border-radius:9999px;overflow:hidden;">
+          <div id="dedup-prog-bar" style="width:5%;height:100%;background:linear-gradient(90deg, var(--purple), #6366f1);transition:width 0.2s ease;"></div>
+        </div>
+        <small style="color:var(--text-muted);font-size:0.8rem;" id="dedup-prog-detail">Iniciando análise inteligente…</small>
+      </div>
+    `;
 
     await new Promise(r => setTimeout(r, 50));
 
-    // Bug fix: was incorrectly capping threshold at 55, ignoring the user's slider value.
-    // The minimum scan threshold for candidate-finding is independent of the display threshold.
-    const pairs = Similarity.findDuplicates(project.articles, Math.min(threshold, 55));
-    // Note: findDuplicates with low minScore finds ALL candidates; filtering by threshold happens below.
+    const pairs = await (Similarity.findDuplicatesAsync
+      ? Similarity.findDuplicatesAsync(project.articles, Math.min(threshold, 55), (prog) => {
+          const bar = $('dedup-prog-bar');
+          const text = $('dedup-prog-text');
+          const detail = $('dedup-prog-detail');
+          if (bar) bar.style.width = `${Math.max(5, prog.pct)}%`;
+          if (text) {
+            if (prog.pct < 35) text.textContent = `Indexando ${project.articles.length} artigos… (${prog.pct}%)`;
+            else text.textContent = `Comparando duplicatas (${prog.pct}%)…`;
+          }
+          if (detail) {
+            detail.textContent = `${prog.pct}% concluído — interface ativa`;
+          }
+        })
+      : Promise.resolve(Similarity.findDuplicates(project.articles, Math.min(threshold, 55))));
+
     state.dupPairs = pairs;
     state.dupResolved = new Set();
+    state.dupOffset = 0;
 
     btn.disabled = false;
     btn.textContent = '🔍 Detectar Duplicatas';
@@ -1978,9 +2097,20 @@ const App = (() => {
       return;
     }
 
+    const pageSize = 20;
+    const total = pairs.length;
+    if (state.dupOffset === undefined || state.dupOffset >= total) {
+      state.dupOffset = 0;
+    }
+    const offset = state.dupOffset;
+    const page = pairs.slice(offset, offset + pageSize);
+    const totalPages = Math.ceil(total / pageSize);
+    const currentPage = Math.floor(offset / pageSize) + 1;
+
     list.innerHTML = '';
-    pairs.forEach((pair, idx) => {
-      const pairCard = UI.renderDupPair(pair, idx, {
+    page.forEach((pair, idx) => {
+      const globalIdx = offset + idx;
+      const pairCard = UI.renderDupPair(pair, globalIdx, {
         onKeepA: () => resolvePair(project, pair, 'a'),
         onKeepB: () => resolvePair(project, pair, 'b'),
         onKeepBoth: () => resolvePair(project, pair, 'both'),
@@ -1988,6 +2118,43 @@ const App = (() => {
       });
       list.appendChild(pairCard);
     });
+
+    if (total > pageSize) {
+      const pag = document.createElement('div');
+      pag.className = 'pagination';
+      pag.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:12px;margin:24px 0;';
+
+      const prevBtn = document.createElement('button');
+      prevBtn.className = 'btn btn-ghost btn-sm';
+      prevBtn.style.borderRadius = '9999px';
+      prevBtn.textContent = '← Anterior';
+      prevBtn.disabled = offset === 0;
+      prevBtn.onclick = () => {
+        state.dupOffset = Math.max(0, offset - pageSize);
+        renderDupResults(project);
+        list.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+      pag.appendChild(prevBtn);
+
+      const info = document.createElement('span');
+      info.style.cssText = 'font-size:0.84rem;color:var(--text-muted);font-weight:600;';
+      info.textContent = `Página ${currentPage} de ${totalPages} (${total} duplicatas pendentes)`;
+      pag.appendChild(info);
+
+      const nextBtn = document.createElement('button');
+      nextBtn.className = 'btn btn-ghost btn-sm';
+      nextBtn.style.borderRadius = '9999px';
+      nextBtn.textContent = 'Próximo →';
+      nextBtn.disabled = offset + pageSize >= total;
+      nextBtn.onclick = () => {
+        state.dupOffset = offset + pageSize;
+        renderDupResults(project);
+        list.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+      pag.appendChild(nextBtn);
+
+      list.appendChild(pag);
+    }
   }
 
   function resolvePair(project, pair, action) {
@@ -2008,12 +2175,37 @@ const App = (() => {
     renderDupResults(Storage.getProject(state.projectId));
   }
 
-  function applyAutoResolverPro(project, opts) {
+  async function applyAutoResolverPro(project, opts) {
     const { filePref, matchingPairs } = opts;
     const updates = [];
     const markedDups = new Set();
+    const totalPairs = matchingPairs.length;
 
-    matchingPairs.forEach(pair => {
+    // Dedicated progress overlay for zero-freeze user feedback
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.style.zIndex = '99999';
+    overlay.innerHTML = `
+      <div class="modal-dialog" style="max-width:440px;text-align:center;padding:32px 24px;border-radius:24px;background:rgba(22,16,44,0.95);border:1px solid rgba(168,85,247,0.3);box-shadow:0 12px 40px rgba(0,0,0,0.6);backdrop-filter:blur(20px);">
+        <div class="spinner" style="width:40px;height:40px;border-width:3.5px;border-top-color:var(--purple);margin:0 auto 16px;"></div>
+        <h3 style="margin:0 0 6px;font-size:1.15rem;color:var(--text-primary);font-weight:800;">⚡ Resolvendo Duplicatas</h3>
+        <p style="font-size:0.84rem;color:var(--text-secondary);margin:0 0 16px;" id="auto-res-msg">Processando ${totalPairs} pares identificados…</p>
+        <div style="width:100%;height:8px;background:rgba(255,255,255,0.1);border-radius:9999px;overflow:hidden;">
+          <div id="auto-res-bar" style="width:5%;height:100%;background:linear-gradient(90deg,var(--purple),#6366f1);transition:width 0.15s ease;"></div>
+        </div>
+        <small style="display:block;margin-top:12px;color:var(--text-muted);font-size:0.75rem;">Aguarde alguns instantes, o navegador continuará responsivo.</small>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    await new Promise(r => setTimeout(r, 40));
+
+    const bar = document.getElementById('auto-res-bar');
+    const msg = document.getElementById('auto-res-msg');
+
+    // Yield execution in batches so browser UI thread stays 100% active
+    const batchSize = 1000;
+    for (let i = 0; i < totalPairs; i++) {
+      const pair = matchingPairs[i];
       const key = `${pair.articleA.id}_${pair.articleB.id}`;
       state.dupResolved.add(key);
 
@@ -2049,23 +2241,39 @@ const App = (() => {
         });
         markedDups.add(deleteArticle.id);
       }
-    });
+
+      if (i % batchSize === 0 && i > 0) {
+        const pct = Math.round((i / totalPairs) * 100);
+        if (bar) bar.style.width = `${pct}%`;
+        if (msg) msg.textContent = `Resolvendo: ${i} de ${totalPairs} (${pct}%)…`;
+        await new Promise(r => setTimeout(r, 0));
+      }
+    }
+
+    if (bar) bar.style.width = '100%';
+    if (msg) msg.textContent = `Gravando ${updates.length} duplicatas no banco local…`;
+    await new Promise(r => setTimeout(r, 40));
 
     Storage.bulkUpdateArticles(project.id, updates);
-    UI.toast(`${updates.length} duplicatas resolvidas via Systematic Auto Resolver!`, 'success');
-    renderDedupTab(Storage.getProject(state.projectId));
+    overlay.remove();
+
+    UI.toast(`✓ ${updates.length} duplicatas resolvidas com sucesso!`, 'success');
+    renderProject();
   }
 
-  function autoResolveHighSimilarity(project, pairs, threshold) {
+  async function autoResolveHighSimilarity(project, pairs, threshold) {
     const updates = [];
+    UI.toast(`⚡ Resolvendo ${pairs.length} duplicatas…`, 'info');
+    await new Promise(r => setTimeout(r, 40));
+
     pairs.forEach(pair => {
       const key = `${pair.articleA.id}_${pair.articleB.id}`;
       state.dupResolved.add(key);
       updates.push({ id: pair.articleB.id, is_duplicate: true, duplicate_score: pair.score, duplicate_of: pair.articleA.id, decision: 'exclude', exclusion_reason: 'Duplicata' });
     });
     Storage.bulkUpdateArticles(project.id, updates);
-    UI.toast(`${pairs.length} duplicatas resolvidas automaticamente!`, 'success');
-    renderDedupTab(Storage.getProject(state.projectId));
+    UI.toast(`✓ ${pairs.length} duplicatas resolvidas automaticamente!`, 'success');
+    renderProject();
   }
 
   function renderDupTab(project) {
@@ -2074,37 +2282,135 @@ const App = (() => {
     updateTabActive();
   }
 
-  // ─── ARTICLES TAB ─────────────────────────────────────
+  // ─── ARTICLES TAB (FASE 2: LEITURA INTEGRAL & SELEÇÃO DEFINITIVA) ───
   function renderArticlesTab(project) {
     const content = $('tab-content');
+    if (!state.filter.decision || state.filter.decision === 'all') {
+      state.filter.decision = 'include'; // Default to included articles
+    }
+    if (!state.filter.category) {
+      state.filter.category = 'all';
+    }
+
+    const articles = project.articles || [];
+    const includedArticles = articles.filter(a => a.decision === 'include' && !a.is_duplicate);
+    const finalSelectedArticles = includedArticles.filter(a => a.final_selection);
+    const pendingFinalArticles = includedArticles.filter(a => !a.final_selection);
+    const projectCategories = Array.from(new Set([
+      ...(project.categories || []),
+      ...articles.flatMap(a => a.categories || [])
+    ])).filter(Boolean);
+
+    const categoryOptionsHtml = [
+      `<option value="all" ${state.filter.category === 'all' ? 'selected' : ''}>🏷️ Todos os Temas (${includedArticles.length})</option>`,
+      ...projectCategories.map(cat => {
+        const count = includedArticles.filter(a => (a.categories || []).includes(cat)).length;
+        return `<option value="${escapeHtml(cat)}" ${state.filter.category === cat ? 'selected' : ''}>${escapeHtml(cat)} (${count})</option>`;
+      })
+    ].join('');
+
     content.innerHTML = `
       <div class="articles-tab">
-        <div class="articles-filters">
-          <input id="art-search" class="input input-sm" placeholder="Buscar no título…" value="${state.filter.search}"/>
-          <select id="art-decision-filter" class="input input-sm select">
-            <option value="all">Todas as decisões</option>
-            <option value="null">Sem decisão (Pendentes)</option>
-            <option value="include">Incluídos</option>
-            <option value="exclude">Excluídos</option>
-            <option value="maybe">Talvez</option>
-            <option value="duplicate">Duplicatas</option>
+        <!-- Banner Fase 2 (Liquid Glass) -->
+        <div style="background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.22);border-radius:18px;padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;backdrop-filter:blur(14px);box-shadow:0 4px 20px rgba(0,0,0,0.15);">
+          <div>
+            <div style="font-weight:800;font-size:0.95rem;color:var(--text-primary);display:flex;align-items:center;gap:8px;">
+              <span style="font-size:1.2rem;">✅</span>
+              <span>Fase 2: Elegibilidade & Leitura Integral (${includedArticles.length})</span>
+            </div>
+            <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:4px;line-height:1.45;">
+              Aqui ficam reunidos os estudos aprovados na triagem de resumos. Faça a leitura do texto completo para confirmar a <strong>Seleção Definitiva (⭐)</strong> ou <strong>Excluir com justificativa PRISMA (✗)</strong>, e organize por temas de pesquisa.
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-sm btn-ghost" id="art-go-screen-btn" style="border-radius:9999px;border:1px solid rgba(255,255,255,0.18);font-size:0.78rem;">
+              🔍 Ir para Triagem de Resumos →
+            </button>
+          </div>
+        </div>
+
+        <!-- Metric Platters (iOS 26 Style) -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 180px), 1fr));gap:10px;margin-bottom:16px;">
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(34,197,94,0.25);border-radius:16px;padding:12px 16px;display:flex;align-items:center;gap:12px;">
+            <span style="font-size:1.5rem;">📋</span>
+            <div>
+              <span style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;letter-spacing:0.05em;">Total Elegíveis</span>
+              <div style="font-size:1.2rem;font-weight:800;color:var(--green);">${includedArticles.length}</div>
+            </div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(245,158,11,0.3);border-radius:16px;padding:12px 16px;display:flex;align-items:center;gap:12px;">
+            <span style="font-size:1.5rem;">⭐</span>
+            <div>
+              <span style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;letter-spacing:0.05em;">Seleção Definitiva</span>
+              <div style="font-size:1.2rem;font-weight:800;color:#f59e0b;">${finalSelectedArticles.length}</div>
+            </div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:12px 16px;display:flex;align-items:center;gap:12px;">
+            <span style="font-size:1.5rem;">⏳</span>
+            <div>
+              <span style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;letter-spacing:0.05em;">Pendentes de Leitura</span>
+              <div style="font-size:1.2rem;font-weight:800;color:var(--text-primary);">${pendingFinalArticles.length}</div>
+            </div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(168,85,247,0.3);border-radius:16px;padding:12px 16px;display:flex;align-items:center;gap:12px;">
+            <span style="font-size:1.5rem;">🏷️</span>
+            <div>
+              <span style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;letter-spacing:0.05em;">Temas Registrados</span>
+              <div style="font-size:1.2rem;font-weight:800;color:#c084fc;">${projectCategories.length}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="articles-filters" style="gap:10px;flex-wrap:wrap;">
+          <input id="art-search" class="input input-sm" style="flex:1;min-width:200px;" placeholder="Buscar por título, resumo, autor ou tema…" value="${escapeHtml(state.filter.search || '')}"/>
+          
+          <select id="art-decision-filter" class="input input-sm select" style="min-width:180px;">
+            <option value="include" ${state.filter.decision === 'include' ? 'selected' : ''}>📋 Todos os Elegíveis (${includedArticles.length})</option>
+            <option value="final_selected" ${state.filter.decision === 'final_selected' ? 'selected' : ''}>⭐ Apenas Seleção Final (${finalSelectedArticles.length})</option>
+            <option value="pending_final" ${state.filter.decision === 'pending_final' ? 'selected' : ''}>⏳ Pendentes de Leitura (${pendingFinalArticles.length})</option>
+            <option value="maybe" ${state.filter.decision === 'maybe' ? 'selected' : ''}>❓ Talvez (Dúvidas)</option>
+            <option value="exclude" ${state.filter.decision === 'exclude' ? 'selected' : ''}>❌ Excluídos</option>
+            <option value="all" ${state.filter.decision === 'all' ? 'selected' : ''}>Todos os Artigos Únicos</option>
           </select>
-          <select id="art-sort" class="input input-sm select">
+
+          <select id="art-category-filter" class="input input-sm select" style="min-width:170px;">
+            ${categoryOptionsHtml}
+          </select>
+
+          <button class="btn btn-sm btn-ghost" id="art-add-cat-btn" style="border-radius:9999px;border:1px solid rgba(168,85,247,0.35);color:#c084fc;font-weight:700;padding:5px 12px;" title="Criar um novo tema / categoria de pesquisa">
+            + Novo Tema
+          </button>
+
+          <select id="art-sort" class="input input-sm select" style="width:140px;">
             <option value="relevance">Por relevância</option>
             <option value="year-desc">Ano (recente)</option>
             <option value="year-asc">Ano (antigo)</option>
             <option value="title">Título A–Z</option>
           </select>
-          <button class="btn btn-sm btn-secondary" id="art-apply-btn">Filtrar</button>
+
+          <button class="btn btn-sm btn-secondary" id="art-apply-btn" style="border-radius:9999px;padding:6px 16px;">Filtrar</button>
         </div>
+
         <div id="articles-list"></div>
         <div id="articles-pagination" class="pagination"></div>
       </div>
     `;
 
+    $('art-go-screen-btn')?.addEventListener('click', () => {
+      state.tab = 'screen';
+      renderProjectTab(project);
+      updateTabActive();
+    });
+
+    $('art-add-cat-btn')?.addEventListener('click', () => {
+      showCategoryModal(project, null);
+    });
+
     $('art-apply-btn').onclick = () => {
       state.filter.search = $('art-search').value.trim();
       state.filter.decision = $('art-decision-filter').value;
+      state.filter.category = $('art-category-filter').value;
       state.articleOffset = 0;
       renderArticlesList(Storage.getProject(state.projectId));
     };
@@ -2118,46 +2424,78 @@ const App = (() => {
     const pag = $('articles-pagination');
     if (!list) return;
 
-    let articles = [...project.articles];
-    const q = state.filter.search.toLowerCase();
-    if (q) articles = articles.filter(a => a.title.toLowerCase().includes(q) || (a.abstract||'').toLowerCase().includes(q));
-    if (state.filter.decision === 'null') articles = articles.filter(a => !a.decision && !a.is_duplicate);
-    else if (state.filter.decision === 'duplicate') articles = articles.filter(a => a.is_duplicate);
-    else if (state.filter.decision === 'exclude') articles = articles.filter(a => a.decision === 'exclude' && !a.is_duplicate);
-    else if (state.filter.decision !== 'all') articles = articles.filter(a => a.decision === state.filter.decision);
+    let articles = [...(project.articles || [])];
+    const q = (state.filter.search || '').toLowerCase();
+    if (q) {
+      articles = articles.filter(a =>
+        (a.title || '').toLowerCase().includes(q) ||
+        (a.abstract || '').toLowerCase().includes(q) ||
+        (a.authors || []).some(auth => auth.toLowerCase().includes(q)) ||
+        (a.categories || []).some(cat => cat.toLowerCase().includes(q))
+      );
+    }
+
+    if (state.filter.decision === 'final_selected') {
+      articles = articles.filter(a => a.decision === 'include' && !a.is_duplicate && a.final_selection);
+    } else if (state.filter.decision === 'pending_final') {
+      articles = articles.filter(a => a.decision === 'include' && !a.is_duplicate && !a.final_selection);
+    } else if (state.filter.decision === 'include') {
+      articles = articles.filter(a => a.decision === 'include' && !a.is_duplicate);
+    } else if (state.filter.decision === 'exclude') {
+      articles = articles.filter(a => a.decision === 'exclude' && !a.is_duplicate);
+    } else if (state.filter.decision === 'maybe') {
+      articles = articles.filter(a => a.decision === 'maybe' && !a.is_duplicate);
+    } else if (state.filter.decision === 'all') {
+      articles = articles.filter(a => !a.is_duplicate);
+    }
+
+    // Category filter
+    if (state.filter.category && state.filter.category !== 'all') {
+      articles = articles.filter(a => (a.categories || []).includes(state.filter.category));
+    }
 
     // Sort
     const sort = $('art-sort')?.value || 'relevance';
     if (sort === 'relevance') articles.sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0));
     else if (sort === 'year-desc') articles.sort((a, b) => (b.year || '').localeCompare(a.year || ''));
     else if (sort === 'year-asc') articles.sort((a, b) => (a.year || '').localeCompare(b.year || ''));
-    else if (sort === 'title') articles.sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'));
+    else if (sort === 'title') articles.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'pt-BR'));
 
     const total = articles.length;
-    const pageSize = state.articlePageSize;
-    const offset = state.articleOffset;
+    const pageSize = state.articlePageSize || 20;
+    const offset = state.articleOffset || 0;
     const page = articles.slice(offset, offset + pageSize);
 
     if (!page.length) {
-      list.innerHTML = UI.emptyState('📄', 'Nenhum artigo encontrado', 'Ajuste os filtros ou importe artigos.');
-      pag.innerHTML = '';
+      list.innerHTML = UI.emptyState(
+        '📋',
+        'Nenhum artigo encontrado',
+        state.filter.decision === 'final_selected'
+          ? 'Nenhum artigo foi marcado com <strong>Seleção Definitiva (⭐)</strong> ainda. Clique no botão de estrela dos artigos para adicioná-los à seleção final.'
+          : 'Ajuste os filtros de busca ou categorize artigos aprovados.'
+      );
+      if (pag) pag.innerHTML = '';
       return;
     }
 
     list.innerHTML = '';
     page.forEach(article => {
       const card = UI.renderArticleCard(article, project.keywords, {
+        isIncludedTab: true,
         onInclude: () => makeDecision(project.id, article.id, 'include'),
-        onExclude: () => makeDecision(project.id, article.id, 'exclude'),
+        onExclude: () => showFullTextExcludeModal(project, article),
         onMaybe:   () => makeDecision(project.id, article.id, 'maybe'),
         onNote:    () => showNoteModal(project.id, article),
-        onDelete:  () => {}
+        onDelete:  () => {},
+        onToggleFinalSelection: () => toggleFinalSelection(project, article),
+        onCategories: () => showCategoryModal(project, article),
+        onFullTextExclude: () => showFullTextExcludeModal(project, article)
       });
       list.appendChild(card);
     });
 
-    pag.innerHTML = '';
-    if (total > pageSize) {
+    if (pag) pag.innerHTML = '';
+    if (total > pageSize && pag) {
       if (offset > 0) {
         const prev = document.createElement('button');
         prev.className = 'btn btn-ghost btn-sm';
@@ -2177,6 +2515,199 @@ const App = (() => {
         pag.appendChild(next);
       }
     }
+  }
+
+  function toggleFinalSelection(project, article) {
+    const newVal = !article.final_selection;
+    Storage.updateArticle(project.id, article.id, {
+      final_selection: newVal,
+      decision: 'include'
+    });
+    UI.toast(
+      newVal ? '⭐ Estudo confirmado na Seleção Definitiva da revisão!' : 'Seleção definitiva desmarcada.',
+      'success'
+    );
+    renderArticlesTab(Storage.getProject(project.id));
+  }
+
+  function showCategoryModal(project, article) {
+    const currentCats = new Set((article && article.categories) || []);
+    let allProjectCats = Array.from(new Set([
+      ...(project.categories || []),
+      'Violência Doméstica',
+      'Violência no Trabalho',
+      'Saúde Mental & Psicológica',
+      'Políticas Públicas & Intervenção',
+      'Adolescentes e Jovens'
+    ]));
+
+    function buildChipsHtml() {
+      return allProjectCats.map(cat => {
+        const isSelected = currentCats.has(cat);
+        return `
+          <button type="button" class="cat-pill-btn ${isSelected ? 'selected' : ''}" data-cat="${escapeHtml(cat)}" style="background:${isSelected ? 'linear-gradient(135deg,#a855f7,#6366f1)' : 'rgba(255,255,255,0.05)'};border:1px solid ${isSelected ? '#c084fc' : 'rgba(255,255,255,0.14)'};color:${isSelected ? '#fff' : 'var(--text-secondary)'};padding:6px 14px;border-radius:9999px;font-size:0.8rem;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all 0.2s;">
+            ${isSelected ? '✓ ' : '+ '} ${escapeHtml(cat)}
+          </button>
+        `;
+      }).join('');
+    }
+
+    const bodyHtml = `
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <p style="font-size:0.84rem;color:var(--text-secondary);margin:0;line-height:1.5;">
+          ${article ? 'Atribua temas a este artigo para organizar a síntese da revisão por categorias temáticas (ex: <em>Violência Doméstica</em>, <em>Violência no Trabalho</em>).' : 'Crie novos temas temáticos para organizar e filtrar os estudos na revisão.'}
+        </p>
+
+        ${article ? `
+          <div style="background:var(--bg-card2);padding:12px;border-radius:14px;border:1px solid var(--border);">
+            <strong style="font-size:0.88rem;color:var(--text-primary);display:block;margin-bottom:4px;">${escapeHtml(article.title)}</strong>
+            <span style="font-size:0.75rem;color:var(--text-muted);">${article.authors?.slice(0,3).join('; ') || ''} ${article.year ? `(${article.year})` : ''}</span>
+          </div>
+        ` : ''}
+
+        <div>
+          <label style="font-size:0.76rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:8px;">
+            ${article ? 'Clique nos temas para adicionar ou remover:' : 'Temas cadastrados no projeto:'}
+          </label>
+          <div id="cat-chips-container" style="display:flex;flex-wrap:wrap;gap:8px;">
+            ${buildChipsHtml()}
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:4px;">
+          <input id="cat-new-input" class="input input-sm" placeholder="Criar novo tema (ex: Violência Institucional)…" style="flex:1;" />
+          <button id="cat-new-btn" class="btn btn-sm btn-secondary" style="border-radius:9999px;font-weight:700;">+ Adicionar</button>
+        </div>
+      </div>
+    `;
+
+    UI.modal('🏷️ Categorias Temáticas da Revisão', bodyHtml, [
+      { label: 'Fechar', style: 'btn-ghost' },
+      {
+        label: 'Salvar Temas',
+        style: 'btn-primary',
+        cb: () => {
+          if (article) {
+            const finalCats = Array.from(currentCats);
+            Storage.updateArticle(project.id, article.id, { categories: finalCats });
+          }
+          Storage.updateProject(project.id, { categories: allProjectCats });
+          UI.toast('✓ Categorias temáticas salvas com sucesso!', 'success');
+          renderArticlesTab(Storage.getProject(project.id));
+        }
+      }
+    ]);
+
+    setTimeout(() => {
+      const container = document.getElementById('cat-chips-container');
+      const input = document.getElementById('cat-new-input');
+      const addBtn = document.getElementById('cat-new-btn');
+
+      function refreshChips() {
+        if (container) {
+          container.innerHTML = buildChipsHtml();
+          bindClicks();
+        }
+      }
+
+      function bindClicks() {
+        container?.querySelectorAll('.cat-pill-btn').forEach(btn => {
+          btn.onclick = () => {
+            const cat = btn.dataset.cat;
+            if (currentCats.has(cat)) currentCats.delete(cat);
+            else currentCats.add(cat);
+            refreshChips();
+          };
+        });
+      }
+
+      bindClicks();
+
+      const addNewCat = () => {
+        const val = input?.value?.trim();
+        if (!val) return;
+        if (!allProjectCats.includes(val)) allProjectCats.push(val);
+        currentCats.add(val);
+        input.value = '';
+        refreshChips();
+      };
+
+      addBtn?.addEventListener('click', addNewCat);
+      input?.addEventListener('keydown', e => { if (e.key === 'Enter') addNewCat(); });
+    }, 40);
+  }
+
+  function showFullTextExcludeModal(project, article) {
+    const reasons = [
+      'Texto completo não acessível / não recuperado',
+      'Metodologia incompatível com os critérios de inclusão',
+      'População de estudo divergente do protocolo',
+      'Desfechos / variáveis de interesse não relatados',
+      'Desenho de estudo não contemplado na revisão',
+      'Publicação duplicada não identificada anteriormente',
+      'Outro motivo de exclusão'
+    ];
+
+    const bodyHtml = `
+      <div style="display:flex;flex-direction:column;gap:14px;">
+        <p style="font-size:0.84rem;color:var(--text-secondary);margin:0;line-height:1.45;">
+          Para manter o rigor do padrão científico internacional (PRISMA 2020), selecione a justificativa da exclusão deste artigo na fase de leitura integral:
+        </p>
+
+        <div style="background:var(--bg-card2);padding:12px;border-radius:12px;border:1px solid var(--border);">
+          <strong style="font-size:0.86rem;color:var(--text-primary);display:block;margin-bottom:2px;">${escapeHtml(article.title)}</strong>
+          <span style="font-size:0.75rem;color:var(--text-muted);">${article.authors?.slice(0,3).join('; ') || ''}</span>
+        </div>
+
+        <div>
+          <label style="font-size:0.76rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;display:block;margin-bottom:8px;">
+            Motivo da Exclusão (PRISMA):
+          </label>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            ${reasons.map((r, i) => `
+              <label style="display:flex;align-items:center;gap:8px;font-size:0.82rem;color:var(--text-primary);cursor:pointer;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);">
+                <input type="radio" name="ft-exclude-reason" value="${escapeHtml(r)}" ${i === 0 ? 'checked' : ''} style="accent-color:var(--red);" />
+                <span>${escapeHtml(r)}</span>
+              </label>
+            `).join('')}
+          </div>
+          <input id="ft-custom-reason" class="input input-sm" placeholder="Ou descreva outro motivo específico…" style="width:100%;margin-top:8px;display:none;" />
+        </div>
+      </div>
+    `;
+
+    UI.modal('✗ Excluir Estudo (Fase de Texto Completo)', bodyHtml, [
+      { label: 'Cancelar', style: 'btn-ghost' },
+      {
+        label: 'Confirmar Exclusão',
+        style: 'btn-danger',
+        cb: () => {
+          const selected = document.querySelector('input[name="ft-exclude-reason"]:checked')?.value || 'Critérios de inclusão não atendidos';
+          const custom = document.getElementById('ft-custom-reason')?.value?.trim();
+          const finalReason = (selected === 'Outro motivo de exclusão' && custom) ? custom : selected;
+
+          Storage.updateArticle(project.id, article.id, {
+            decision: 'exclude',
+            exclusion_reason: finalReason,
+            exclusion_stage: 'full_text',
+            final_selection: false
+          });
+
+          UI.toast('✓ Artigo excluído e justificativa registrada para o PRISMA.', 'info');
+          renderArticlesTab(Storage.getProject(project.id));
+          updateProjectNavHeader(Storage.getProject(project.id));
+        }
+      }
+    ]);
+
+    setTimeout(() => {
+      const customInput = document.getElementById('ft-custom-reason');
+      document.querySelectorAll('input[name="ft-exclude-reason"]').forEach(r => {
+        r.addEventListener('change', () => {
+          if (customInput) customInput.style.display = r.value === 'Outro motivo de exclusão' ? 'block' : 'none';
+        });
+      });
+    }, 40);
   }
 
   // ─── STATS TAB ────────────────────────────────────────
@@ -2642,6 +3173,42 @@ Gerado por Gisa · ${date}
   }
 
   // ─── Shared helpers ───────────────────────────────────
+  function updateProjectNavHeader(p) {
+    if (!p) return;
+    const duplicatesTotal = p.articles ? p.articles.filter(a => a.is_duplicate).length : (p.stats?.duplicates || 0);
+    const screenableTotal = p.articles ? p.articles.filter(a => !a.is_duplicate).length : Math.max(0, (p.stats?.total || 0) - duplicatesTotal);
+    const includedTotal = p.articles ? p.articles.filter(a => a.decision === 'include' && !a.is_duplicate).length : (p.stats?.included || 0);
+    const triadosTotal = p.articles ? p.articles.filter(a => a.decision && !a.is_duplicate).length : Math.max(0, screenableTotal - (p.stats?.pending || 0));
+
+    // Update mini progress text in navbar
+    const miniText = document.querySelector('.progress-mini-text');
+    if (miniText) {
+      miniText.textContent = `${triadosTotal} / ${screenableTotal} triados`;
+    }
+
+    // Update top tab buttons in real-time
+    const tabArticles = document.querySelector('.tab-btn[data-tab="articles"] .tab-label');
+    if (tabArticles) {
+      tabArticles.textContent = `Incluídos (${includedTotal})`;
+    }
+
+    const tabScreen = document.querySelector('.tab-btn[data-tab="screen"] .tab-label');
+    if (tabScreen) {
+      tabScreen.textContent = `Triagem (${screenableTotal})`;
+    }
+
+    const tabDedup = document.querySelector('.tab-btn[data-tab="dedup"] .tab-label');
+    if (tabDedup) {
+      tabDedup.textContent = `Duplicatas${duplicatesTotal ? ` (${duplicatesTotal})` : ''}`;
+    }
+
+    // Update banner in Incluídos tab if open
+    const inclBannerTitle = document.querySelector('.articles-tab div > div > span:nth-child(2)');
+    if (inclBannerTitle && inclBannerTitle.textContent.includes('Artigos Incluídos')) {
+      inclBannerTitle.textContent = `Artigos Incluídos (${includedTotal})`;
+    }
+  }
+
   function makeDecision(projectId, articleId, decision) {
     if (!articleId) return;
     const article = Storage.getProject(projectId)?.articles.find(a => a.id === articleId);
@@ -2663,6 +3230,9 @@ Gerado por Gisa · ${date}
       else if (newDecision === 'exclude') UI.toast('✗ Artigo marcado como EXCLUÍDO', 'info');
       else if (newDecision === 'maybe') UI.toast('? Artigo marcado como TALVEZ', 'warning');
       else UI.toast('Artigo retornado para PENDENTE', 'info');
+
+      // Instantly sync top navigation numbers (Incluídos, Triados, etc.)
+      updateProjectNavHeader(p);
 
       // Update 3-Panel Workbench if active
       if (state.tab === 'screen' && state.screenMode === 'list') {
@@ -2686,6 +3256,8 @@ Gerado por Gisa · ${date}
         updateInspectorPanel(updatedArticle || article, p);
       } else if (state.tab === 'screen' && state.screenMode === 'serial') {
         renderSerialMode(p);
+      } else if (state.tab === 'articles') {
+        renderArticlesList(p);
       } else {
         render();
       }
@@ -2794,12 +3366,60 @@ Gerado por Gisa · ${date}
     if (!isLoggedIn) {
       state.view = 'auth';
     } else {
-      state.view = 'home';
+      const currentHash = window.location.hash || '';
+      const projMatch = currentHash.match(/#projeto-([0-9a-f-]+)(?:-([a-z0-9_-]+))?/i);
+      if (projMatch) {
+        state.view = 'project';
+        state.projectId = projMatch[1];
+        state.tab = projMatch[2] || 'screen';
+      } else if (currentHash.startsWith('#novo-projeto')) {
+        state.view = 'wizard';
+        state.wizard = { step: 1, name: '', desc: '', keywords: [], files: [] };
+      } else {
+        state.view = 'home';
+      }
     }
 
     render();
     UI.updateUserProfileNavbarUI();
     UI.updateCloudStatusUI();
+
+    // Browser History & Back button support (Chrome / Edge / Safari / Mobile Back)
+    if (typeof history !== 'undefined') {
+      if (!history.state) {
+        let initialHash = '#home';
+        if (state.view === 'auth') initialHash = '';
+        else if (state.view === 'project' && state.projectId) initialHash = `#projeto-${state.projectId}-${state.tab || 'screen'}`;
+        else if (state.view === 'wizard') initialHash = '#novo-projeto-etapa-1';
+        history.replaceState({ view: state.view, projectId: state.projectId, tab: state.tab, wizardStep: 1 }, '', initialHash || window.location.pathname);
+      }
+
+      window.addEventListener('popstate', (e) => {
+        // 1. If any modal is open, close it first
+        const openModal = document.querySelector('.modal-overlay');
+        if (openModal) {
+          openModal.remove();
+          return;
+        }
+
+        // 2. Navigate according to history state
+        if (e.state && e.state.view) {
+          if (e.state.view === 'wizard') {
+            state.view = 'wizard';
+            if (!state.wizard) state.wizard = { step: 1, name: '', desc: '', keywords: [], files: [] };
+            state.wizard.step = e.state.wizardStep || 1;
+            render();
+          } else {
+            navigate(e.state.view, { projectId: e.state.projectId, tab: e.state.tab }, false);
+          }
+        } else {
+          // Fallback: If hitting back from wizard or project without previous state, return to home
+          if (state.view === 'wizard' || state.view === 'project') {
+            navigate('home', {}, false);
+          }
+        }
+      });
+    }
 
     // Listen for PWA Install Prompt on Desktop / Mobile
     window.addEventListener('beforeinstallprompt', (e) => {

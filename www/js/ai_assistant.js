@@ -28,10 +28,12 @@ const AIAssistant = (() => {
     if (typeof Storage === 'undefined') return { provider: 'groq', apiKey: '', model: DEFAULT_MODELS.groq };
     const settings = Storage.getSettings() || {};
     const cfg = settings.ai_config || {};
+    const provider = cfg.provider || 'groq';
+    const apiKey = (cfg.apiKey || '').trim();
     return {
-      provider: cfg.provider || 'groq',
-      apiKey: (cfg.apiKey || '').trim(),
-      model: cfg.model || DEFAULT_MODELS[cfg.provider || 'groq'] || DEFAULT_MODELS.groq
+      provider,
+      apiKey,
+      model: cfg.model || DEFAULT_MODELS[provider] || DEFAULT_MODELS.groq
     };
   }
 

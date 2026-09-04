@@ -246,6 +246,156 @@ const Similarity = (() => {
     return pairs.sort((a, b) => b.score - a.score);
   }
 
+  /**
+   * Async Non-Blocking findDuplicates with Progress Reporting
+   * Yields to the browser every few milliseconds to keep UI 100% responsive even with 40,000+ articles.
+   */
+  async function findDuplicatesAsync(articles, minScore = 55, onProgress = null) {
+    if (!articles || articles.length < 2) return [];
+
+    const n = articles.length;
+    const pre = new Array(n);
+    const doiMap = new Map();
+    const tokenIndex = new Map();
+
+    // 1. Pre-process articles in non-blocking batches
+    for (let i = 0; i < n; i++) {
+      const a = articles[i];
+      const titleTokens = tokenize(a.title);
+      const absTokens = tokenize(a.abstract);
+      const authTokens = tokenize((a.authors || []).join(' '));
+      const doi = normDOI(a.doi);
+      const year = a.year ? String(a.year).trim() : '';
+
+      pre[i] = {
+        article: a,
+        titleTokens,
+        absTokens,
+        authTokens,
+        doi,
+        year
+      };
+
+      if (doi) {
+        if (!doiMap.has(doi)) doiMap.set(doi, []);
+        doiMap.get(doi).push(i);
+      }
+
+      for (const t of titleTokens) {
+        if (t.length >= 4) {
+          if (!tokenIndex.has(t)) tokenIndex.set(t, []);
+          tokenIndex.get(t).push(i);
+        }
+      }
+
+      if (i % 2000 === 0 && i > 0) {
+        if (onProgress) onProgress({ phase: 'index', current: i, total: n, pct: Math.round((i / n) * 35) });
+        await new Promise(r => setTimeout(r, 0));
+      }
+    }
+
+    if (onProgress) onProgress({ phase: 'index', current: n, total: n, pct: 35 });
+
+    const pairsMap = new Map();
+
+    function evaluatePair(i, j) {
+      if (i >= j) return;
+      const key = `${i}_${j}`;
+      if (pairsMap.has(key)) return;
+
+      const pA = pre[i], pB = pre[j];
+      const a = pA.article, b = pB.article;
+
+      const isDoiMatch = !!(pA.doi && pB.doi && pA.doi === pB.doi);
+      const titleSim = jaccard(pA.titleTokens, pB.titleTokens);
+      const absSim = pA.absTokens.size > 0 && pB.absTokens.size > 0 ? jaccard(pA.absTokens, pB.absTokens) : 0;
+      const yearMatch = pA.year && pB.year && pA.year === pB.year ? 1 : 0;
+      const authSim = jaccard(pA.authTokens, pB.authTokens);
+
+      const score = isDoiMatch ? 100 : Math.round(
+        (titleSim * 0.60 + absSim * 0.25 + yearMatch * 0.10 + authSim * 0.05) * 100
+      );
+
+      if (score >= minScore) {
+        let method = '';
+        if (isDoiMatch) method = 'DOI idêntico';
+        else if (titleSim > 0.9) method = 'Títulos quase idênticos';
+        else if (titleSim > 0.7) method = 'Títulos muito similares';
+        else if (absSim > 0.7) method = 'Resumos muito similares';
+        else method = 'Similaridade parcial';
+
+        const commonTitleWords = [...pA.titleTokens].filter(w => pB.titleTokens.has(w));
+        const commonAbsWords = [...pA.absTokens].filter(w => pB.absTokens.has(w)).slice(0, 10);
+
+        pairsMap.set(key, {
+          articleA: a,
+          articleB: b,
+          score,
+          method,
+          details: {
+            title: Math.round(titleSim * 100),
+            abstract: Math.round(absSim * 100),
+            year: yearMatch * 100,
+            authors: Math.round(authSim * 100)
+          },
+          highlights: {
+            title: commonTitleWords,
+            abstract: commonAbsWords
+          }
+        });
+      }
+    }
+
+    // Pass 1: Instant DOI duplicates
+    for (const indices of doiMap.values()) {
+      if (indices.length > 1) {
+        for (let x = 0; x < indices.length; x++) {
+          for (let y = x + 1; y < indices.length; y++) {
+            evaluatePair(indices[x], indices[y]);
+          }
+        }
+      }
+    }
+
+    // Pass 2: Token-candidate pairs with non-blocking slicing
+    const tokenLists = Array.from(tokenIndex.values());
+    const totalTokens = tokenLists.length;
+    let lastYield = Date.now();
+
+    for (let tIdx = 0; tIdx < totalTokens; tIdx++) {
+      const indices = tokenLists[tIdx];
+      // Skip over-represented tokens to prevent combinatorial explosions (> 100 occurrences)
+      if (indices.length > 1 && indices.length <= 100) {
+        for (let x = 0; x < indices.length; x++) {
+          for (let y = x + 1; y < indices.length; y++) {
+            evaluatePair(indices[x], indices[y]);
+          }
+        }
+      }
+
+      if (Date.now() - lastYield > 35) {
+        const pct = 35 + Math.round((tIdx / totalTokens) * 65);
+        if (onProgress) onProgress({ phase: 'compare', current: tIdx, total: totalTokens, pct: Math.min(99, pct) });
+        await new Promise(r => setTimeout(r, 0));
+        lastYield = Date.now();
+      }
+    }
+
+    // Fallback: If small set (<= 500), full scan for high safety
+    if (n <= 500) {
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+          evaluatePair(i, j);
+        }
+      }
+    }
+
+    if (onProgress) onProgress({ phase: 'done', current: totalTokens, total: totalTokens, pct: 100 });
+
+    const pairs = Array.from(pairsMap.values());
+    return pairs.sort((a, b) => b.score - a.score);
+  }
+
 
   /**
    * Mark duplicates in articles array
@@ -442,6 +592,6 @@ const Similarity = (() => {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  return { compareArticles, findDuplicates, markDuplicates, relevanceScore, highlightKeywords, getBilingualSynonyms, tokenize, jaccard };
+  return { compareArticles, findDuplicates, findDuplicatesAsync, markDuplicates, relevanceScore, highlightKeywords, getBilingualSynonyms, tokenize, jaccard };
 })();
 

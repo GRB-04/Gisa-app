@@ -25,7 +25,7 @@
 
   <!-- Cache Buster & SW Sync Engine -->
   <script>
-    const GISA_VERSION = 'v66';
+    const GISA_VERSION = 'v68';
     if (localStorage.getItem('gisa_build_ver') !== GISA_VERSION) {
       localStorage.setItem('gisa_build_ver', GISA_VERSION);
       if ('caches' in window) {
@@ -35,7 +35,7 @@
   </script>
 
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=66"/>
+  <link rel="stylesheet" href="css/style.css?v=68"/>
 
   <!-- Critical Inline Styles (Guaranteed Zero-Scroll Wizard Layout) -->
   <style>
@@ -193,7 +193,11 @@
 
   <!-- ── MAIN CONTENT (ROUTER OUTLET) ─────────────────────── -->
   <main id="main-content">
-    <!-- Populated by App.render() -->
+    <div style="min-height:75vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;">
+      <div class="spinner" style="width:38px;height:38px;border-width:3px;border-top-color:#a855f7;"></div>
+      <div style="font-weight:700;font-size:1.05rem;color:#f8f5ff;letter-spacing:-0.01em;">Iniciando Gisa…</div>
+      <small style="color:rgba(255,255,255,0.45);font-size:0.82rem;">Carregando seu banco de dados local</small>
+    </div>
   </main>
 
   <!-- ── FOOTER ────────────────────────────────────────────── -->
@@ -212,13 +216,14 @@
     window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
 </script>
-<script src="js/storage.js?v=67"></script>
-<script src="js/supabase_client.js?v=67"></script>
-<script src="js/similarity.js?v=67"></script>
-<script src="js/parsers.js?v=67"></script>
-<script src="js/ai_assistant.js?v=67"></script>
-<script src="js/ui.js?v=67"></script>
-<script src="js/app.js?v=67"></script>
+<script src="js/storage.js?v=68"></script>
+<script src="js/supabase_client.js?v=68"></script>
+<script src="js/similarity.js?v=68"></script>
+<script src="js/jszip.min.js"></script>
+<script src="js/parsers.js?v=68"></script>
+<script src="js/ai_assistant.js?v=68"></script>
+<script src="js/ui.js?v=68"></script>
+<script src="js/app.js?v=68"></script>
 
 <!-- Service Worker Registration for PWA / Offline Support -->
 <script>
@@ -238,9 +243,9 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=67').then((reg) => {
+      navigator.serviceWorker.register('./sw.js?v=68').then((reg) => {
         reg.update();
-        console.log('Service Worker Gisa registrado (v67):', reg.scope);
+        console.log('Service Worker Gisa registrado (v68):', reg.scope);
       }).catch((err) => {
         console.warn('Falha no registro do Service Worker:', err);
       });

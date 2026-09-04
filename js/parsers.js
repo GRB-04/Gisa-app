@@ -479,11 +479,123 @@ const Parsers = (() => {
   }
 
   // ─────────────────────────────────────────────
+  // ZIP Archive Parser (.zip / pasta compactada)
+  // ─────────────────────────────────────────────
+  async function parseZIP(file, onProgress) {
+    if (typeof JSZip === 'undefined') {
+      throw new Error('Biblioteca JSZip não encontrada no sistema.');
+    }
+
+    if (onProgress) onProgress(`Descompactando arquivo ZIP "${file.name}"…`);
+    const zip = await JSZip.loadAsync(file);
+    const validEntries = [];
+
+    // Filter valid files inside ZIP (ignore folders and hidden system files)
+    zip.forEach((relativePath, entry) => {
+      if (entry.dir) return;
+      const cleanName = relativePath.split('/').pop();
+      if (!cleanName || cleanName.startsWith('.') || cleanName.startsWith('__MACOSX')) return;
+      validEntries.push({ path: relativePath, name: cleanName, entry });
+    });
+
+    if (!validEntries.length) {
+      throw new Error('O arquivo ZIP está vazio ou não contém arquivos legíveis suportados.');
+    }
+
+    const articles = [];
+    const pdfEntries = [];
+    const textEntries = [];
+
+    for (const item of validEntries) {
+      const ext = item.name.split('.').pop().toLowerCase();
+      if (ext === 'pdf') {
+        pdfEntries.push(item);
+      } else if (['ris', 'bib', 'csv', 'nbib', 'txt', 'json', 'xml', 'ciw'].includes(ext)) {
+        textEntries.push(item);
+      }
+    }
+
+    // 1. Process all citation/bibliographic files first
+    for (let i = 0; i < textEntries.length; i++) {
+      const item = textEntries[i];
+      if (onProgress) onProgress(`Lendo arquivo ${item.name} (${i + 1}/${textEntries.length}) do ZIP…`);
+      try {
+        const text = await item.entry.async('string');
+        const ext = item.name.split('.').pop().toLowerCase();
+        let parsed = [];
+        const sourceLabel = `${file.name} / ${item.name}`;
+
+        if (ext === 'ris') parsed = parseRIS(text, sourceLabel);
+        else if (ext === 'bib') parsed = parseBibTeX(text, sourceLabel);
+        else if (ext === 'nbib') parsed = parseNBIB(text, sourceLabel);
+        else if (ext === 'csv') parsed = parseCSV(text, sourceLabel);
+        else if (ext === 'json') parsed = parseJSON(text, sourceLabel);
+        else {
+          if (text.includes('TY  -')) parsed = parseRIS(text, sourceLabel);
+          else if (text.includes('@article') || text.includes('@Article')) parsed = parseBibTeX(text, sourceLabel);
+          else if (text.match(/^PMID-/m)) parsed = parseNBIB(text, sourceLabel);
+          else parsed = parseCSV(text, sourceLabel);
+        }
+        articles.push(...parsed);
+      } catch (e) {
+        console.warn(`[Gisa] Erro ao extrair "${item.name}" do ZIP:`, e);
+      }
+    }
+
+    // 2. Process PDFs inside the ZIP
+    for (let i = 0; i < pdfEntries.length; i++) {
+      const item = pdfEntries[i];
+      if (onProgress) onProgress(`Processando PDF ${item.name} (${i + 1}/${pdfEntries.length}) do ZIP…`);
+      try {
+        const blob = await item.entry.async('blob');
+        const pdfFile = new File([blob], item.name, { type: 'application/pdf' });
+        
+        // Attempt to match with existing citation from same zip by filename or title
+        const baseName = item.name.replace(/\.pdf$/i, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        let matchedArticle = articles.find(a => {
+          if (!a.title) return false;
+          const aClean = a.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+          return aClean.length > 5 && (aClean.includes(baseName) || (baseName.length > 5 && baseName.includes(aClean)));
+        });
+
+        if (matchedArticle && !matchedArticle.pdf_data) {
+          let pdfDataUrl = null;
+          if (blob.size <= 35 * 1024 * 1024) {
+            pdfDataUrl = await new Promise((res) => {
+              const r = new FileReader();
+              r.onload = e => res(e.target.result);
+              r.onerror = () => res(null);
+              r.readAsDataURL(blob);
+            });
+          }
+          matchedArticle.has_pdf = true;
+          matchedArticle.pdf_name = item.name;
+          matchedArticle.pdf_data = pdfDataUrl;
+        } else {
+          const parsedPdf = await parsePDF(pdfFile);
+          parsedPdf.forEach(p => {
+            p.source_file = `${file.name} / ${item.name}`;
+          });
+          articles.push(...parsedPdf);
+        }
+      } catch (e) {
+        console.warn(`[Gisa] Erro ao processar PDF "${item.name}" do ZIP:`, e);
+      }
+    }
+
+    return articles;
+  }
+
+  // ─────────────────────────────────────────────
   // Main parse dispatcher
   // ─────────────────────────────────────────────
-  async function parseFile(file) {
+  async function parseFile(file, onProgress) {
     const name = file.name.toLowerCase();
     const ext = name.split('.').pop();
+
+    if (ext === 'zip' || file.type === 'application/zip' || file.type === 'application/x-zip-compressed') {
+      return parseZIP(file, onProgress);
+    }
 
     if (ext === 'pdf') {
       return parsePDF(file);
@@ -513,11 +625,13 @@ const Parsers = (() => {
     return parseCSV(content, file.name);
   }
 
-  async function parseFiles(files) {
+  async function parseFiles(files, onProgress) {
     const all = [];
-    for (const f of files) {
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
       try {
-        const arts = await parseFile(f);
+        if (onProgress) onProgress(`Lendo arquivo ${i + 1}/${files.length}: ${f.name}…`);
+        const arts = await parseFile(f, onProgress);
         all.push(...arts);
       } catch (e) {
         console.warn(`Erro ao processar ${f.name}:`, e);
@@ -526,5 +640,6 @@ const Parsers = (() => {
     return all;
   }
 
-  return { parseFiles, parseFile, parseRIS, parseBibTeX, parseNBIB, parseCSV, parsePDF, parseJSON };
+  return { parseFiles, parseFile, parseRIS, parseBibTeX, parseNBIB, parseCSV, parsePDF, parseJSON, parseZIP };
 })();
+

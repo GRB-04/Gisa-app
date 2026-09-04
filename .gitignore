@@ -16,5 +16,6 @@ android/*.iml
 
 # Temporary files & logs
 *.log
+logs/
 .DS_Store
 Thumbs.db

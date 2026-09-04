@@ -247,6 +247,52 @@ const Storage = (() => {
 
   /**
    * Asynchronous Hydration from IndexedDB / Migration from LocalStorage
+  /**
+   * High-Performance Single Project Articles Loader (On-Demand / Lazy)
+   */
+  async function loadProjectArticles(projectId) {
+    const p = memoryProjects.find(x => x.id === projectId);
+    if (!p) return null;
+    if (p._articlesLoaded && Array.isArray(p.articles) && p.articles.length > 0) {
+      return p;
+    }
+
+    const db = await openDB();
+    if (!db) return p;
+
+    try {
+      const [articles, labels] = await Promise.all([
+        new Promise(resolve => {
+          const tx = db.transaction([STORES.ARTICLES], 'readonly');
+          const idx = tx.objectStore(STORES.ARTICLES).index('project_id');
+          const req = idx.getAll(IDBKeyRange.only(projectId));
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => resolve([]);
+        }),
+        new Promise(resolve => {
+          const tx = db.transaction([STORES.LABELS], 'readonly');
+          const idx = tx.objectStore(STORES.LABELS).index('project_id');
+          const req = idx.getAll(IDBKeyRange.only(projectId));
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => resolve([]);
+        })
+      ]);
+
+      p.articles = articles;
+      p.labels = labels;
+      p.stats = recalcStats(articles);
+      p._articlesLoaded = true;
+      return p;
+    } catch (err) {
+      console.warn('Erro ao carregar artigos do projeto sob demanda:', projectId, err);
+      return p;
+    }
+  }
+
+  /**
+   * Ultra-Fast Asynchronous Hydration from IndexedDB
+   * Loads project headers in <10ms and only loads active project's articles upfront.
+   * Other projects are loaded in the background or on-demand, eliminating startup freeze.
    */
   async function initAsync() {
     if (isHydrated) return memoryProjects;
@@ -266,7 +312,7 @@ const Storage = (() => {
     }
 
     try {
-      // 1. Load Settings
+      // 1. Load Settings (instant, ~1ms)
       await runTx([STORES.SETTINGS], 'readonly', (tx) => {
         const store = tx.objectStore(STORES.SETTINGS);
         const req = store.getAll();
@@ -277,7 +323,7 @@ const Storage = (() => {
         };
       });
 
-      // 2. Load Projects
+      // 2. Load Project Headers (instant, ~2-5ms)
       const projectsHeaders = await new Promise((resolve) => {
         const tx = db.transaction([STORES.PROJECTS], 'readonly');
         const req = tx.objectStore(STORES.PROJECTS).getAll();
@@ -286,45 +332,52 @@ const Storage = (() => {
       });
 
       if (projectsHeaders.length > 0) {
-        // Load articles & labels for each project
-        const fullProjects = [];
-        for (const p of projectsHeaders) {
-          const articles = await new Promise((resolve) => {
-            const tx = db.transaction([STORES.ARTICLES], 'readonly');
-            const idx = tx.objectStore(STORES.ARTICLES).index('project_id');
-            const req = idx.getAll(IDBKeyRange.only(p.id));
-            req.onsuccess = () => resolve(req.result || []);
-            req.onerror = () => resolve([]);
-          });
+        // Initialize memory projects with headers immediately (UI is ready in milliseconds)
+        memoryProjects = projectsHeaders.map(p => ({
+          ...p,
+          owner_email: p.owner_email || '',
+          articles: Array.isArray(p.articles) && p.articles.length > 0 ? p.articles : [],
+          labels: Array.isArray(p.labels) ? p.labels : [],
+          stats: p.stats || { total: 0, screenable: 0, duplicates: 0, included: 0, excluded: 0, maybe: 0, pending: 0 },
+          _articlesLoaded: Boolean(p.articles && p.articles.length > 0)
+        }));
 
-          const labels = await new Promise((resolve) => {
-            const tx = db.transaction([STORES.LABELS], 'readonly');
-            const idx = tx.objectStore(STORES.LABELS).index('project_id');
-            const req = idx.getAll(IDBKeyRange.only(p.id));
-            req.onsuccess = () => resolve(req.result || []);
-            req.onerror = () => resolve([]);
-          });
+        // Detect if user is directly opening a specific project in URL hash
+        let activeProjectId = null;
+        try {
+          const hash = window.location.hash || '';
+          const match = hash.match(/#projeto-([0-9a-f-]+)/i);
+          if (match) activeProjectId = match[1];
+        } catch {}
 
-          const calculatedStats = recalcStats(articles);
-          // Self-healing: if IDB articles count is greater than p.stats.total (e.g. truncated by cloud sync)
-          if (articles.length > (p.stats?.total || 0)) {
-            p.stats = calculatedStats;
-            try {
-              const pTx = db.transaction([STORES.PROJECTS], 'readwrite');
-              pTx.objectStore(STORES.PROJECTS).put({ ...p, stats: calculatedStats });
-            } catch {}
+        // If an active project is targeted, load its articles with highest priority
+        if (activeProjectId) {
+          const activeProj = memoryProjects.find(p => p.id === activeProjectId);
+          if (activeProj && !activeProj._articlesLoaded) {
+            await loadProjectArticles(activeProjectId);
           }
-
-          fullProjects.push({
-            ...p,
-            owner_email: p.owner_email || '',
-            articles,
-            labels,
-            stats: calculatedStats
-          });
         }
 
-        memoryProjects = fullProjects;
+        // Hydration is complete for instant initial view!
+        isHydrated = true;
+        onHydratedCallbacks.forEach(cb => cb(memoryProjects));
+
+        // Background idle pre-load of remaining projects without blocking the UI thread
+        const idlePreload = () => {
+          const unloaded = memoryProjects.filter(p => !p._articlesLoaded);
+          let queue = Promise.resolve();
+          unloaded.forEach(p => {
+            queue = queue.then(() => loadProjectArticles(p.id)).catch(() => {});
+          });
+        };
+
+        if (typeof requestIdleCallback === 'function') {
+          requestIdleCallback(idlePreload);
+        } else {
+          setTimeout(idlePreload, 400);
+        }
+
+        return memoryProjects;
       } else {
         // Migration: check if legacy localStorage has data
         let legacyData = [];
@@ -334,7 +387,7 @@ const Storage = (() => {
 
         if (legacyData.length > 0) {
           console.log(`Migrando ${legacyData.length} projetos do LocalStorage para IndexedDB...`);
-          memoryProjects = legacyData;
+          memoryProjects = legacyData.map(p => ({ ...p, _articlesLoaded: true }));
           for (const proj of legacyData) {
             await persistProjectToIDB(proj);
           }
@@ -377,7 +430,17 @@ const Storage = (() => {
   }
 
   function getProject(id) {
-    return memoryProjects.find(p => p.id === id) || null;
+    const p = memoryProjects.find(p => p.id === id) || null;
+    if (p) {
+      if (Array.isArray(p.articles) && p.articles.length > 0) {
+        p.stats = recalcStats(p.articles);
+      }
+      // If articles were not yet hydrated from IDB, trigger lazy fetch in background
+      if (!p._articlesLoaded) {
+        loadProjectArticles(id).catch(() => {});
+      }
+    }
+    return p;
   }
 
   // ─────────────────────────────────────────────────────
@@ -586,13 +649,14 @@ const Storage = (() => {
 
     memoryProjects[pIdx].stats = recalcStats(memoryProjects[pIdx].articles);
 
-    // Persist in IndexedDB
+    // Persist in IndexedDB without blocking the main thread
     openDB().then(db => {
       if (!db) return;
+      const artMap = new Map((memoryProjects[pIdx].articles || []).map(a => [a.id, a]));
       runTx([STORES.ARTICLES, STORES.PROJECTS], 'readwrite', (tx) => {
         const aStore = tx.objectStore(STORES.ARTICLES);
         articlesUpdates.forEach(u => {
-          const fullArt = memoryProjects[pIdx].articles.find(a => a.id === u.id);
+          const fullArt = artMap.get(u.id);
           if (fullArt) aStore.put(fullArt);
         });
         const pStore = tx.objectStore(STORES.PROJECTS);
@@ -991,6 +1055,7 @@ const Storage = (() => {
     onHydrated,
     getProjects,
     getProject,
+    loadProjectArticles,
     createProject,
     updateProject,
     deleteProject,
