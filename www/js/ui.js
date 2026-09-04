@@ -1206,8 +1206,9 @@ const UI = (() => {
 
   function escapeHtml(str) {
     if (!str) return '';
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
+  if (typeof window !== 'undefined') window.escapeHtml = escapeHtml;
 
 
   /** Renderiza o Painel Direito: Inspetor de Abstract Gisa */

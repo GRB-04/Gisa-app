@@ -23,9 +23,15 @@ const App = (() => {
     wizard: { step: 1, name: '', desc: '', keywords: [], files: [] }
   };
 
-  // ─── DOM refs ─────────────────────────────────────────
+  // ─── DOM refs & Utilities ──────────────────────────────
   const $ = id => document.getElementById(id);
   const $$ = sel => document.querySelectorAll(sel);
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  if (typeof window !== 'undefined') window.escapeHtml = escapeHtml;
 
   // ─── Navigation ───────────────────────────────────────
   async function navigate(view, opts = {}, pushHistory = true) {
