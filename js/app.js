@@ -321,14 +321,17 @@ const App = (() => {
         };
       }
 
-  const DEFAULT_GOOGLE_CLIENT_ID = '74325871114-3l0pg4pfpo6351n0u6n64g0n4kp1r9k8.apps.googleusercontent.com';
+  const DEFAULT_GOOGLE_CLIENT_ID = '972694917146-u96c5krng4onh7kol52lav60m90lam98.apps.googleusercontent.com';
 
       // Google OAuth Button
       const googleBtn = $('btn-google-login');
       if (googleBtn) {
         googleBtn.onclick = () => {
           const settings = Storage.getSettings();
-          const clientId = (settings.google_client_id || DEFAULT_GOOGLE_CLIENT_ID).trim();
+          let clientId = (settings.google_client_id || '').trim();
+          if (!clientId || clientId.includes('74325871114')) {
+            clientId = DEFAULT_GOOGLE_CLIENT_ID;
+          }
           triggerGoogleOAuth2(clientId);
         };
       }
@@ -361,7 +364,10 @@ const App = (() => {
   // OFFICIAL GOOGLE OAUTH 2.0 DIRECT API INTEGRATION
   // ─────────────────────────────────────────────────────
   function triggerGoogleOAuth2(clientId) {
-    const cid = clientId || DEFAULT_GOOGLE_CLIENT_ID;
+    let cid = (clientId || '').trim();
+    if (!cid || cid.includes('74325871114')) {
+      cid = DEFAULT_GOOGLE_CLIENT_ID;
+    }
 
     const startGSI = () => {
       if (window.google && window.google.accounts && window.google.accounts.oauth2) {
