@@ -170,12 +170,13 @@ const Storage = (() => {
     return {
       total,
       screenable,
-      included: articles.filter(a => a.decision === 'include').length,
-      excluded: articles.filter(a => a.decision === 'exclude' && !a.is_duplicate).length,
+      included: articles.filter(a => a.decision === 'include' && !a.is_duplicate).length,
+      excluded: articles.filter(a => a.decision === 'exclude' && !a.is_duplicate && a.exclusion_reason !== 'Duplicata').length,
       excludedDuplicates: duplicates,
-      maybe: articles.filter(a => a.decision === 'maybe').length,
+      maybe: articles.filter(a => a.decision === 'maybe' && !a.is_duplicate).length,
       pending: articles.filter(a => !a.decision && !a.is_duplicate).length,
-      duplicates
+      duplicates,
+      finalSelected: articles.filter(a => a.decision === 'include' && !a.is_duplicate && a.final_selection === true).length
     };
   }
 

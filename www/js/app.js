@@ -3920,19 +3920,32 @@ Responda APENAS com JSON válido:
 
   // ─── STATS TAB ────────────────────────────────────────
   function renderStatsTab(project) {
-    const s = project.stats;
-    const totalRaw = s.total || 1;
-    const pctEvaluated = Math.round(((s.total - s.pending) / totalRaw) * 100);
+    const rawTotal = project.articles ? project.articles.length : (project.stats?.total || 0);
+    const duplicatesTotal = project.articles ? project.articles.filter(a => a.is_duplicate).length : (project.stats?.duplicates || 0);
+    const screenableTotal = project.articles ? project.articles.filter(a => !a.is_duplicate).length : Math.max(0, rawTotal - duplicatesTotal);
 
-    // Percentual por categoria sobre o total
-    const pctIncluded  = ((s.included / totalRaw) * 100).toFixed(1);
-    const pctExcluded  = ((s.excluded / totalRaw) * 100).toFixed(1);
-    const pctMaybe     = ((s.maybe / totalRaw) * 100).toFixed(1);
-    const pctPending   = ((s.pending / totalRaw) * 100).toFixed(1);
-    const pctDup       = ((s.duplicates / totalRaw) * 100).toFixed(1);
+    const includedTotal = project.articles ? project.articles.filter(a => a.decision === 'include' && !a.is_duplicate).length : (project.stats?.included || 0);
+    const finalSelectedTotal = project.articles ? project.articles.filter(a => a.decision === 'include' && !a.is_duplicate && a.final_selection === true).length : (project.stats?.finalSelected || 0);
+    const pendingFinalTotal = Math.max(0, includedTotal - finalSelectedTotal);
 
-    // Agrupamento dos motivos de exclusão
-    const excludedArticles = project.articles.filter(a => a.decision === 'exclude');
+    const excludedTotal = project.articles ? project.articles.filter(a => a.decision === 'exclude' && !a.is_duplicate && a.exclusion_reason !== 'Duplicata').length : (project.stats?.excluded || 0);
+    const maybeTotal = project.articles ? project.articles.filter(a => a.decision === 'maybe' && !a.is_duplicate).length : (project.stats?.maybe || 0);
+    const pendingTotal = project.articles ? project.articles.filter(a => !a.decision && !a.is_duplicate).length : Math.max(0, screenableTotal - includedTotal - excludedTotal - maybeTotal);
+
+    const triadosTotal = screenableTotal - pendingTotal;
+    const totalRaw = rawTotal || 1;
+    const pctEvaluated = screenableTotal > 0 ? Math.round((triadosTotal / screenableTotal) * 100) : 0;
+
+    // Percentuais rigorosos
+    const pctDup = ((duplicatesTotal / totalRaw) * 100).toFixed(1);
+    const pctScreenable = ((screenableTotal / totalRaw) * 100).toFixed(1);
+    const pctIncluded = screenableTotal > 0 ? ((includedTotal / screenableTotal) * 100).toFixed(1) : '0.0';
+    const pctExcluded = screenableTotal > 0 ? ((excludedTotal / screenableTotal) * 100).toFixed(1) : '0.0';
+    const pctMaybe = screenableTotal > 0 ? ((maybeTotal / screenableTotal) * 100).toFixed(1) : '0.0';
+    const pctPending = screenableTotal > 0 ? ((pendingTotal / screenableTotal) * 100).toFixed(1) : '0.0';
+
+    // Agrupamento EXCLUSIVO dos motivos reais de exclusão da triagem (desconsidera duplicatas)
+    const excludedArticles = (project.articles || []).filter(a => a.decision === 'exclude' && !a.is_duplicate && a.exclusion_reason !== 'Duplicata');
     const exclusionReasonsMap = {};
     excludedArticles.forEach(a => {
       const r = (a.exclusion_reason || 'Outro / Não especificado').trim();
@@ -3942,26 +3955,51 @@ Responda APENAS com JSON válido:
     const reasonKeys = Object.keys(exclusionReasonsMap);
     const reasonColors = ['#ef4444', '#f97316', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#64748b'];
 
+    const totalExclusions = excludedArticles.length;
     const exclusionData = reasonKeys.map((reason, idx) => ({
       label: reason,
       value: exclusionReasonsMap[reason],
       color: reasonColors[idx % reasonColors.length]
     }));
 
-    const totalExclusions = excludedArticles.length || 1;
-
     const content = $('tab-content');
     content.innerHTML = `
       <div class="stats-tab">
         
-        <!-- Top Metric Cards -->
+        <!-- Top Metric Cards (Fluxo PRISMA) -->
         <div class="stats-grid">
-          <div class="stat-card total"><div class="stat-num">${s.total}</div><div class="stat-name">Total Importados</div></div>
-          <div class="stat-card include"><div class="stat-num">${s.included} <small>(${pctIncluded}%)</small></div><div class="stat-name">Incluídos</div></div>
-          <div class="stat-card exclude"><div class="stat-num">${s.excluded} <small>(${pctExcluded}%)</small></div><div class="stat-name">Excluídos</div></div>
-          <div class="stat-card maybe"><div class="stat-num">${s.maybe} <small>(${pctMaybe}%)</small></div><div class="stat-name">Talvez</div></div>
-          <div class="stat-card pending"><div class="stat-num">${s.pending} <small>(${pctPending}%)</small></div><div class="stat-name">Pendentes</div></div>
-          <div class="stat-card dup"><div class="stat-num">${s.duplicates} <small>(${pctDup}%)</small></div><div class="stat-name">Duplicatas</div></div>
+          <div class="stat-card total" title="Total bruto de referências importadas dos arquivos de busca">
+            <div class="stat-num">${rawTotal}</div>
+            <div class="stat-name">Total Importados</div>
+          </div>
+          <div class="stat-card dup" title="Duplicatas identificadas e removidas da triagem">
+            <div class="stat-num">${duplicatesTotal} <small style="font-size:0.75rem;font-weight:600">(${pctDup}%)</small></div>
+            <div class="stat-name">Duplicatas</div>
+          </div>
+          <div class="stat-card screenable" title="Base líquida de registros únicos para triagem">
+            <div class="stat-num">${screenableTotal} <small style="font-size:0.75rem;font-weight:600">(${pctScreenable}%)</small></div>
+            <div class="stat-name">Triagem (Únicos)</div>
+          </div>
+          <div class="stat-card pending" title="Artigos aguardando decisão de leitura do título/resumo">
+            <div class="stat-num">${pendingTotal} <small style="font-size:0.75rem;font-weight:600">(${pctPending}%)</small></div>
+            <div class="stat-name">Pendentes</div>
+          </div>
+          <div class="stat-card exclude" title="Artigos rejeitados na triagem por critérios de inelegibilidade">
+            <div class="stat-num">${excludedTotal} <small style="font-size:0.75rem;font-weight:600">(${pctExcluded}%)</small></div>
+            <div class="stat-name">Excluídos</div>
+          </div>
+          <div class="stat-card maybe" title="Artigos marcados com dúvida para reavaliação">
+            <div class="stat-num">${maybeTotal} <small style="font-size:0.75rem;font-weight:600">(${pctMaybe}%)</small></div>
+            <div class="stat-name">Talvez</div>
+          </div>
+          <div class="stat-card include" title="Artigos aprovados na triagem para leitura de texto integral (Fase 2)">
+            <div class="stat-num">${includedTotal} <small style="font-size:0.75rem;font-weight:600">(${pctIncluded}%)</small></div>
+            <div class="stat-name">Elegíveis (Fase 2)</div>
+          </div>
+          <div class="stat-card final" title="Estudos confirmados na seleção final para síntese e discussão (Fase 3)">
+            <div class="stat-num">⭐ ${finalSelectedTotal}</div>
+            <div class="stat-name">Seleção Final (Fase 3)</div>
+          </div>
         </div>
 
         <!-- Section 1: Pie Charts -->
@@ -3970,41 +4008,47 @@ Responda APENAS com JSON válido:
           <!-- Chart 1: Triagem Geral -->
           <div class="chart-card pie-chart-card">
             <div class="chart-header">
-              <h3>🍕 Distribuição do Fluxo (%)</h3>
-              <span class="chart-subtitle">Passe o mouse nas fatias para ver detalhes</span>
+              <h3>🍕 Distribuição do Fluxo Geral (%)</h3>
+              <span class="chart-subtitle">Visão integrada de todas as etapas da revisão</span>
             </div>
             <div class="pie-chart-body">
               <canvas id="decisions-pie-chart" width="220" height="220"></canvas>
               <div class="chart-legend-detailed">
+                <div class="legend-row final" style="color:#fbbf24;font-weight:700;">
+                  <span class="legend-color-dot" style="background:#fbbf24;box-shadow:0 0 8px rgba(251,191,36,0.6)"></span>
+                  <span class="legend-label">⭐ Seleção Final:</span>
+                  <strong class="legend-val" style="color:#fbbf24">${finalSelectedTotal}</strong>
+                  <span class="legend-pct">(${((finalSelectedTotal / totalRaw) * 100).toFixed(1)}%)</span>
+                </div>
                 <div class="legend-row include">
                   <span class="legend-color-dot" style="background:#22c55e"></span>
-                  <span class="legend-label">Incluídos:</span>
-                  <strong class="legend-val">${s.included}</strong>
-                  <span class="legend-pct">(${pctIncluded}%)</span>
+                  <span class="legend-label">Elegíveis (Fase 2):</span>
+                  <strong class="legend-val">${includedTotal}</strong>
+                  <span class="legend-pct">(${((includedTotal / totalRaw) * 100).toFixed(1)}%)</span>
                 </div>
                 <div class="legend-row exclude">
                   <span class="legend-color-dot" style="background:#ef4444"></span>
-                  <span class="legend-label">Excluídos:</span>
-                  <strong class="legend-val">${s.excluded}</strong>
-                  <span class="legend-pct">(${pctExcluded}%)</span>
+                  <span class="legend-label">Excluídos na Triagem:</span>
+                  <strong class="legend-val">${excludedTotal}</strong>
+                  <span class="legend-pct">(${((excludedTotal / totalRaw) * 100).toFixed(1)}%)</span>
                 </div>
                 <div class="legend-row maybe">
                   <span class="legend-color-dot" style="background:#f59e0b"></span>
                   <span class="legend-label">Talvez:</span>
-                  <strong class="legend-val">${s.maybe}</strong>
-                  <span class="legend-pct">(${pctMaybe}%)</span>
+                  <strong class="legend-val">${maybeTotal}</strong>
+                  <span class="legend-pct">(${((maybeTotal / totalRaw) * 100).toFixed(1)}%)</span>
                 </div>
                 <div class="legend-row dup">
                   <span class="legend-color-dot" style="background:#818cf8"></span>
-                  <span class="legend-label">Duplicatas:</span>
-                  <strong class="legend-val">${s.duplicates}</strong>
+                  <span class="legend-label">Duplicatas Removidas:</span>
+                  <strong class="legend-val">${duplicatesTotal}</strong>
                   <span class="legend-pct">(${pctDup}%)</span>
                 </div>
                 <div class="legend-row pending">
-                  <span class="legend-color-dot" style="background:#334155"></span>
-                  <span class="legend-label">Pendentes:</span>
-                  <strong class="legend-val">${s.pending}</strong>
-                  <span class="legend-pct">(${pctPending}%)</span>
+                  <span class="legend-color-dot" style="background:#64748b"></span>
+                  <span class="legend-label">Pendentes de Triagem:</span>
+                  <strong class="legend-val">${pendingTotal}</strong>
+                  <span class="legend-pct">(${((pendingTotal / totalRaw) * 100).toFixed(1)}%)</span>
                 </div>
               </div>
             </div>
@@ -4013,22 +4057,22 @@ Responda APENAS com JSON válido:
           <!-- Chart 2: Motivos de Exclusão -->
           <div class="chart-card pie-chart-card">
             <div class="chart-header">
-              <h3>🚫 Razões de Exclusão (%)</h3>
-              <span class="chart-subtitle">Detalhamento dos artigos rejeitados</span>
+              <h3>🚫 Razões de Exclusão da Triagem (%)</h3>
+              <span class="chart-subtitle">${totalExclusions > 0 ? `${totalExclusions} artigo(s) rejeitado(s) na triagem` : 'Critérios de exclusão avaliados'}</span>
             </div>
             <div class="pie-chart-body">
               <canvas id="reasons-pie-chart" width="220" height="220"></canvas>
               <div class="chart-legend-detailed">
                 ${exclusionData.length > 0 ? exclusionData.map(d => {
-                  const rPct = ((d.value / totalExclusions) * 100).toFixed(1);
+                  const rPct = totalExclusions > 0 ? ((d.value / totalExclusions) * 100).toFixed(1) : '0.0';
                   return `
                     <div class="legend-row">
                       <span class="legend-color-dot" style="background:${d.color}"></span>
-                      <span class="legend-label" title="${d.label}">${d.label}:</span>
+                      <span class="legend-label" title="${escapeHtml(d.label)}">${escapeHtml(d.label)}:</span>
                       <strong class="legend-val">${d.value}</strong>
                       <span class="legend-pct">(${rPct}%)</span>
                     </div>`;
-                }).join('') : '<p class="muted" style="font-size:0.8rem;padding:12px 0;">Nenhum artigo foi excluído ainda com justificativa.</p>'}
+                }).join('') : '<p class="muted" style="font-size:0.82rem;padding:24px 0;text-align:center;">Nenhum artigo excluído na triagem com justificativa ainda.</p>'}
               </div>
             </div>
           </div>
@@ -4039,8 +4083,8 @@ Responda APENAS com JSON válido:
         <div class="prisma-table-card">
           <div class="prisma-table-header">
             <div>
-              <h3>📋 Reconciliação Numérica e Percentual (Padrão PRISMA)</h3>
-              <p class="muted">Tabela formatada com percentis para inclusão direta no artigo científico.</p>
+              <h3>📋 Reconciliação Numérica e Percentual (Padrão PRISMA 2020)</h3>
+              <p class="muted">Tabela científica formatada com contagens e percentis para inclusão direta no artigo.</p>
             </div>
             <button class="btn btn-secondary btn-sm" id="copy-prisma-text-btn">📋 Copiar Resumo para Artigo</button>
           </div>
@@ -4049,7 +4093,7 @@ Responda APENAS com JSON válido:
             <table class="prisma-summary-table">
               <thead>
                 <tr>
-                  <th>Etapa do Fluxo PRISMA</th>
+                  <th>Etapa do Fluxo PRISMA 2020</th>
                   <th>Contagem (N)</th>
                   <th>Percentual (%)</th>
                   <th>Status na Revisão</th>
@@ -4057,51 +4101,63 @@ Responda APENAS com JSON válido:
               </thead>
               <tbody>
                 <tr>
-                  <td><strong>1. Registros Identificados</strong> (Importação total)</td>
-                  <td><strong>${s.total}</strong></td>
+                  <td><strong>1. Registros Identificados</strong> (Importação total de bases de dados)</td>
+                  <td><strong>${rawTotal}</strong></td>
                   <td><strong>100.0%</strong></td>
-                  <td><span class="badge badge-info">Base Inicial</span></td>
+                  <td><span class="badge badge-info">Base Bruta</span></td>
                 </tr>
                 <tr>
                   <td><strong>2. Registros Removidos como Duplicatas</strong></td>
-                  <td>${s.duplicates}</td>
+                  <td>${duplicatesTotal}</td>
                   <td>${pctDup}%</td>
-                  <td><span class="badge badge-purple">Removidos antes da triagem</span></td>
+                  <td><span class="badge badge-purple">Descartados pré-triagem</span></td>
                 </tr>
                 <tr>
-                  <td><strong>3. Artigos Triados</strong> (Título/Resumo)</td>
-                  <td>${s.total - s.pending}</td>
+                  <td><strong>3. Registros Únicos para Triagem</strong> (Pool efetivo de triagem)</td>
+                  <td><strong>${screenableTotal}</strong></td>
+                  <td>${pctScreenable}%</td>
+                  <td><span class="badge badge-info">Base Única</span></td>
+                </tr>
+                <tr>
+                  <td><strong>4. Artigos Triados</strong> (Avaliação por título e resumo)</td>
+                  <td>${triadosTotal}</td>
                   <td>${pctEvaluated}%</td>
-                  <td><span class="badge badge-warning">Avaliados</span></td>
+                  <td><span class="badge badge-warning">${pctEvaluated === 100 ? 'Concluída' : 'Em Andamento'}</span></td>
                 </tr>
                 <tr>
-                  <td><strong>4. Artigos Excluídos</strong> (Critérios de Inelegibilidade)</td>
-                  <td>${s.excluded}</td>
-                  <td>${pctExcluded}%</td>
+                  <td><strong>5. Artigos Excluídos na Triagem</strong> (Critérios de inelegibilidade)</td>
+                  <td>${excludedTotal}</td>
+                  <td>${screenableTotal > 0 ? ((excludedTotal / screenableTotal) * 100).toFixed(1) : 0}%</td>
                   <td><span class="badge badge-danger">Excluídos</span></td>
                 </tr>
                 ${reasonKeys.map(r => {
                   const cnt = exclusionReasonsMap[r];
-                  const p = ((cnt / totalRaw) * 100).toFixed(1);
+                  const p = totalExclusions > 0 ? ((cnt / totalExclusions) * 100).toFixed(1) : '0.0';
                   return `
                     <tr class="sub-row">
-                      <td style="padding-left: 28px;">↳ Motivo: <em>${r}</em></td>
+                      <td style="padding-left: 28px;">↳ Motivo: <em>${escapeHtml(r)}</em></td>
                       <td>${cnt}</td>
                       <td>${p}%</td>
-                      <td><span class="sub-badge">Justificativa</span></td>
+                      <td><span class="sub-badge">Critério</span></td>
                     </tr>`;
                 }).join('')}
                 <tr>
-                  <td><strong>5. Artigos Mantidos como "Talvez"</strong> (Para reavaliação)</td>
-                  <td>${s.maybe}</td>
-                  <td>${pctMaybe}%</td>
+                  <td><strong>6. Artigos Mantidos como "Talvez"</strong> (Dúvida / Em reavaliação)</td>
+                  <td>${maybeTotal}</td>
+                  <td>${screenableTotal > 0 ? ((maybeTotal / screenableTotal) * 100).toFixed(1) : 0}%</td>
                   <td><span class="badge badge-warning">Em Análise</span></td>
                 </tr>
-                <tr class="highlight-row">
-                  <td><strong>6. Estudos Incluídos Finais</strong> (Seleção conclusiva)</td>
-                  <td><strong>${s.included}</strong></td>
-                  <td><strong>${pctIncluded}%</strong></td>
-                  <td><span class="badge badge-success">Incluídos no Estudo</span></td>
+                <tr>
+                  <td><strong>7. Artigos Elegíveis para Leitura Integral</strong> (Fase 2 - Incluídos)</td>
+                  <td><strong>${includedTotal}</strong></td>
+                  <td>${screenableTotal > 0 ? ((includedTotal / screenableTotal) * 100).toFixed(1) : 0}%</td>
+                  <td><span class="badge badge-success">Elegíveis (Fase 2)</span></td>
+                </tr>
+                <tr class="highlight-row" style="background:linear-gradient(135deg,rgba(245,158,11,0.14),rgba(217,119,6,0.2));">
+                  <td><strong>8. ⭐ Estudos Selecionados para Síntese Final</strong> (Fase 3 Definitiva)</td>
+                  <td><strong style="color:#fbbf24;font-size:1.1rem;">${finalSelectedTotal}</strong></td>
+                  <td><strong style="color:#fbbf24;">${includedTotal > 0 ? ((finalSelectedTotal / includedTotal) * 100).toFixed(1) : 0}% dos elegíveis</strong></td>
+                  <td><span class="badge" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-weight:700;">Síntese Definitiva</span></td>
                 </tr>
               </tbody>
             </table>
@@ -4117,25 +4173,26 @@ Responda APENAS com JSON válido:
       </div>
     `;
 
-    // Render Pie Chart 1: Decisions
+    // Render Pie Chart 1: Decisions / Flow Distribution
     const canvasDecisions = $('decisions-pie-chart');
     if (canvasDecisions) {
       UI.renderDonut(canvasDecisions, [
-        { value: s.included, color: '#22c55e', label: 'Incluídos' },
-        { value: s.excluded, color: '#ef4444', label: 'Excluídos' },
-        { value: s.maybe, color: '#f59e0b', label: 'Talvez' },
-        { value: s.duplicates, color: '#818cf8', label: 'Duplicatas' },
-        { value: s.pending, color: '#334155', label: 'Pendentes' },
+        { value: finalSelectedTotal, color: '#fbbf24', label: '⭐ Seleção Final' },
+        { value: pendingFinalTotal, color: '#22c55e', label: '📋 Elegíveis (Fase 2)' },
+        { value: excludedTotal, color: '#ef4444', label: '✗ Excluídos' },
+        { value: maybeTotal, color: '#f59e0b', label: '? Talvez' },
+        { value: duplicatesTotal, color: '#818cf8', label: '🔄 Duplicatas' },
+        { value: pendingTotal, color: '#64748b', label: '⏳ Pendentes' },
       ], { isPie: false, centerLabel: 'Total Artigos' });
     }
 
-    // Render Pie Chart 2: Reasons
+    // Render Pie Chart 2: Screening Exclusion Reasons (Strictly excluding duplicates)
     const canvasReasons = $('reasons-pie-chart');
     if (canvasReasons) {
       if (exclusionData.length > 0) {
-        UI.renderDonut(canvasReasons, exclusionData, { isPie: true, centerLabel: 'Exclusões' });
+        UI.renderDonut(canvasReasons, exclusionData, { isPie: true, centerLabel: `${totalExclusions} Exclusão${totalExclusions > 1 ? 'ões' : ''}` });
       } else {
-        UI.renderDonut(canvasReasons, [{ value: 0, color: '#334155', label: 'Sem dados' }], { isPie: true });
+        UI.renderDonut(canvasReasons, [{ value: 1, color: '#334155', label: 'Sem exclusões' }], { isPie: true, centerLabel: '0 Exclusões' });
       }
     }
 
@@ -4143,19 +4200,22 @@ Responda APENAS com JSON válido:
     const copyBtn = $('copy-prisma-text-btn');
     if (copyBtn) {
       copyBtn.onclick = () => {
-        let text = `RESUMO DO FLUXO PRISMA (${project.name})\n`;
-        text += `--------------------------------------------------\n`;
-        text += `• Total de registros identificados: ${s.total} (100.0%)\n`;
-        text += `• Duplicatas removidas: ${s.duplicates} (${pctDup}%)\n`;
-        text += `• Artigos triados (avaliados): ${s.total - s.pending} (${pctEvaluated}%)\n`;
-        text += `• Artigos excluídos: ${s.excluded} (${pctExcluded}%)\n`;
+        let text = `RESUMO DO FLUXO PRISMA 2020 (${project.name})\n`;
+        text += `==================================================\n`;
+        text += `1. Total de registros identificados nas buscas: ${rawTotal} (100.0%)\n`;
+        text += `2. Registros removidos como duplicatas: ${duplicatesTotal} (${pctDup}%)\n`;
+        text += `3. Registros únicos submetidos à triagem: ${screenableTotal} (${pctScreenable}%)\n`;
+        text += `4. Artigos avaliados por título e resumo: ${triadosTotal} (${pctEvaluated}% dos únicos)\n`;
+        text += `5. Artigos excluídos na triagem: ${excludedTotal}\n`;
         reasonKeys.forEach(r => {
           const cnt = exclusionReasonsMap[r];
-          const p = ((cnt / totalRaw) * 100).toFixed(1);
-          text += `   - Excluídos por "${r}": ${cnt} (${p}%)\n`;
+          const p = totalExclusions > 0 ? ((cnt / totalExclusions) * 100).toFixed(1) : '0.0';
+          text += `   ↳ Motivo "${r}": ${cnt} (${p}% das exclusões)\n`;
         });
-        text += `• Artigos mantidos em dúvida (Talvez): ${s.maybe} (${pctMaybe}%)\n`;
-        text += `• Estudos incluídos finais: ${s.included} (${pctIncluded}%)\n`;
+        text += `6. Artigos mantidos em dúvida (Talvez): ${maybeTotal}\n`;
+        text += `7. Artigos elegíveis para leitura integral (Fase 2): ${includedTotal}\n`;
+        text += `8. Estudos selecionados para síntese final (Fase 3): ${finalSelectedTotal}\n`;
+        text += `==================================================\n`;
 
         navigator.clipboard.writeText(text).then(() => {
           UI.toast('Resumo PRISMA copiado para a área de transferência!', 'success');
@@ -4166,7 +4226,7 @@ Responda APENAS com JSON válido:
     }
 
     // Year distribution chart
-    const included = project.articles.filter(a => a.decision === 'include' && a.year);
+    const included = (project.articles || []).filter(a => a.decision === 'include' && !a.is_duplicate && a.year);
     const yearMap = {};
     included.forEach(a => { yearMap[a.year] = (yearMap[a.year] || 0) + 1; });
     const years = Object.keys(yearMap).sort();
@@ -4187,16 +4247,30 @@ Responda APENAS com JSON válido:
 
   // ─── EXPORT TAB ───────────────────────────────────────
   function renderExportTab(project) {
-    const s = project.stats;
+    const rawTotal = project.articles ? project.articles.length : (project.stats?.total || 0);
+    const includedTotal = project.articles ? project.articles.filter(a => a.decision === 'include' && !a.is_duplicate).length : (project.stats?.included || 0);
+    const finalSelectedTotal = project.articles ? project.articles.filter(a => a.decision === 'include' && !a.is_duplicate && a.final_selection === true).length : 0;
+    const maybeTotal = project.articles ? project.articles.filter(a => a.decision === 'maybe' && !a.is_duplicate).length : (project.stats?.maybe || 0);
+
     const content = $('tab-content');
     content.innerHTML = `
       <div class="export-tab">
         <h3>Exportar artigos</h3>
         <div class="export-options">
+          <div class="export-card" id="export-final" style="border-color:rgba(245,158,11,0.5);background:linear-gradient(135deg,rgba(245,158,11,0.12),rgba(217,119,6,0.18));">
+            <div class="export-icon">⭐</div>
+            <h4>Seleção Final (Síntese)</h4>
+            <p>${finalSelectedTotal} artigos confirmados para síntese final</p>
+            <div class="export-format-group">
+              <button class="export-format-btn" data-type="final" data-fmt="csv">.CSV</button>
+              <button class="export-format-btn" data-type="final" data-fmt="ris">.RIS</button>
+              <button class="export-format-btn" data-type="final" data-fmt="bib">.BIB</button>
+            </div>
+          </div>
           <div class="export-card" id="export-included">
             <div class="export-icon">✅</div>
-            <h4>Artigos Incluídos</h4>
-            <p>${s.included} artigos marcados como "Incluir"</p>
+            <h4>Artigos Elegíveis (Texto Integral)</h4>
+            <p>${includedTotal} artigos aprovados na triagem</p>
             <div class="export-format-group">
               <button class="export-format-btn" data-type="include" data-fmt="csv">.CSV</button>
               <button class="export-format-btn" data-type="include" data-fmt="ris">.RIS</button>
@@ -4206,7 +4280,7 @@ Responda APENAS com JSON válido:
           <div class="export-card" id="export-maybe">
             <div class="export-icon">❓</div>
             <h4>Artigos "Talvez"</h4>
-            <p>${s.maybe} artigos para revisão</p>
+            <p>${maybeTotal} artigos para revisão</p>
             <div class="export-format-group">
               <button class="export-format-btn" data-type="maybe" data-fmt="csv">.CSV</button>
               <button class="export-format-btn" data-type="maybe" data-fmt="ris">.RIS</button>
@@ -4216,7 +4290,7 @@ Responda APENAS com JSON válido:
           <div class="export-card" id="export-all">
             <div class="export-icon">📄</div>
             <h4>Todos os Artigos</h4>
-            <p>${s.total} artigos com todas as decisões</p>
+            <p>${rawTotal} artigos com todas as decisões</p>
             <div class="export-format-group">
               <button class="export-format-btn" data-type="all" data-fmt="csv">.CSV</button>
               <button class="export-format-btn" data-type="all" data-fmt="ris">.RIS</button>
@@ -4249,14 +4323,15 @@ Responda APENAS com JSON válido:
   }
 
   function exportCSV(project, type) {
-    let articles = project.articles;
-    if (type === 'include') articles = articles.filter(a => a.decision === 'include');
-    else if (type === 'maybe') articles = articles.filter(a => a.decision === 'maybe');
-    else if (type === 'exclude') articles = articles.filter(a => a.decision === 'exclude');
+    let articles = project.articles || [];
+    if (type === 'final') articles = articles.filter(a => a.decision === 'include' && !a.is_duplicate && a.final_selection === true);
+    else if (type === 'include') articles = articles.filter(a => a.decision === 'include' && !a.is_duplicate);
+    else if (type === 'maybe') articles = articles.filter(a => a.decision === 'maybe' && !a.is_duplicate);
+    else if (type === 'exclude') articles = articles.filter(a => a.decision === 'exclude' && !a.is_duplicate);
 
-    if (!articles.length) { UI.toast('Nenhum artigo para exportar', 'error'); return; }
+    if (!articles.length) { UI.toast('Nenhum artigo para exportar nesta categoria', 'info'); return; }
 
-    const headers = ['Título','Autores','Ano','Revista','DOI','Decisão','Nota','Relevância (%)','Arquivo Fonte'];
+    const headers = ['Título','Autores','Ano','Revista','DOI','Decisão','Seleção Final','Temas','Nota','Relevância (%)','Arquivo Fonte'];
     const rows = articles.map(a => {
       const authorsList = Array.isArray(a.authors) ? a.authors : [];
       return [
@@ -4266,6 +4341,8 @@ Responda APENAS com JSON válido:
         `"${(a.journal||'').replace(/"/g,'""')}"`,
         a.doi || '',
         a.decision || 'pendente',
+        a.final_selection ? 'SIM' : 'NÃO',
+        `"${(a.categories||[]).join('; ').replace(/"/g,'""')}"`,
         `"${(a.note||'').replace(/"/g,'""')}"`,
         a.relevance_score !== null && a.relevance_score !== undefined ? a.relevance_score : '',
         a.source_file || ''
@@ -4273,50 +4350,71 @@ Responda APENAS com JSON válido:
     });
 
     const csv = '\uFEFF' + [headers.join(','), ...rows].join('\n');  // BOM for Excel
-    downloadFile(csv, `litscan_${type}_${project.name.replace(/\s+/g,'_')}.csv`, 'text/csv');
-    UI.toast(`${articles.length} artigos exportados!`, 'success');
+    downloadFile(csv, `gisa_${type}_${project.name.replace(/\s+/g,'_')}.csv`, 'text/csv');
+    UI.toast(`${articles.length} artigos exportados com sucesso!`, 'success');
   }
 
   function exportReport(project) {
-    const s = project.stats;
+    const rawTotal = project.articles ? project.articles.length : (project.stats?.total || 0);
+    const duplicatesTotal = project.articles ? project.articles.filter(a => a.is_duplicate).length : (project.stats?.duplicates || 0);
+    const screenableTotal = project.articles ? project.articles.filter(a => !a.is_duplicate).length : Math.max(0, rawTotal - duplicatesTotal);
+    const includedTotal = project.articles ? project.articles.filter(a => a.decision === 'include' && !a.is_duplicate).length : (project.stats?.included || 0);
+    const finalSelectedTotal = project.articles ? project.articles.filter(a => a.decision === 'include' && !a.is_duplicate && a.final_selection === true).length : 0;
+    const excludedTotal = project.articles ? project.articles.filter(a => a.decision === 'exclude' && !a.is_duplicate).length : (project.stats?.excluded || 0);
+    const maybeTotal = project.articles ? project.articles.filter(a => a.decision === 'maybe' && !a.is_duplicate).length : (project.stats?.maybe || 0);
+    const pendingTotal = project.articles ? project.articles.filter(a => !a.decision && !a.is_duplicate).length : Math.max(0, screenableTotal - includedTotal - excludedTotal - maybeTotal);
+
     const date = new Date().toLocaleDateString('pt-BR');
-    const report = `RELATÓRIO DE REVISÃO SISTEMÁTICA — Gisa
+    const finalArticles = (project.articles || []).filter(a => a.decision === 'include' && !a.is_duplicate && a.final_selection === true);
+    const eligibleArticles = (project.articles || []).filter(a => a.decision === 'include' && !a.is_duplicate && !a.final_selection);
+
+    const report = `RELATÓRIO DE REVISÃO SISTEMÁTICA — Gisa (Padrão PRISMA 2020)
 Projeto: ${project.name}
 Data: ${date}
-${project.description ? `Descrição: ${project.description}` : ''}
-Palavras-chave: ${(project.keywords||[]).join(', ') || '—'}
+${project.description ? `Descrição: ${project.description}\n` : ''}Palavras-chave: ${(project.keywords||[]).join(', ') || '—'}
 
-═══════════════════════════════════
-ESTATÍSTICAS DE TRIAGEM
-═══════════════════════════════════
-Total de artigos importados: ${s.total}
-Incluídos:                   ${s.included} (${s.total ? Math.round(s.included/s.total*100) : 0}%)
-Excluídos:                   ${s.excluded} (${s.total ? Math.round(s.excluded/s.total*100) : 0}%)
-Talvez:                      ${s.maybe} (${s.total ? Math.round(s.maybe/s.total*100) : 0}%)
-Pendentes:                   ${s.pending} (${s.total ? Math.round(s.pending/s.total*100) : 0}%)
-Duplicatas identificadas:    ${s.duplicates}
+══════════════════════════════════════════════════════
+1. ESTATÍSTICAS DO FLUXO PRISMA
+══════════════════════════════════════════════════════
+Total de referências brutas importadas:  ${rawTotal} (100.0%)
+Duplicatas identificadas e removidas:    ${duplicatesTotal} (${rawTotal ? ((duplicatesTotal/rawTotal)*100).toFixed(1) : 0}%)
+Base líquida para triagem (únicos):      ${screenableTotal}
+Artigos avaliados por título/resumo:    ${screenableTotal - pendingTotal} (${screenableTotal ? Math.round(((screenableTotal - pendingTotal)/screenableTotal)*100) : 0}%)
+Artigos excluídos na triagem:            ${excludedTotal}
+Artigos em dúvida (Talvez):              ${maybeTotal}
+Artigos pendentes de triagem:            ${pendingTotal}
+Artigos elegíveis para leitura integral: ${includedTotal}
+⭐ Estudos na Seleção Final da Síntese:  ${finalSelectedTotal}
 
-═══════════════════════════════════
-ARTIGOS INCLUÍDOS
-═══════════════════════════════════
-${project.articles.filter(a => a.decision === 'include').map((a, i) =>
-  `${i+1}. ${a.title}\n   ${a.authors.slice(0,3).join('; ')} (${a.year}). ${a.journal || ''}${a.doi ? ` DOI: ${a.doi}` : ''}${a.note ? `\n   Nota: ${a.note}` : ''}`
-).join('\n\n')}
+══════════════════════════════════════════════════════
+2. ESTUDOS SELECIONADOS NA SÍNTESE FINAL (Fase 3: n = ${finalSelectedTotal})
+══════════════════════════════════════════════════════
+${finalArticles.length ? finalArticles.map((a, i) =>
+  `${i+1}. ${a.title}\n   Autores: ${(a.authors||[]).slice(0,4).join('; ')} (${a.year || 's.d.'}). ${a.journal || ''}${a.doi ? ` · DOI: ${a.doi}` : ''}${a.categories && a.categories.length ? `\n   Temas: ${a.categories.join(', ')}` : ''}${a.note ? `\n   Nota: ${a.note}` : ''}`
+).join('\n\n') : 'Nenhum estudo confirmado na Seleção Final ainda.'}
 
-─────────────────────────────────
-Gerado por Gisa · ${date}
+══════════════════════════════════════════════════════
+3. ARTIGOS ELEGÍVEIS AGUARDANDO CONFIRMAÇÃO (Fase 2: n = ${eligibleArticles.length})
+══════════════════════════════════════════════════════
+${eligibleArticles.length ? eligibleArticles.map((a, i) =>
+  `${i+1}. ${a.title}\n   Autores: ${(a.authors||[]).slice(0,3).join('; ')} (${a.year || 's.d.'}). ${a.journal || ''}`
+).join('\n\n') : 'Todos os estudos elegíveis já foram confirmados na seleção final.'}
+
+──────────────────────────────────────────────────────
+Gerado automaticamente por Gisa · ${date}
 `;
-    downloadFile(report, `relatorio_${project.name.replace(/\s+/g,'_')}.txt`, 'text/plain');
-    UI.toast('Relatório exportado!', 'success');
+    downloadFile(report, `relatorio_prisma_${project.name.replace(/\s+/g,'_')}.txt`, 'text/plain');
+    UI.toast('Relatório PRISMA exportado com sucesso!', 'success');
   }
 
   // ─── Export: RIS ───────────────────────────────────────
   function exportRIS(project, type) {
-    let articles = project.articles;
-    if (type === 'include') articles = articles.filter(a => a.decision === 'include');
-    else if (type === 'maybe') articles = articles.filter(a => a.decision === 'maybe');
-    else if (type === 'exclude') articles = articles.filter(a => a.decision === 'exclude');
-    if (!articles.length) { UI.toast('Nenhum artigo para exportar', 'error'); return; }
+    let articles = project.articles || [];
+    if (type === 'final') articles = articles.filter(a => a.decision === 'include' && !a.is_duplicate && a.final_selection === true);
+    else if (type === 'include') articles = articles.filter(a => a.decision === 'include' && !a.is_duplicate);
+    else if (type === 'maybe') articles = articles.filter(a => a.decision === 'maybe' && !a.is_duplicate);
+    else if (type === 'exclude') articles = articles.filter(a => a.decision === 'exclude' && !a.is_duplicate);
+    if (!articles.length) { UI.toast('Nenhum artigo para exportar nesta categoria', 'info'); return; }
 
     const ris = articles.map(a => {
       const authorsList = Array.isArray(a.authors) ? a.authors : [];
@@ -4329,7 +4427,8 @@ Gerado por Gisa · ${date}
         a.doi ? `DO  - ${a.doi}` : '',
         a.abstract ? `AB  - ${a.abstract.replace(/\n/g, ' ')}` : '',
         ...(a.keywords || []).map(kw => `KW  - ${kw}`),
-        a.decision ? `N1  - Gisa: ${a.decision}` : '',
+        ...(a.categories || []).map(cat => `KW  - ${cat}`),
+        a.final_selection ? 'N1  - Gisa: Seleção Final (Síntese)' : (a.decision ? `N1  - Gisa: ${a.decision}` : ''),
         a.note ? `N2  - ${a.note}` : '',
         'ER  - ',
       ].filter(Boolean).join('\n');
@@ -4341,11 +4440,12 @@ Gerado por Gisa · ${date}
 
   // ─── Export: BibTeX ────────────────────────────────────
   function exportBibTeX(project, type) {
-    let articles = project.articles;
-    if (type === 'include') articles = articles.filter(a => a.decision === 'include');
-    else if (type === 'maybe') articles = articles.filter(a => a.decision === 'maybe');
-    else if (type === 'exclude') articles = articles.filter(a => a.decision === 'exclude');
-    if (!articles.length) { UI.toast('Nenhum artigo para exportar', 'error'); return; }
+    let articles = project.articles || [];
+    if (type === 'final') articles = articles.filter(a => a.decision === 'include' && !a.is_duplicate && a.final_selection === true);
+    else if (type === 'include') articles = articles.filter(a => a.decision === 'include' && !a.is_duplicate);
+    else if (type === 'maybe') articles = articles.filter(a => a.decision === 'maybe' && !a.is_duplicate);
+    else if (type === 'exclude') articles = articles.filter(a => a.decision === 'exclude' && !a.is_duplicate);
+    if (!articles.length) { UI.toast('Nenhum artigo para exportar nesta categoria', 'info'); return; }
 
     const bib = articles.map((a, i) => {
       const key = `gisa${i + 1}`;

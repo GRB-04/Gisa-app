@@ -787,7 +787,8 @@ const UI = (() => {
     const duplicatesRemoved = s.duplicates || 0;
     const recordsScreened = Math.max(0, s.total - duplicatesRemoved);
     const recordsExcluded = excludedScreening.length;
-    const recordsIncluded = s.included;
+    const recordsIncluded = articles.filter(a => a.decision === 'include' && !a.is_duplicate).length;
+    const finalSelectedCount = articles.filter(a => a.decision === 'include' && !a.is_duplicate && a.final_selection === true).length;
 
     return `
       <div class="prisma-container" style="max-width:820px;margin:0 auto;padding:32px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);">
@@ -813,32 +814,42 @@ const UI = (() => {
           <div class="prisma-phase" style="border-left:4px solid var(--amber);padding-left:16px;">
             <span style="font-size:0.75rem;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:0.05em">2. Remoção de Duplicatas</span>
             <div class="prisma-box" style="margin-top:8px;padding:16px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md)">
-              <strong>Registros duplicados removidos (n = ${duplicatesRemoved})</strong>
+              <strong>Registros duplicados removidos antes da triagem (n = ${duplicatesRemoved})</strong>
             </div>
           </div>
 
           <div style="text-align:center;color:var(--amber);font-size:1.2rem;font-weight:bold">↓</div>
 
           <div class="prisma-phase" style="border-left:4px solid var(--cyan);padding-left:16px;">
-            <span style="font-size:0.75rem;font-weight:700;color:var(--cyan);text-transform:uppercase;letter-spacing:0.05em">3. Triagem</span>
+            <span style="font-size:0.75rem;font-weight:700;color:var(--cyan);text-transform:uppercase;letter-spacing:0.05em">3. Triagem (Título & Resumo)</span>
             <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 240px), 1fr));gap:16px;margin-top:8px;">
               <div class="prisma-box" style="padding:16px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md)">
-                <strong>Registros triados por título e resumo (n = ${recordsScreened})</strong>
+                <strong>Registros únicos avaliados (n = ${recordsScreened})</strong>
               </div>
               <div class="prisma-box" style="padding:16px;background:var(--red-bg);border:1px solid rgba(239,68,68,0.4);border-radius:var(--radius-md);color:var(--red)">
-                <strong style="display:block;margin-bottom:8px">Registros excluídos (n = ${recordsExcluded})</strong>
-                ${reasonsListHtml ? `<ul style="margin:0;font-size:0.8rem;padding-left:16px;line-height:1.6">${reasonsListHtml}</ul>` : '<span style="font-size:0.8rem;opacity:0.8">Nenhum artigo excluído ainda.</span>'}
+                <strong style="display:block;margin-bottom:8px">Registros excluídos na triagem (n = ${recordsExcluded})</strong>
+                ${reasonsListHtml ? `<ul style="margin:0;font-size:0.8rem;padding-left:16px;line-height:1.6">${reasonsListHtml}</ul>` : '<span style="font-size:0.8rem;opacity:0.8">Nenhum artigo excluído na triagem ainda.</span>'}
               </div>
             </div>
           </div>
 
-          <div style="text-align:center;color:var(--green);font-size:1.2rem;font-weight:bold">↓</div>
+          <div style="text-align:center;color:var(--cyan);font-size:1.2rem;font-weight:bold">↓</div>
 
           <div class="prisma-phase" style="border-left:4px solid var(--green);padding-left:16px;">
-            <span style="font-size:0.75rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.05em">4. Estudos Incluídos</span>
-            <div class="prisma-box" style="margin-top:8px;padding:20px;background:var(--green-bg);border:1px solid rgba(34,197,94,0.4);border-radius:var(--radius-md);color:var(--green)">
-              <h3 style="font-size:1.1rem;font-weight:800;margin-bottom:4px">Estudos incluídos na revisão sistemática (n = ${recordsIncluded})</h3>
-              <p style="font-size:0.82rem;margin:0;opacity:0.9">Estudos elegíveis selecionados para síntese dos resultados.</p>
+            <span style="font-size:0.75rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.05em">4. Elegibilidade (Texto Completo)</span>
+            <div class="prisma-box" style="margin-top:8px;padding:16px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);border-radius:var(--radius-md);color:var(--green)">
+              <h3 style="font-size:1.05rem;font-weight:800;margin-bottom:4px">Artigos avaliados para elegibilidade integral (n = ${recordsIncluded})</h3>
+              <p style="font-size:0.82rem;margin:0;opacity:0.9">Estudos com potencial de inclusão que passaram para leitura do texto completo.</p>
+            </div>
+          </div>
+
+          <div style="text-align:center;color:#f59e0b;font-size:1.2rem;font-weight:bold">↓</div>
+
+          <div class="prisma-phase" style="border-left:4px solid #f59e0b;padding-left:16px;">
+            <span style="font-size:0.75rem;font-weight:700;color:#fbbf24;text-transform:uppercase;letter-spacing:0.05em">5. Síntese Definitiva</span>
+            <div class="prisma-box" style="margin-top:8px;padding:20px;background:linear-gradient(135deg,rgba(245,158,11,0.16),rgba(217,119,6,0.24));border:1px solid rgba(245,158,11,0.5);border-radius:var(--radius-md);color:#fbbf24;box-shadow:0 4px 16px rgba(245,158,11,0.15)">
+              <h3 style="font-size:1.15rem;font-weight:800;margin-bottom:4px">⭐ Estudos incluídos na revisão sistemática e síntese (n = ${finalSelectedCount})</h3>
+              <p style="font-size:0.84rem;margin:0;color:var(--text-secondary)">Estudos que cumpriram todos os critérios de qualidade e compõem a discussão científica final.</p>
             </div>
           </div>
 
