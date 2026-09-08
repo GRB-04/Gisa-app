@@ -1982,14 +1982,18 @@ const App = (() => {
     });
   }
 
-  // ─── DEDUP TAB ────────────────────────────────────────
+  // ─── DEDUP TAB (DEDUPLICAÇÃO INCREMENTAL EM CAMADAS) ──
   function renderDedupTab(project) {
     const content = $('tab-content');
+    if (!content) return;
 
-    if (!project.articles.length) {
+    if (!project.articles || !project.articles.length) {
       content.innerHTML = `<div class="dedup-tab">${UI.emptyState('🔄', 'Nenhum artigo para comparar', 'Importe artigos primeiro na aba Importar.')}</div>`;
       return;
     }
+
+    state.dupThreshold = state.dupThreshold || 65;
+    state.dupFilter = state.dupFilter || 'pending_all';
 
     content.innerHTML = `
       <div class="dedup-tab">
@@ -1997,17 +2001,21 @@ const App = (() => {
           <div class="dedup-config" style="flex:1;min-width:280px;">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
               <span style="font-size:1.2rem;">🔍</span>
-              <label style="font-size:0.95rem;font-weight:700;color:var(--text-primary);">Limiar de Similaridade Rápido:</label>
-              <span id="threshold-display" class="threshold-val" style="font-size:0.9rem;font-weight:800;color:var(--purple);background:var(--purple-glow);padding:2px 8px;border-radius:var(--radius-sm);">65%</span>
+              <label style="font-size:0.95rem;font-weight:700;color:var(--text-primary);">Limiar de Similaridade:</label>
+              <span id="threshold-display" class="threshold-val" style="font-size:0.9rem;font-weight:800;color:var(--purple);background:var(--purple-glow);padding:2px 8px;border-radius:var(--radius-sm);">${state.dupThreshold}%</span>
             </div>
             <div class="threshold-row" style="display:flex;align-items:center;gap:12px;">
-              <input type="range" id="dup-threshold" min="50" max="100" value="65" class="range-input" style="flex:1;cursor:pointer;"/>
+              <input type="range" id="dup-threshold" min="50" max="100" value="${state.dupThreshold}" class="range-input" style="flex:1;cursor:pointer;accent-color:var(--purple);"/>
             </div>
-            <small style="color:var(--text-muted);font-size:0.76rem;">Padrão Estrito = 97% | Padrão Abrangente = 65%</small>
+            <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
+              <button type="button" class="btn btn-sm btn-ghost dup-preset-quick" data-val="97" style="font-size:0.75rem;padding:2px 10px;border-radius:9999px;border:1px solid rgba(255,255,255,0.12);">97% (Estrito)</button>
+              <button type="button" class="btn btn-sm btn-ghost dup-preset-quick" data-val="85" style="font-size:0.75rem;padding:2px 10px;border-radius:9999px;border:1px solid rgba(255,255,255,0.12);">85% (Moderado)</button>
+              <button type="button" class="btn btn-sm btn-ghost dup-preset-quick" data-val="65" style="font-size:0.75rem;padding:2px 10px;border-radius:9999px;border:1px solid rgba(255,255,255,0.12);">65% (Amplo)</button>
+            </div>
           </div>
           <div class="dedup-top-buttons" style="display:flex;gap:10px;flex-wrap:wrap;">
-            <button class="btn btn-secondary" id="run-dedup-btn">🔍 Re-analisar</button>
-            <button class="btn btn-primary" id="open-auto-resolver-pro-btn" style="background:linear-gradient(135deg, var(--purple), var(--violet));box-shadow:0 4px 14px var(--purple-glow);">
+            <button class="btn btn-secondary" id="run-dedup-btn" style="border-radius:9999px;">🔍 Re-analisar Base</button>
+            <button class="btn btn-primary" id="open-auto-resolver-pro-btn" style="border-radius:9999px;background:linear-gradient(135deg, var(--purple), var(--violet));box-shadow:0 4px 14px var(--purple-glow);">
               ⚡ Systematic Auto-Resolver (Gisa Pro)
             </button>
           </div>
@@ -2018,137 +2026,279 @@ const App = (() => {
 
     const range = $('dup-threshold');
     const display = $('threshold-display');
-    range.oninput = () => { display.textContent = range.value + '%'; };
+    if (range && display) {
+      range.oninput = () => {
+        state.dupThreshold = parseInt(range.value);
+        display.textContent = state.dupThreshold + '%';
+        // Live update action button without full rescan
+        renderDupResults(Storage.getProject(project.id) || project);
+      };
+    }
 
-    $('run-dedup-btn').onclick = () => runDeduplication(project, parseInt(range.value));
+    content.querySelectorAll('.dup-preset-quick').forEach(btn => {
+      btn.onclick = () => {
+        const val = parseInt(btn.dataset.val);
+        state.dupThreshold = val;
+        if (range) range.value = val;
+        if (display) display.textContent = val + '%';
+        renderDupResults(Storage.getProject(project.id) || project);
+      };
+    });
+
+    $('run-dedup-btn')?.addEventListener('click', () => runDeduplication(project, state.dupThreshold));
     
-    $('open-auto-resolver-pro-btn').onclick = () => {
-      const pairs = state.dupPairs.length ? state.dupPairs : Similarity.findDuplicates(project.articles, 50);
-      UI.showAutoResolverModal(project, pairs, (opts) => {
-        applyAutoResolverPro(project, opts);
+    $('open-auto-resolver-pro-btn')?.addEventListener('click', () => {
+      const currentProject = Storage.getProject(project.id) || project;
+      const pairs = (state.dupPairs && state.dupPairs.length) ? state.dupPairs : Similarity.findDuplicates(currentProject.articles, 50);
+      UI.showAutoResolverModal(currentProject, pairs, (opts) => {
+        applyAutoResolverPro(currentProject, opts);
       });
-    };
+    });
 
-    // If already ran, show results
-    if (state.dupPairs.length > 0) renderDupResults(project);
-    else runDeduplication(project, 65);
+    // If pairs already in state for this project, render directly; else run initial scan
+    if (state.dupPairs && state.dupPairs.length > 0) {
+      renderDupResults(project);
+    } else {
+      runDeduplication(project, state.dupThreshold);
+    }
   }
 
   async function runDeduplication(project, threshold) {
     const btn = $('run-dedup-btn');
     const results = $('dedup-results');
-    if (!btn || !results) return;
-    btn.disabled = true;
-    btn.textContent = '⏳ Analisando…';
+    if (!results) return;
+
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '⏳ Analisando…';
+    }
+
     results.innerHTML = `
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:45px 20px;gap:14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:20px;margin:20px 0;backdrop-filter:blur(12px);">
         <div class="spinner" style="width:36px;height:36px;border-width:3px;border-top-color:var(--purple);"></div>
         <div style="font-weight:700;font-size:0.95rem;color:var(--text-primary);" id="dedup-prog-text">
-          Comparando ${project.articles.length} artigos entre si…
+          Comparando referências científicas…
         </div>
         <div style="width:260px;height:7px;background:rgba(255,255,255,0.12);border-radius:9999px;overflow:hidden;">
           <div id="dedup-prog-bar" style="width:5%;height:100%;background:linear-gradient(90deg, var(--purple), #6366f1);transition:width 0.2s ease;"></div>
         </div>
-        <small style="color:var(--text-muted);font-size:0.8rem;" id="dedup-prog-detail">Iniciando análise inteligente…</small>
+        <small style="color:var(--text-muted);font-size:0.8rem;" id="dedup-prog-detail">Iniciando análise inteligente em camadas…</small>
       </div>
     `;
 
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise(r => setTimeout(r, 40));
+
+    const currentProject = Storage.getProject(project.id) || project;
+    const articlesToScan = currentProject.articles || [];
 
     const pairs = await (Similarity.findDuplicatesAsync
-      ? Similarity.findDuplicatesAsync(project.articles, Math.min(threshold, 55), (prog) => {
+      ? Similarity.findDuplicatesAsync(articlesToScan, 50, (prog) => {
           const bar = $('dedup-prog-bar');
           const text = $('dedup-prog-text');
           const detail = $('dedup-prog-detail');
           if (bar) bar.style.width = `${Math.max(5, prog.pct)}%`;
           if (text) {
-            if (prog.pct < 35) text.textContent = `Indexando ${project.articles.length} artigos… (${prog.pct}%)`;
+            if (prog.pct < 35) text.textContent = `Indexando ${articlesToScan.length} artigos… (${prog.pct}%)`;
             else text.textContent = `Comparando duplicatas (${prog.pct}%)…`;
           }
           if (detail) {
             detail.textContent = `${prog.pct}% concluído — interface ativa`;
           }
         })
-      : Promise.resolve(Similarity.findDuplicates(project.articles, Math.min(threshold, 55))));
+      : Promise.resolve(Similarity.findDuplicates(articlesToScan, 50)));
 
     state.dupPairs = pairs;
-    state.dupResolved = new Set();
+    state.dupResolved = state.dupResolved || new Set();
     state.dupOffset = 0;
+    state.dupFilter = state.dupFilter || 'pending_all';
 
-    btn.disabled = false;
-    btn.textContent = '🔍 Detectar Duplicatas';
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '🔍 Re-analisar Base';
+    }
 
-    const autoHighPairs = pairs.filter(p => p.score >= threshold);
-    const manualPairs = pairs.filter(p => p.score < threshold && p.score >= 55);
-
-    const markedDups = new Set();
-    autoHighPairs.forEach(p => markedDups.add(p.articleB.id));
-    const uniqueRemaining = project.articles.length - markedDups.size;
-
-    results.innerHTML = `
-      <div class="dedup-summary">
-        <div class="dedup-stat-chip high">
-          <span>${markedDups.size}</span>
-          <small>duplicatas encontradas (≥ ${threshold}%)</small>
-        </div>
-        <div class="dedup-stat-chip" style="background:var(--green-bg);color:var(--green)">
-          <span>${uniqueRemaining}</span>
-          <small>artigos únicos restantes para triagem</small>
-        </div>
-        ${manualPairs.length > 0 ? `
-        <div class="dedup-stat-chip medium">
-          <span>${manualPairs.length}</span>
-          <small>para verificar manual (55%–${threshold-1}%)</small>
-        </div>` : ''}
-        <div class="dedup-actions-top" style="display:flex;gap:10px;flex-wrap:wrap;">
-          <button class="btn btn-secondary" id="open-auto-resolver-pro-btn2">
-            ⚙️ Opções Avançadas
-          </button>
-          ${autoHighPairs.length > 0 ? `<button class="btn btn-danger" id="auto-resolve-btn">⚡ Resolver automaticamente todas as ${markedDups.size} duplicatas</button>` : ''}
-        </div>
-      </div>
-      <div id="dup-pairs-list"></div>
-    `;
-
-    $('auto-resolve-btn')?.addEventListener('click', () => autoResolveHighSimilarity(project, autoHighPairs, threshold));
-    
-    $('open-auto-resolver-pro-btn2')?.addEventListener('click', () => {
-      UI.showAutoResolverModal(project, pairs, (opts) => {
-        applyAutoResolverPro(project, opts);
-      });
-    });
-
-    renderDupResults(project);
+    renderDupResults(currentProject);
   }
 
   function renderDupResults(project) {
+    const results = $('dedup-results');
+    if (!results) return;
+
+    const currentProject = Storage.getProject(project.id) || project;
+    const articles = currentProject.articles || [];
+    const duplicateArticleIds = new Set(articles.filter(a => a.is_duplicate).map(a => a.id));
+    const resolvedTotal = duplicateArticleIds.size;
+    const totalRaw = articles.length;
+    const screenableTotal = Math.max(0, totalRaw - resolvedTotal);
+
+    state.dupResolved = state.dupResolved || new Set();
+    const allPairs = state.dupPairs || [];
+
+    // Separate into PENDING vs ALREADY RESOLVED
+    const isPending = p => !duplicateArticleIds.has(p.articleA.id) &&
+                          !duplicateArticleIds.has(p.articleB.id) &&
+                          !state.dupResolved.has(`${p.articleA.id}_${p.articleB.id}`);
+
+    const pendingPairs = allPairs.filter(isPending);
+    const resolvedPairs = allPairs.filter(p => !isPending(p));
+
+    // Tiers within pending
+    const pendingHigh = pendingPairs.filter(p => p.score >= 97);
+    const pendingMed = pendingPairs.filter(p => p.score >= 85 && p.score < 97);
+    const pendingManual = pendingPairs.filter(p => p.score < 85); // 55% - 84% (os 107 manuais!)
+
+    // Determine current active filter list
+    state.dupFilter = state.dupFilter || 'pending_all';
+    let filteredPairs = [];
+    if (state.dupFilter === 'pending_all') filteredPairs = pendingPairs;
+    else if (state.dupFilter === 'pending_high') filteredPairs = pendingHigh;
+    else if (state.dupFilter === 'pending_med') filteredPairs = pendingMed;
+    else if (state.dupFilter === 'pending_manual') filteredPairs = pendingManual;
+    else if (state.dupFilter === 'resolved') filteredPairs = resolvedPairs;
+
+    const currentThresh = state.dupThreshold || 65;
+    const pendingAtThreshold = pendingPairs.filter(p => p.score >= currentThresh);
+
+    results.innerHTML = `
+      <div class="dedup-summary" style="margin-bottom:20px;">
+        <div class="dedup-stat-chip all ${state.dupFilter === 'pending_all' ? 'active' : ''}" data-filter="pending_all" title="Ver todos os pares que ainda aguardam decisão">
+          <span>${pendingPairs.length}</span>
+          <small>Total Pendentes</small>
+        </div>
+        <div class="dedup-stat-chip high ${state.dupFilter === 'pending_high' ? 'active' : ''}" data-filter="pending_high" title="Pares com 97% a 100% de similaridade (idênticos/estritos)">
+          <span>${pendingHigh.length}</span>
+          <small>Alta (≥ 97%)</small>
+        </div>
+        <div class="dedup-stat-chip medium ${state.dupFilter === 'pending_med' ? 'active' : ''}" data-filter="pending_med" title="Pares com 85% a 96% de similaridade">
+          <span>${pendingMed.length}</span>
+          <small>Média (85%–96%)</small>
+        </div>
+        <div class="dedup-stat-chip manual ${state.dupFilter === 'pending_manual' ? 'active' : ''}" data-filter="pending_manual" title="Clique para ver exclusivamente os pares para conferência humana detalhada (55% a 84%)">
+          <span>${pendingManual.length}</span>
+          <small>Verificação Manual</small>
+        </div>
+        <div class="dedup-stat-chip resolved ${state.dupFilter === 'resolved' ? 'active' : ''}" data-filter="resolved" title="Duplicatas que já foram resolvidas e excluídas">
+          <span>${resolvedTotal}</span>
+          <small>Já Descartadas</small>
+        </div>
+        <div class="dedup-stat-chip" style="cursor:default;border-color:rgba(34,197,94,0.3);background:rgba(34,197,94,0.06);color:var(--green);" title="Artigos únicos restantes que irão para a triagem">
+          <span>${screenableTotal}</span>
+          <small>Restantes p/ Triagem</small>
+        </div>
+
+        <div class="dedup-actions-top">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            ${pendingHigh.length > 0 ? `
+              <button class="btn btn-danger btn-sm" id="btn-quick-resolve-high" style="border-radius:9999px;font-weight:700;">
+                ⚡ Resolver ${pendingHigh.length} Alta Similaridade (≥ 97%)
+              </button>
+            ` : ''}
+            ${pendingAtThreshold.length > 0 ? `
+              <button class="btn btn-primary btn-sm" id="btn-quick-resolve-thresh" style="border-radius:9999px;font-weight:700;background:linear-gradient(135deg,var(--purple),var(--violet));">
+                ⚡ Resolver ${pendingAtThreshold.length} Duplicatas Pendentes (≥ ${currentThresh}%)
+              </button>
+            ` : ''}
+            ${pendingPairs.length === 0 && resolvedTotal > 0 ? `
+              <button class="btn btn-primary btn-sm" id="btn-go-to-screen" style="border-radius:9999px;font-weight:700;background:linear-gradient(135deg,#10b981,#059669);">
+                🔍 Prosseguir para a Triagem (${screenableTotal}) →
+              </button>
+            ` : ''}
+          </div>
+
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            ${resolvedTotal > 0 ? `
+              <button class="btn btn-ghost btn-sm" id="btn-reset-duplicates" style="border-radius:9999px;color:#f87171;border:1px dashed rgba(239,68,68,0.35);font-size:0.75rem;" title="Restaurar todos os artigos duplicados de volta para a base ativa">
+                🔄 Desfazer Duplicatas
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      </div>
+
+      <div id="dup-pairs-list"></div>
+    `;
+
+    // Bind Filter Chips Click
+    results.querySelectorAll('.dedup-stat-chip[data-filter]').forEach(chip => {
+      chip.addEventListener('click', () => {
+        state.dupFilter = chip.dataset.filter;
+        state.dupOffset = 0;
+        renderDupResults(currentProject);
+      });
+    });
+
+    // Quick Action Buttons
+    $('btn-quick-resolve-high')?.addEventListener('click', () => {
+      autoResolvePendingPairs(currentProject, pendingHigh, 'Alta Similaridade (≥ 97%)');
+    });
+
+    $('btn-quick-resolve-thresh')?.addEventListener('click', () => {
+      autoResolvePendingPairs(currentProject, pendingAtThreshold, `Similaridade ≥ ${currentThresh}%`);
+    });
+
+    $('btn-go-to-screen')?.addEventListener('click', () => {
+      state.tab = 'screen';
+      renderProjectTab(currentProject);
+      updateTabActive();
+    });
+
+    $('btn-reset-duplicates')?.addEventListener('click', () => {
+      confirmResetDuplicates(currentProject);
+    });
+
+    // Render list items
     const list = $('dup-pairs-list');
     if (!list) return;
-    const pairs = state.dupPairs.filter(p => !state.dupResolved.has(`${p.articleA.id}_${p.articleB.id}`));
 
-    if (!pairs.length) {
-      list.innerHTML = UI.emptyState('✅', 'Nenhuma duplicata pendente', 'Todas as duplicatas foram resolvidas.');
+    if (!filteredPairs.length) {
+      if (state.dupFilter === 'pending_manual') {
+        list.innerHTML = UI.emptyState('✨', 'Nenhum par manual pendente', 'Todos os casos de média/baixa similaridade já foram resolvidos ou não existem na base.');
+      } else if (state.dupFilter === 'pending_high') {
+        list.innerHTML = UI.emptyState('✓', 'Nenhuma duplicata de alta similaridade pendente', 'Todas as duplicatas estritas (≥97%) foram descartadas.');
+      } else if (state.dupFilter === 'resolved') {
+        list.innerHTML = UI.emptyState('📋', 'Nenhuma duplicata descartada ainda', 'Execute a resolução automática ou manual acima para eliminar duplicatas.');
+      } else {
+        list.innerHTML = UI.emptyState('✅', 'Todas as duplicatas resolvidas', `Base limpa com ${screenableTotal} artigos únicos prontos para a triagem.`);
+      }
       return;
     }
 
     const pageSize = 20;
-    const total = pairs.length;
+    const total = filteredPairs.length;
     if (state.dupOffset === undefined || state.dupOffset >= total) {
       state.dupOffset = 0;
     }
     const offset = state.dupOffset;
-    const page = pairs.slice(offset, offset + pageSize);
+    const page = filteredPairs.slice(offset, offset + pageSize);
     const totalPages = Math.ceil(total / pageSize);
     const currentPage = Math.floor(offset / pageSize) + 1;
 
     list.innerHTML = '';
+
+    // Filter subtitle banner
+    const banner = document.createElement('div');
+    banner.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding:8px 14px;background:rgba(255,255,255,0.03);border-radius:12px;border:1px solid rgba(255,255,255,0.08);';
+    banner.innerHTML = `
+      <span style="font-size:0.84rem;font-weight:700;color:var(--text-primary);">
+        Exibindo: <strong style="color:var(--purple);">${
+          state.dupFilter === 'pending_manual' ? '🔍 107 Pares para Verificação Manual' :
+          state.dupFilter === 'pending_high' ? '🔴 Alta Similaridade (≥ 97%)' :
+          state.dupFilter === 'pending_med' ? '🟡 Média Similaridade (85%–96%)' :
+          state.dupFilter === 'resolved' ? '🟢 Duplicatas Já Descartadas' :
+          '🔘 Todos os Pares Pendentes'
+        }</strong> (${total} pares)
+      </span>
+      <span style="font-size:0.78rem;color:var(--text-muted);">Página ${currentPage} de ${totalPages}</span>
+    `;
+    list.appendChild(banner);
+
     page.forEach((pair, idx) => {
       const globalIdx = offset + idx;
       const pairCard = UI.renderDupPair(pair, globalIdx, {
-        onKeepA: () => resolvePair(project, pair, 'a'),
-        onKeepB: () => resolvePair(project, pair, 'b'),
-        onKeepBoth: () => resolvePair(project, pair, 'both'),
-        onIgnore: () => resolvePair(project, pair, 'ignore'),
+        onKeepA: () => resolvePair(currentProject, pair, 'a'),
+        onKeepB: () => resolvePair(currentProject, pair, 'b'),
+        onKeepBoth: () => resolvePair(currentProject, pair, 'both'),
+        onIgnore: () => resolvePair(currentProject, pair, 'ignore'),
       });
       list.appendChild(pairCard);
     });
@@ -2165,14 +2315,14 @@ const App = (() => {
       prevBtn.disabled = offset === 0;
       prevBtn.onclick = () => {
         state.dupOffset = Math.max(0, offset - pageSize);
-        renderDupResults(project);
+        renderDupResults(currentProject);
         list.scrollIntoView({ behavior: 'smooth', block: 'start' });
       };
       pag.appendChild(prevBtn);
 
       const info = document.createElement('span');
       info.style.cssText = 'font-size:0.84rem;color:var(--text-muted);font-weight:600;';
-      info.textContent = `Página ${currentPage} de ${totalPages} (${total} duplicatas pendentes)`;
+      info.textContent = `Página ${currentPage} de ${totalPages} (${total} pares)`;
       pag.appendChild(info);
 
       const nextBtn = document.createElement('button');
@@ -2182,7 +2332,7 @@ const App = (() => {
       nextBtn.disabled = offset + pageSize >= total;
       nextBtn.onclick = () => {
         state.dupOffset = offset + pageSize;
-        renderDupResults(project);
+        renderDupResults(currentProject);
         list.scrollIntoView({ behavior: 'smooth', block: 'start' });
       };
       pag.appendChild(nextBtn);
@@ -2204,18 +2354,91 @@ const App = (() => {
       updates.push({ id: pair.articleA.id, is_duplicate: false }, { id: pair.articleB.id, is_duplicate: false });
     }
 
-    if (updates.length) Storage.bulkUpdateArticles(project.id, updates);
-    UI.toast(action === 'ignore' ? 'Par ignorado' : 'Par resolvido', 'success');
-    renderDupResults(Storage.getProject(state.projectId));
+    if (updates.length) {
+      Storage.bulkUpdateArticles(project.id, updates);
+    }
+
+    const updatedProj = Storage.getProject(project.id);
+    updateProjectNavHeader(updatedProj);
+    UI.toast(action === 'ignore' ? 'Par ignorado' : (action === 'both' ? 'Ambos mantidos como únicos' : '✓ Duplicata descartada com sucesso!'), 'success');
+    renderDupResults(updatedProj);
+  }
+
+  async function autoResolvePendingPairs(project, pairsToResolve, label) {
+    const currentProject = Storage.getProject(project.id) || project;
+    const duplicateArticleIds = new Set((currentProject.articles || []).filter(a => a.is_duplicate).map(a => a.id));
+    
+    // Pick only active pending pairs
+    const activePairs = pairsToResolve.filter(p =>
+      !duplicateArticleIds.has(p.articleA.id) &&
+      !duplicateArticleIds.has(p.articleB.id) &&
+      !state.dupResolved.has(`${p.articleA.id}_${p.articleB.id}`)
+    );
+
+    if (!activePairs.length) {
+      UI.toast('Todos os pares selecionados já foram resolvidos anteriormente.', 'info');
+      return;
+    }
+
+    UI.toast(`⚡ Resolvendo ${activePairs.length} duplicatas (${label})…`, 'info');
+    await new Promise(r => setTimeout(r, 40));
+
+    const updates = [];
+    const markedDups = new Set();
+
+    activePairs.forEach(pair => {
+      const key = `${pair.articleA.id}_${pair.articleB.id}`;
+      state.dupResolved.add(key);
+
+      // Keep the one with longer abstract or valid DOI
+      const lenA = (pair.articleA.abstract || '').length + (pair.articleA.doi ? 200 : 0);
+      const lenB = (pair.articleB.abstract || '').length + (pair.articleB.doi ? 200 : 0);
+      const keep = lenB > lenA ? pair.articleB : pair.articleA;
+      const discard = lenB > lenA ? pair.articleA : pair.articleB;
+
+      if (!markedDups.has(discard.id) && !duplicateArticleIds.has(discard.id)) {
+        updates.push({
+          id: discard.id,
+          is_duplicate: true,
+          duplicate_score: pair.score,
+          duplicate_of: keep.id,
+          decision: 'exclude',
+          exclusion_reason: 'Duplicata'
+        });
+        markedDups.add(discard.id);
+      }
+    });
+
+    if (updates.length) {
+      Storage.bulkUpdateArticles(project.id, updates);
+    }
+
+    const updatedProj = Storage.getProject(project.id);
+    updateProjectNavHeader(updatedProj);
+    UI.toast(`✓ +${updates.length} novas duplicatas resolvidas com sucesso!`, 'success');
+    renderDupResults(updatedProj);
   }
 
   async function applyAutoResolverPro(project, opts) {
     const { filePref, matchingPairs } = opts;
+    const currentProject = Storage.getProject(project.id) || project;
+    const duplicateArticleIds = new Set((currentProject.articles || []).filter(a => a.is_duplicate).map(a => a.id));
+
+    // Ensure we only process pairs that are still pending
+    const activePairs = matchingPairs.filter(p =>
+      !duplicateArticleIds.has(p.articleA.id) &&
+      !duplicateArticleIds.has(p.articleB.id)
+    );
+
+    if (!activePairs.length) {
+      UI.toast('Nenhuma nova duplicata pendente nesta faixa.', 'info');
+      return;
+    }
+
     const updates = [];
     const markedDups = new Set();
-    const totalPairs = matchingPairs.length;
+    const totalPairs = activePairs.length;
 
-    // Dedicated progress overlay for zero-freeze user feedback
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.style.zIndex = '99999';
@@ -2223,7 +2446,7 @@ const App = (() => {
       <div class="modal-dialog" style="max-width:440px;text-align:center;padding:32px 24px;border-radius:24px;background:rgba(22,16,44,0.95);border:1px solid rgba(168,85,247,0.3);box-shadow:0 12px 40px rgba(0,0,0,0.6);backdrop-filter:blur(20px);">
         <div class="spinner" style="width:40px;height:40px;border-width:3.5px;border-top-color:var(--purple);margin:0 auto 16px;"></div>
         <h3 style="margin:0 0 6px;font-size:1.15rem;color:var(--text-primary);font-weight:800;">⚡ Resolvendo Duplicatas</h3>
-        <p style="font-size:0.84rem;color:var(--text-secondary);margin:0 0 16px;" id="auto-res-msg">Processando ${totalPairs} pares identificados…</p>
+        <p style="font-size:0.84rem;color:var(--text-secondary);margin:0 0 16px;" id="auto-res-msg">Processando ${totalPairs} novos pares identificados…</p>
         <div style="width:100%;height:8px;background:rgba(255,255,255,0.1);border-radius:9999px;overflow:hidden;">
           <div id="auto-res-bar" style="width:5%;height:100%;background:linear-gradient(90deg,var(--purple),#6366f1);transition:width 0.15s ease;"></div>
         </div>
@@ -2236,10 +2459,9 @@ const App = (() => {
     const bar = document.getElementById('auto-res-bar');
     const msg = document.getElementById('auto-res-msg');
 
-    // Yield execution in batches so browser UI thread stays 100% active
     const batchSize = 1000;
     for (let i = 0; i < totalPairs; i++) {
-      const pair = matchingPairs[i];
+      const pair = activePairs[i];
       const key = `${pair.articleA.id}_${pair.articleB.id}`;
       state.dupResolved.add(key);
 
@@ -2255,7 +2477,6 @@ const App = (() => {
           deleteArticle = pair.articleA;
         }
       } else {
-        // Gisa AI: Keep the one with longer abstract or valid DOI
         const lenA = (pair.articleA.abstract || '').length + (pair.articleA.doi ? 200 : 0);
         const lenB = (pair.articleB.abstract || '').length + (pair.articleB.doi ? 200 : 0);
         if (lenB > lenA) {
@@ -2264,7 +2485,7 @@ const App = (() => {
         }
       }
 
-      if (!markedDups.has(deleteArticle.id)) {
+      if (!markedDups.has(deleteArticle.id) && !duplicateArticleIds.has(deleteArticle.id)) {
         updates.push({
           id: deleteArticle.id,
           is_duplicate: true,
@@ -2285,29 +2506,56 @@ const App = (() => {
     }
 
     if (bar) bar.style.width = '100%';
-    if (msg) msg.textContent = `Gravando ${updates.length} duplicatas no banco local…`;
+    if (msg) msg.textContent = `Gravando ${updates.length} novas duplicatas no banco local…`;
     await new Promise(r => setTimeout(r, 40));
 
-    Storage.bulkUpdateArticles(project.id, updates);
+    if (updates.length) {
+      Storage.bulkUpdateArticles(project.id, updates);
+    }
     overlay.remove();
 
-    UI.toast(`✓ ${updates.length} duplicatas resolvidas com sucesso!`, 'success');
-    renderProject();
+    const updatedProj = Storage.getProject(project.id);
+    updateProjectNavHeader(updatedProj);
+    UI.toast(`✓ +${updates.length} novas duplicatas resolvidas com sucesso!`, 'success');
+    renderDupResults(updatedProj);
   }
 
-  async function autoResolveHighSimilarity(project, pairs, threshold) {
-    const updates = [];
-    UI.toast(`⚡ Resolvendo ${pairs.length} duplicatas…`, 'info');
-    await new Promise(r => setTimeout(r, 40));
+  function confirmResetDuplicates(project) {
+    const duplicatesCount = (project.articles || []).filter(a => a.is_duplicate).length;
+    if (!duplicatesCount) {
+      UI.toast('Não há duplicatas para desfazer neste projeto.', 'info');
+      return;
+    }
 
-    pairs.forEach(pair => {
-      const key = `${pair.articleA.id}_${pair.articleB.id}`;
-      state.dupResolved.add(key);
-      updates.push({ id: pair.articleB.id, is_duplicate: true, duplicate_score: pair.score, duplicate_of: pair.articleA.id, decision: 'exclude', exclusion_reason: 'Duplicata' });
-    });
-    Storage.bulkUpdateArticles(project.id, updates);
-    UI.toast(`✓ ${pairs.length} duplicatas resolvidas automaticamente!`, 'success');
-    renderProject();
+    UI.modal(
+      '🔄 Desfazer Todas as Duplicatas?',
+      `
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <p style="font-size:0.86rem;color:var(--text-secondary);margin:0;line-height:1.45;">
+            Esta ação irá reverter todas as <strong>${duplicatesCount} duplicatas</strong> descartadas neste projeto de volta para a condição de artigos ativos.
+          </p>
+          <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);padding:12px 14px;border-radius:12px;font-size:0.82rem;color:#fca5a5;">
+            ⚠️ Todos os artigos voltarão a ficar disponíveis para triagem e você poderá executar novas detecções de similaridade a qualquer momento.
+          </div>
+        </div>
+      `,
+      [
+        { label: 'Cancelar', style: 'btn-ghost', cb: () => {} },
+        {
+          label: `Sim, Restaurar ${duplicatesCount} Duplicatas`,
+          style: 'btn-danger',
+          cb: () => {
+            const res = Storage.resetProjectDuplicates(project.id);
+            state.dupResolved = new Set();
+            state.dupPairs = [];
+            const updated = Storage.getProject(project.id);
+            updateProjectNavHeader(updated);
+            UI.toast(`✓ ${res.count} artigos duplicados foram restaurados com sucesso!`, 'success');
+            renderDedupTab(updated);
+          }
+        }
+      ]
+    );
   }
 
   function renderDupTab(project) {

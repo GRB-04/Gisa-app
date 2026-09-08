@@ -1472,19 +1472,36 @@ mark.kw-exclude {
 }
 
 .dedup-summary {
-  display: flex; flex-wrap: wrap; gap: 16px; align-items: center;
-  padding: 20px; background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  display: flex; flex-wrap: wrap; gap: 14px; align-items: stretch;
+  padding: 18px 20px; background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-xl); backdrop-filter: blur(16px);
 }
 .dedup-stat-chip {
-  display: flex; flex-direction: column; align-items: center;
-  padding: 12px 24px; border-radius: var(--radius-md);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 12px 18px; border-radius: var(--radius-lg); min-width: 130px;
+  cursor: pointer; transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03);
+  user-select: none; position: relative; text-align: center;
 }
-.dedup-stat-chip span { font-size: 2rem; font-weight: 800; }
-.dedup-stat-chip small { font-size: 0.75rem; color: var(--text-muted); }
-.dedup-stat-chip.high { background: var(--red-bg); color: var(--red); }
-.dedup-stat-chip.medium { background: var(--amber-bg); color: var(--amber); }
-.dedup-actions-top { flex: 1; display: flex; justify-content: flex-end; }
+.dedup-stat-chip:hover {
+  transform: translateY(-2px);
+  border-color: rgba(168,85,247,0.4);
+  background: rgba(255,255,255,0.06);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+}
+.dedup-stat-chip.active {
+  border-color: var(--purple) !important;
+  background: rgba(168,85,247,0.14) !important;
+  box-shadow: 0 0 0 2px var(--purple), 0 8px 24px rgba(168,85,247,0.3) !important;
+  transform: translateY(-1px);
+}
+.dedup-stat-chip span { font-size: 1.85rem; font-weight: 800; line-height: 1.1; margin-bottom: 4px; }
+.dedup-stat-chip small { font-size: 0.73rem; font-weight: 600; color: var(--text-secondary); line-height: 1.25; }
+.dedup-stat-chip.high { color: var(--red); border-color: rgba(239,68,68,0.25); background: rgba(239,68,68,0.06); }
+.dedup-stat-chip.medium { color: var(--amber); border-color: rgba(245,158,11,0.25); background: rgba(245,158,11,0.06); }
+.dedup-stat-chip.manual { color: #60a5fa; border-color: rgba(96,165,250,0.3); background: rgba(96,165,250,0.07); }
+.dedup-stat-chip.resolved { color: var(--green); border-color: rgba(34,197,94,0.3); background: rgba(34,197,94,0.07); }
+.dedup-actions-top { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); }
 
 .dup-pair {
   background: var(--bg-card); border: 1px solid var(--border);

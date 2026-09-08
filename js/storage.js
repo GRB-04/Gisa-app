@@ -675,6 +675,55 @@ const Storage = (() => {
   }
 
   /**
+   * Reset all duplicates of a project back to active non-duplicate state
+   */
+  function resetProjectDuplicates(projectId) {
+    const pIdx = memoryProjects.findIndex(p => p.id === projectId);
+    if (pIdx === -1) return null;
+
+    const resetUpdates = [];
+    memoryProjects[pIdx].articles = (memoryProjects[pIdx].articles || []).map(a => {
+      if (a.is_duplicate || a.duplicate_of || a.exclusion_reason === 'Duplicata') {
+        const updated = {
+          ...a,
+          is_duplicate: false,
+          duplicate_score: null,
+          duplicate_of: null,
+          decision: a.decision === 'exclude' && a.exclusion_reason === 'Duplicata' ? null : a.decision,
+          exclusion_reason: a.exclusion_reason === 'Duplicata' ? null : a.exclusion_reason,
+          sync_status: 'pending',
+          updated_at: new Date().toISOString()
+        };
+        resetUpdates.push(updated);
+        return updated;
+      }
+      return a;
+    });
+
+    memoryProjects[pIdx].stats = recalcStats(memoryProjects[pIdx].articles);
+
+    // Persist in IDB
+    openDB().then(db => {
+      if (!db) return;
+      runTx([STORES.ARTICLES, STORES.PROJECTS], 'readwrite', (tx) => {
+        const aStore = tx.objectStore(STORES.ARTICLES);
+        resetUpdates.forEach(art => aStore.put(art));
+        const pStore = tx.objectStore(STORES.PROJECTS);
+        const pReq = pStore.get(projectId);
+        pReq.onsuccess = () => {
+          if (pReq.result) {
+            pReq.result.stats = memoryProjects[pIdx].stats;
+            pStore.put(pReq.result);
+          }
+        };
+      });
+    });
+
+    queueSyncMutation('articles', 'RESET_DUPLICATES', projectId, { count: resetUpdates.length });
+    return { project: memoryProjects[pIdx], count: resetUpdates.length };
+  }
+
+  /**
    * Delete single article
    */
   function deleteArticle(projectId, articleId) {
@@ -1062,6 +1111,7 @@ const Storage = (() => {
     addArticles,
     updateArticle,
     bulkUpdateArticles,
+    resetProjectDuplicates,
     deleteArticle,
     deleteArticlesBySourceFile,
     createLabel,

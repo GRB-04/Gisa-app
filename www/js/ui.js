@@ -1848,11 +1848,18 @@ const UI = (() => {
   /* ── Systematic Auto Resolver Pro Modal (Gisa Pro) ── */
   function showAutoResolverModal(project, pairs, onConfirm) {
     const sourceFiles = Array.from(new Set(project.articles.map(a => a.source_file).filter(Boolean)));
+    const existingDupsCount = project.articles.filter(a => a.is_duplicate).length;
+    const existingDupIds = new Set(project.articles.filter(a => a.is_duplicate).map(a => a.id));
     let currentThreshold = 97;
     let selectedFile = 'auto';
 
     function calculateImpact(thresh, filePref) {
-      const matchingPairs = pairs.filter(p => p.score >= thresh);
+      // Consider only active pairs where neither article has been discarded yet
+      const matchingPairs = pairs.filter(p =>
+        !existingDupIds.has(p.articleA.id) &&
+        !existingDupIds.has(p.articleB.id) &&
+        p.score >= thresh
+      );
       const toDelete = new Set();
       matchingPairs.forEach(p => {
         if (filePref !== 'auto') {
@@ -1884,8 +1891,8 @@ const UI = (() => {
         <div class="auto-resolver-banner" style="background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.22);border-radius:16px;padding:14px 18px;display:flex;align-items:center;gap:12px;">
           <span style="font-size:1.6rem;">⚡</span>
           <div style="font-size:0.84rem;color:var(--text-secondary);line-height:1.45;">
-            <strong style="color:var(--text-primary);display:block;margin-bottom:2px;font-size:0.9rem;">Resolução Automática Inteligente</strong>
-            O Gisa manterá a versão mais completa de cada artigo (com resumo e DOI) e descartará as cópias duplicadas com 100% de segurança.
+            <strong style="color:var(--text-primary);display:block;margin-bottom:2px;font-size:0.9rem;">Resolução Automática Inteligente (Gisa Pro)</strong>
+            O Gisa preservará sempre o registro mais completo de cada estudo e eliminará as cópias duplicadas com segurança em camadas.
           </div>
         </div>
 
@@ -1893,7 +1900,7 @@ const UI = (() => {
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
             <div>
               <span style="font-size:0.86rem;font-weight:700;color:var(--text-primary);">Nível de Similaridade</span>
-              <p style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">97% (Rigoroso) é o padrão científico para evitar descartes incorretos.</p>
+              <p style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">97% (Rigoroso) · 85% (Moderado) · 65% (Amplo / Abrangente)</p>
             </div>
             <span id="ar-thresh-val" style="font-size:1.25rem;font-weight:800;color:var(--purple);background:rgba(168,85,247,0.15);padding:4px 14px;border-radius:9999px;border:1px solid rgba(168,85,247,0.3);">97%</span>
           </div>
@@ -1929,16 +1936,17 @@ const UI = (() => {
           </select>
         </div>
 
-        <div id="ar-impact-box" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:16px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;">
+        <div id="ar-impact-box" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25);border-radius:16px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
           <div>
-            <span style="font-size:0.72rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.06em;">Resultado</span>
+            <span style="font-size:0.72rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.06em;">Impacto Desta Etapa</span>
             <div style="font-size:0.92rem;font-weight:700;color:var(--text-primary);margin-top:2px;">
-              <span id="ar-impact-dups" style="color:var(--purple);font-size:1.25rem;font-weight:800;">${initialImpact.count}</span> duplicatas serão descartadas
+              +<span id="ar-impact-dups" style="color:var(--purple);font-size:1.35rem;font-weight:800;">${initialImpact.count}</span> novas duplicatas a descartar
             </div>
+            ${existingDupsCount > 0 ? `<small style="font-size:0.75rem;color:var(--text-muted);display:block;margin-top:2px;">(${existingDupsCount} já haviam sido descartadas em etapas anteriores)</small>` : ''}
           </div>
           <div style="text-align:right;">
-            <span style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;">Artigos únicos restantes</span>
-            <div id="ar-impact-unique" style="font-size:1.25rem;font-weight:800;color:var(--green);">${project.articles.length - initialImpact.count}</div>
+            <span style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;">Artigos únicos para triagem</span>
+            <div id="ar-impact-unique" style="font-size:1.35rem;font-weight:800;color:var(--green);">${project.articles.length - existingDupsCount - initialImpact.count}</div>
           </div>
         </div>
       </div>
@@ -1950,10 +1958,14 @@ const UI = (() => {
       [
         { label: 'Cancelar', style: 'btn-ghost', cb: () => {} },
         { 
-          label: `⚡ Resolver ${initialImpact.count} Duplicatas Agora`, 
+          label: initialImpact.count > 0 ? `⚡ Resolver +${initialImpact.count} Novas Duplicatas Agora` : 'Nenhuma nova duplicata nesta faixa', 
           style: 'btn-primary', 
           cb: () => {
             const finalImpact = calculateImpact(currentThreshold, selectedFile);
+            if (finalImpact.count === 0) {
+              UI.toast('Nenhuma nova duplicata pendente nesta faixa de similaridade.', 'info');
+              return;
+            }
             onConfirm({
               threshold: currentThreshold,
               filePref: selectedFile,
@@ -1975,8 +1987,18 @@ const UI = (() => {
       function updateLivePreview() {
         const impact = calculateImpact(currentThreshold, selectedFile);
         if (dupsEl) dupsEl.textContent = impact.count;
-        if (uniqueEl) uniqueEl.textContent = project.articles.length - impact.count;
-        if (confirmBtn) confirmBtn.textContent = `⚡ Resolver ${impact.count} Duplicatas Agora`;
+        if (uniqueEl) uniqueEl.textContent = project.articles.length - existingDupsCount - impact.count;
+        if (confirmBtn) {
+          if (impact.count > 0) {
+            confirmBtn.textContent = `⚡ Resolver +${impact.count} Novas Duplicatas Agora`;
+            confirmBtn.disabled = false;
+            confirmBtn.style.opacity = '1';
+          } else {
+            confirmBtn.textContent = 'Nenhuma nova duplicata nesta faixa';
+            confirmBtn.disabled = true;
+            confirmBtn.style.opacity = '0.5';
+          }
+        }
       }
 
       let debounceTimer = null;
