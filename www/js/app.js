@@ -16,6 +16,9 @@ const App = (() => {
     dupPairs: [],
     dupResolved: new Set(),
     processingDup: false,
+    isDeduplicating: false,
+    dedupScanId: 0,
+    dedupProgress: { pct: 0, phase: 'idle' },
     articleOffset: 0,
     articlePageSize: 20,
     serialIndex: 0,
@@ -46,6 +49,8 @@ const App = (() => {
       }
     }
     state.filter = { decision: 'all', search: '', relevance: 'all', label: null };
+    state.dedupScanId = (state.dedupScanId || 0) + 1; // Gracefully cancel any running dedup scan
+    state.isDeduplicating = false;
     state.dupPairs = [];
     state.dupResolved = new Set();
     state.articleOffset = 0;
@@ -923,7 +928,17 @@ const App = (() => {
       renderProject();
     };
     $$('.tab-btn').forEach(btn => {
-      btn.onclick = () => { state.tab = btn.dataset.tab; renderProjectTab(project); updateTabActive(); };
+      btn.onclick = () => {
+        if (state.tab !== btn.dataset.tab) {
+          if (state.tab === 'dedup' && state.isDeduplicating) {
+            state.dedupScanId = (state.dedupScanId || 0) + 1;
+            state.isDeduplicating = false;
+          }
+          state.tab = btn.dataset.tab;
+          renderProjectTab(project);
+          updateTabActive();
+        }
+      };
     });
 
     renderProjectTab(project);
@@ -934,6 +949,10 @@ const App = (() => {
         if (res && res.recovered) {
           console.log(`[Gisa] Auto-recuperados ${res.total} artigos para ${project.name}!`);
           UI.toast(`Restaurados ${res.total} artigos preservados no banco local!`, 'success');
+          if (state.isDeduplicating) {
+            state.dedupScanId = (state.dedupScanId || 0) + 1;
+            state.isDeduplicating = false;
+          }
           renderProject();
         }
       });
@@ -2030,8 +2049,10 @@ const App = (() => {
       range.oninput = () => {
         state.dupThreshold = parseInt(range.value);
         display.textContent = state.dupThreshold + '%';
-        // Live update action button without full rescan
-        renderDupResults(Storage.getProject(project.id) || project);
+        // Only update results if we already have pairs (do not clear progress UI if scanning)
+        if (state.dupPairs && state.dupPairs.length > 0) {
+          renderDupResults(Storage.getProject(project.id) || project);
+        }
       };
     }
 
@@ -2041,11 +2062,19 @@ const App = (() => {
         state.dupThreshold = val;
         if (range) range.value = val;
         if (display) display.textContent = val + '%';
-        renderDupResults(Storage.getProject(project.id) || project);
+        if (state.dupPairs && state.dupPairs.length > 0) {
+          renderDupResults(Storage.getProject(project.id) || project);
+        }
       };
     });
 
-    $('run-dedup-btn')?.addEventListener('click', () => runDeduplication(project, state.dupThreshold));
+    $('run-dedup-btn')?.addEventListener('click', () => {
+      // Force a clean restart of deduplication
+      state.dedupScanId = (state.dedupScanId || 0) + 1;
+      state.isDeduplicating = false;
+      state.dupPairs = [];
+      runDeduplication(project, state.dupThreshold);
+    });
     
     $('open-auto-resolver-pro-btn')?.addEventListener('click', () => {
       const currentProject = Storage.getProject(project.id) || project;
@@ -2055,18 +2084,52 @@ const App = (() => {
       });
     });
 
-    // If pairs already in state for this project, render directly; else run initial scan
+    // If pairs already in state for this project, render directly;
+    // else if already scanning, maintain active progress UI;
+    // else run initial scan
     if (state.dupPairs && state.dupPairs.length > 0) {
       renderDupResults(project);
+    } else if (state.isDeduplicating) {
+      const results = $('dedup-results');
+      const btn = $('run-dedup-btn');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Analisando…';
+      }
+      if (results) {
+        const pct = Math.max(5, (state.dedupProgress && state.dedupProgress.pct) || 5);
+        const articlesCount = project.articles ? project.articles.length : 0;
+        const textMsg = pct < 35 ? `Indexando ${articlesCount} artigos… (${pct}%)` : `Comparando duplicatas (${pct}%)…`;
+        results.innerHTML = `
+          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:45px 20px;gap:14px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:20px;margin:20px 0;backdrop-filter:blur(12px);">
+            <div class="spinner" style="width:36px;height:36px;border-width:3px;border-top-color:var(--purple);"></div>
+            <div style="font-weight:700;font-size:0.95rem;color:var(--text-primary);" id="dedup-prog-text">
+              ${textMsg}
+            </div>
+            <div style="width:260px;height:7px;background:rgba(255,255,255,0.12);border-radius:9999px;overflow:hidden;">
+              <div id="dedup-prog-bar" style="width:${pct}%;height:100%;background:linear-gradient(90deg, var(--purple), #6366f1);transition:width 0.2s ease;"></div>
+            </div>
+            <small style="color:var(--text-muted);font-size:0.8rem;" id="dedup-prog-detail">${pct}% concluído — interface ativa</small>
+          </div>
+        `;
+      }
     } else {
       runDeduplication(project, state.dupThreshold);
     }
   }
 
   async function runDeduplication(project, threshold) {
+    state.dedupScanId = (state.dedupScanId || 0) + 1;
+    const thisScanId = state.dedupScanId;
+    state.isDeduplicating = true;
+    state.dedupProgress = { pct: 0, phase: 'start' };
+
     const btn = $('run-dedup-btn');
     const results = $('dedup-results');
-    if (!results) return;
+    if (!results) {
+      state.isDeduplicating = false;
+      return;
+    }
 
     if (btn) {
       btn.disabled = true;
@@ -2087,37 +2150,58 @@ const App = (() => {
     `;
 
     await new Promise(r => setTimeout(r, 40));
+    if (thisScanId !== state.dedupScanId) return;
 
     const currentProject = Storage.getProject(project.id) || project;
     const articlesToScan = currentProject.articles || [];
 
-    const pairs = await (Similarity.findDuplicatesAsync
-      ? Similarity.findDuplicatesAsync(articlesToScan, 50, (prog) => {
-          const bar = $('dedup-prog-bar');
-          const text = $('dedup-prog-text');
-          const detail = $('dedup-prog-detail');
-          if (bar) bar.style.width = `${Math.max(5, prog.pct)}%`;
-          if (text) {
-            if (prog.pct < 35) text.textContent = `Indexando ${articlesToScan.length} artigos… (${prog.pct}%)`;
-            else text.textContent = `Comparando duplicatas (${prog.pct}%)…`;
-          }
-          if (detail) {
-            detail.textContent = `${prog.pct}% concluído — interface ativa`;
-          }
-        })
-      : Promise.resolve(Similarity.findDuplicates(articlesToScan, 50)));
+    let maxReportedPct = 0;
+    const isCancelled = () => {
+      return thisScanId !== state.dedupScanId || state.tab !== 'dedup' || state.projectId !== project.id;
+    };
 
-    state.dupPairs = pairs;
-    state.dupResolved = state.dupResolved || new Set();
-    state.dupOffset = 0;
-    state.dupFilter = state.dupFilter || 'pending_all';
+    try {
+      const pairs = await (Similarity.findDuplicatesAsync
+        ? Similarity.findDuplicatesAsync(articlesToScan, 50, (prog) => {
+            if (isCancelled()) return;
+            const pct = Math.max(maxReportedPct, Math.min(100, Math.round(prog.pct || 0)));
+            maxReportedPct = pct;
+            state.dedupProgress = { pct, phase: prog.phase };
 
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = '🔍 Re-analisar Base';
+            const bar = $('dedup-prog-bar');
+            const text = $('dedup-prog-text');
+            const detail = $('dedup-prog-detail');
+            if (bar) bar.style.width = `${Math.max(5, pct)}%`;
+            if (text) {
+              if (pct < 35) text.textContent = `Indexando ${articlesToScan.length} artigos… (${pct}%)`;
+              else text.textContent = `Comparando duplicatas (${pct}%)…`;
+            }
+            if (detail) {
+              detail.textContent = `${pct}% concluído — interface ativa`;
+            }
+          }, isCancelled)
+        : Promise.resolve(Similarity.findDuplicates(articlesToScan, 50)));
+
+      if (isCancelled()) return;
+
+      state.dupPairs = pairs;
+      state.dupResolved = state.dupResolved || new Set();
+      state.dupOffset = 0;
+      state.dupFilter = state.dupFilter || 'pending_all';
+
+      renderDupResults(currentProject);
+    } catch (err) {
+      console.error('[Gisa Dedup Error]', err);
+    } finally {
+      if (thisScanId === state.dedupScanId) {
+        state.isDeduplicating = false;
+        const freshBtn = $('run-dedup-btn');
+        if (freshBtn) {
+          freshBtn.disabled = false;
+          freshBtn.textContent = '🔍 Re-analisar Base';
+        }
+      }
     }
-
-    renderDupResults(currentProject);
   }
 
   function renderDupResults(project) {

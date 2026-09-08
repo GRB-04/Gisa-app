@@ -247,10 +247,11 @@ const Similarity = (() => {
   }
 
   /**
-   * Async Non-Blocking findDuplicates with Progress Reporting
+   * Async Non-Blocking findDuplicates with Progress Reporting & Cancellation
    * Yields to the browser every few milliseconds to keep UI 100% responsive even with 40,000+ articles.
+   * Supports isCancelled callback to gracefully abort obsolete scans immediately.
    */
-  async function findDuplicatesAsync(articles, minScore = 55, onProgress = null) {
+  async function findDuplicatesAsync(articles, minScore = 55, onProgress = null, isCancelled = null) {
     if (!articles || articles.length < 2) return [];
 
     const n = articles.length;
@@ -260,6 +261,15 @@ const Similarity = (() => {
 
     // 1. Pre-process articles in non-blocking batches
     for (let i = 0; i < n; i++) {
+      if (i % 2000 === 0) {
+        if (isCancelled && isCancelled()) return [];
+        if (i > 0) {
+          if (onProgress) onProgress({ phase: 'index', current: i, total: n, pct: Math.round((i / n) * 35) });
+          await new Promise(r => setTimeout(r, 0));
+          if (isCancelled && isCancelled()) return [];
+        }
+      }
+
       const a = articles[i];
       const titleTokens = tokenize(a.title);
       const absTokens = tokenize(a.abstract);
@@ -287,13 +297,9 @@ const Similarity = (() => {
           tokenIndex.get(t).push(i);
         }
       }
-
-      if (i % 2000 === 0 && i > 0) {
-        if (onProgress) onProgress({ phase: 'index', current: i, total: n, pct: Math.round((i / n) * 35) });
-        await new Promise(r => setTimeout(r, 0));
-      }
     }
 
+    if (isCancelled && isCancelled()) return [];
     if (onProgress) onProgress({ phase: 'index', current: n, total: n, pct: 35 });
 
     const pairsMap = new Map();
@@ -348,6 +354,7 @@ const Similarity = (() => {
 
     // Pass 1: Instant DOI duplicates
     for (const indices of doiMap.values()) {
+      if (isCancelled && isCancelled()) return [];
       if (indices.length > 1) {
         for (let x = 0; x < indices.length; x++) {
           for (let y = x + 1; y < indices.length; y++) {
@@ -363,6 +370,7 @@ const Similarity = (() => {
     let lastYield = Date.now();
 
     for (let tIdx = 0; tIdx < totalTokens; tIdx++) {
+      if (tIdx % 200 === 0 && isCancelled && isCancelled()) return [];
       const indices = tokenLists[tIdx];
       // Skip over-represented tokens to prevent combinatorial explosions (> 100 occurrences)
       if (indices.length > 1 && indices.length <= 100) {
@@ -374,9 +382,11 @@ const Similarity = (() => {
       }
 
       if (Date.now() - lastYield > 35) {
+        if (isCancelled && isCancelled()) return [];
         const pct = 35 + Math.round((tIdx / totalTokens) * 65);
         if (onProgress) onProgress({ phase: 'compare', current: tIdx, total: totalTokens, pct: Math.min(99, pct) });
         await new Promise(r => setTimeout(r, 0));
+        if (isCancelled && isCancelled()) return [];
         lastYield = Date.now();
       }
     }
@@ -384,12 +394,14 @@ const Similarity = (() => {
     // Fallback: If small set (<= 500), full scan for high safety
     if (n <= 500) {
       for (let i = 0; i < n; i++) {
+        if (isCancelled && isCancelled()) return [];
         for (let j = i + 1; j < n; j++) {
           evaluatePair(i, j);
         }
       }
     }
 
+    if (isCancelled && isCancelled()) return [];
     if (onProgress) onProgress({ phase: 'done', current: totalTokens, total: totalTokens, pct: 100 });
 
     const pairs = Array.from(pairsMap.values());
