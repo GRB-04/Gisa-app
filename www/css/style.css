@@ -4813,7 +4813,9 @@ input, textarea, [contenteditable="true"] {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
+  flex-wrap: nowrap !important;
+  gap: 12px;
+  padding: 12px 18px;
   background: linear-gradient(90deg, rgba(168, 85, 247, 0.12), rgba(99, 102, 241, 0.05), transparent);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   cursor: pointer;
@@ -4830,10 +4832,12 @@ input, textarea, [contenteditable="true"] {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .thematic-category-tray .tray-title {
-  font-size: 1.02rem;
+  font-size: 0.98rem;
   font-weight: 800;
   color: var(--text-primary);
   letter-spacing: -0.01em;
@@ -4867,6 +4871,30 @@ input, textarea, [contenteditable="true"] {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
+}
+
+.thematic-category-tray .toggle-tray-btn {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  color: var(--text-secondary) !important;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0 !important;
+  transition: all 0.2s ease;
+}
+
+.thematic-category-tray .toggle-tray-btn:hover {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: rgba(168, 85, 247, 0.45) !important;
+  color: #fff !important;
+  transform: scale(1.05);
 }
 
 .thematic-category-tray .tray-body {

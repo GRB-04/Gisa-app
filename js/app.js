@@ -2724,29 +2724,35 @@ const App = (() => {
         <div class="stage-hud-wrapper">
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-              <span style="display:inline-flex;align-items:center;gap:6px;background:${isFinalTab ? 'rgba(245,158,11,0.15)' : 'rgba(34,197,94,0.15)'};color:${isFinalTab ? '#fbbf24' : '#4ade80'};border:1px solid ${isFinalTab ? 'rgba(245,158,11,0.35)' : 'rgba(34,197,94,0.35)'};padding:2px 10px;border-radius:9999px;font-size:0.72rem;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;">
-                ${isFinalTab ? '⭐ Fase 3' : '✅ Fase 2'}
+              <span style="display:inline-flex;align-items:center;gap:6px;background:${isFinalTab ? 'rgba(245,158,11,0.15)' : 'rgba(34,197,94,0.15)'};color:${isFinalTab ? '#fbbf24' : '#4ade80'};border:1px solid ${isFinalTab ? 'rgba(245,158,11,0.35)' : 'rgba(34,197,94,0.35)'};padding:3px 12px;border-radius:9999px;font-size:0.72rem;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;">
+                ${isFinalTab ? '⭐ Fase 3 · Síntese Definitiva' : '📋 Fase 2 · Elegibilidade PRISMA'}
               </span>
-              <h2 style="margin:0;font-size:1.02rem;font-weight:800;color:var(--text-primary);letter-spacing:-0.01em;">
-                ${isFinalTab ? `Seleção Final dos Estudos (${finalSelectedArticles.length})` : `Elegibilidade & Leitura Integral (${includedArticles.length})`}
+              <h2 style="margin:0;font-size:1.05rem;font-weight:800;color:var(--text-primary);letter-spacing:-0.01em;">
+                ${isFinalTab ? `Seleção Final da Revisão (${finalSelectedArticles.length})` : `Elegibilidade & Leitura Integral (${includedArticles.length})`}
               </h2>
-              <span style="font-size:0.76rem;color:var(--text-muted);">
-                ${isFinalTab ? '· Estudos selecionados para síntese e discussão' : '· Confirme a seleção definitiva (⭐) ou exclusão (✗)'}
+              <span style="font-size:0.78rem;color:var(--text-muted);">
+                ${isFinalTab ? '· Estudos confirmados para meta-análise, síntese e redação' : '· Avalie o texto completo e confirme com ⭐ os estudos que entram na Seleção Final'}
               </span>
             </div>
 
             <!-- Quick Navigation Actions -->
-            <div style="display:flex;align-items:center;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
               ${isFinalTab ? `
-                <button class="btn btn-sm btn-ghost" id="art-switch-to-incl-btn" style="border-radius:9999px;border:1px solid rgba(255,255,255,0.18);font-size:0.75rem;padding:4px 12px;color:var(--text-secondary);">
-                  ← Voltar para Incluídos (${includedArticles.length})
+                <button class="btn btn-sm btn-ghost" id="art-switch-to-incl-btn" style="border-radius:9999px;border:1px solid rgba(255,255,255,0.18);font-size:0.75rem;padding:5px 14px;color:var(--text-secondary);">
+                  ← Ver Todos os Incluídos (${includedArticles.length})
+                </button>
+                <button class="btn btn-sm btn-ghost" id="art-go-prisma-btn" style="border-radius:9999px;border:1px solid rgba(168,85,247,0.35);font-size:0.75rem;padding:5px 14px;color:#c084fc;background:rgba(168,85,247,0.08);">
+                  📐 Ver no PRISMA
+                </button>
+                <button class="btn btn-sm btn-primary" id="art-go-export-btn" style="border-radius:9999px;background:linear-gradient(135deg,#a855f7,#6366f1);border:none;font-size:0.75rem;font-weight:700;padding:5px 14px;color:#fff;box-shadow:0 2px 10px rgba(168,85,247,0.3);">
+                  💾 Exportar Síntese
                 </button>
               ` : `
-                <button class="btn btn-sm btn-ghost" id="art-go-screen-btn" style="border-radius:9999px;border:1px solid rgba(255,255,255,0.15);font-size:0.75rem;padding:4px 12px;color:var(--text-secondary);">
-                  🔍 Triagem
+                <button class="btn btn-sm btn-ghost" id="art-go-screen-btn" style="border-radius:9999px;border:1px solid rgba(255,255,255,0.15);font-size:0.75rem;padding:5px 14px;color:var(--text-secondary);">
+                  🔍 Ir para Triagem
                 </button>
                 ${finalSelectedArticles.length > 0 ? `
-                  <button class="btn btn-sm btn-primary" id="art-switch-to-final-btn" style="border-radius:9999px;background:linear-gradient(135deg,#f59e0b,#d97706);border:none;color:#fff;font-weight:700;font-size:0.75rem;padding:4px 14px;box-shadow:0 2px 10px rgba(245,158,11,0.35);">
+                  <button class="btn btn-sm btn-primary" id="art-switch-to-final-btn" style="border-radius:9999px;background:linear-gradient(135deg,#f59e0b,#d97706);border:none;color:#fff;font-weight:700;font-size:0.75rem;padding:5px 16px;box-shadow:0 2px 10px rgba(245,158,11,0.35);">
                     ⭐ Ver Seleção Final (${finalSelectedArticles.length}) →
                   </button>
                 ` : ''}
@@ -2755,27 +2761,40 @@ const App = (() => {
           </div>
 
           <!-- Compact Interactive Metrics Strip -->
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);">
-            <div class="stage-metric-pill ${state.filter.decision === 'include' ? 'active' : ''}" data-metric-decision="include" style="${state.filter.decision === 'include' ? 'background:rgba(34,197,94,0.18);border-color:#22c55e;' : ''}">
-              <span>📋</span>
-              <span style="font-weight:800;color:var(--green);">${includedArticles.length}</span>
-              <span style="color:${state.filter.decision === 'include' ? '#fff' : 'var(--text-muted)'};">Elegíveis</span>
-            </div>
-            <div class="stage-metric-pill ${state.filter.decision === 'final_selected' ? 'active' : ''}" data-metric-decision="final_selected" style="${state.filter.decision === 'final_selected' ? 'background:rgba(245,158,11,0.18);border-color:#f59e0b;' : ''}">
-              <span>⭐</span>
-              <span style="font-weight:800;color:#f59e0b;">${finalSelectedArticles.length}</span>
-              <span style="color:${state.filter.decision === 'final_selected' ? '#fff' : 'var(--text-muted)'};">Seleção Final</span>
-            </div>
-            <div class="stage-metric-pill ${state.filter.decision === 'pending_final' ? 'active' : ''}" data-metric-decision="pending_final" style="${state.filter.decision === 'pending_final' ? 'background:rgba(168,85,247,0.18);border-color:#a855f7;' : ''}">
-              <span>⏳</span>
-              <span style="font-weight:800;color:var(--text-primary);">${pendingFinalArticles.length}</span>
-              <span style="color:${state.filter.decision === 'pending_final' ? '#fff' : 'var(--text-muted)'};">Pendentes</span>
-            </div>
-            <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(168,85,247,0.25);border-radius:9999px;padding:4px 14px;font-size:0.76rem;">
-              <span>🏷️</span>
-              <span style="font-weight:800;color:#c084fc;">${activeCategoriesWithCount.length}</span>
-              <span style="color:var(--text-muted);">Temas de Pesquisa</span>
-            </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:10px;border-top:1px solid rgba(255,255,255,0.06);">
+            ${isFinalTab ? `
+              <div class="stage-metric-pill active" style="background:rgba(245,158,11,0.15);border-color:#f59e0b;">
+                <span>⭐</span>
+                <span style="font-weight:800;color:#f59e0b;">${finalSelectedArticles.length}</span>
+                <span style="color:#fff;">Estudos Definitivos Selecionados</span>
+              </div>
+              <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(168,85,247,0.25);border-radius:9999px;padding:4px 14px;font-size:0.76rem;">
+                <span>🏷️</span>
+                <span style="font-weight:800;color:#c084fc;">${activeCategoriesWithCount.length}</span>
+                <span style="color:var(--text-muted);">Temas Representados</span>
+              </div>
+            ` : `
+              <div class="stage-metric-pill ${state.filter.decision === 'include' ? 'active' : ''}" data-metric-decision="include" style="${state.filter.decision === 'include' ? 'background:rgba(34,197,94,0.18);border-color:#22c55e;' : ''}">
+                <span>📋</span>
+                <span style="font-weight:800;color:var(--green);">${includedArticles.length}</span>
+                <span style="color:${state.filter.decision === 'include' ? '#fff' : 'var(--text-muted)'};">Todos Elegíveis</span>
+              </div>
+              <div class="stage-metric-pill ${state.filter.decision === 'pending_final' ? 'active' : ''}" data-metric-decision="pending_final" style="${state.filter.decision === 'pending_final' ? 'background:rgba(168,85,247,0.18);border-color:#a855f7;' : ''}">
+                <span>⏳</span>
+                <span style="font-weight:800;color:var(--text-primary);">${pendingFinalArticles.length}</span>
+                <span style="color:${state.filter.decision === 'pending_final' ? '#fff' : 'var(--text-muted)'};">Aguardando Avaliação</span>
+              </div>
+              <div class="stage-metric-pill ${state.filter.decision === 'final_selected' ? 'active' : ''}" data-metric-decision="final_selected" style="${state.filter.decision === 'final_selected' ? 'background:rgba(245,158,11,0.18);border-color:#f59e0b;' : ''}">
+                <span>⭐</span>
+                <span style="font-weight:800;color:#f59e0b;">${finalSelectedArticles.length}</span>
+                <span style="color:${state.filter.decision === 'final_selected' ? '#fff' : 'var(--text-muted)'};">Já na Seleção Final</span>
+              </div>
+              <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(168,85,247,0.25);border-radius:9999px;padding:4px 14px;font-size:0.76rem;">
+                <span>🏷️</span>
+                <span style="font-weight:800;color:#c084fc;">${activeCategoriesWithCount.length}</span>
+                <span style="color:var(--text-muted);">Temas de Pesquisa</span>
+              </div>
+            `}
           </div>
         </div>
 
@@ -2823,16 +2842,18 @@ const App = (() => {
 
           <!-- Quick Search with Instant Debounce -->
           <div style="position:relative;flex:1 1 180px;min-width:140px;">
-            <input id="art-search" class="input input-sm" style="width:100%;padding-left:30px;border-radius:9999px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);font-size:0.78rem;color:#fff;height:32px;" placeholder="Buscar nos estudos incluídos…" value="${escapeHtml(state.filter.search || '')}"/>
+            <input id="art-search" class="input input-sm" style="width:100%;padding-left:30px;border-radius:9999px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);font-size:0.78rem;color:#fff;height:32px;" placeholder="${isFinalTab ? 'Buscar nos estudos selecionados…' : 'Buscar nos estudos incluídos…'}" value="${escapeHtml(state.filter.search || '')}"/>
             <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:0.8rem;color:var(--text-muted);pointer-events:none;">🔍</span>
           </div>
 
-          <!-- Status Filter (Auto-triggers on change) -->
-          <select id="art-decision-filter" class="input input-sm select" style="width:auto;min-width:140px;max-width:210px;border-radius:9999px;background:rgba(22,14,44,0.9);border:1px solid rgba(255,255,255,0.12);font-size:0.76rem;color:#e2e8f0;height:32px;flex-shrink:0;">
-            <option value="include" ${state.filter.decision === 'include' ? 'selected' : ''}>📋 Todos Elegíveis (${includedArticles.length})</option>
-            <option value="final_selected" ${state.filter.decision === 'final_selected' ? 'selected' : ''}>⭐ Seleção Final (${finalSelectedArticles.length})</option>
-            <option value="pending_final" ${state.filter.decision === 'pending_final' ? 'selected' : ''}>⏳ Pendentes (${pendingFinalArticles.length})</option>
-          </select>
+          ${!isFinalTab ? `
+            <!-- Status Filter (Only shown in Incluídos tab) -->
+            <select id="art-decision-filter" class="input input-sm select" style="width:auto;min-width:140px;max-width:210px;border-radius:9999px;background:rgba(22,14,44,0.9);border:1px solid rgba(255,255,255,0.12);font-size:0.76rem;color:#e2e8f0;height:32px;flex-shrink:0;">
+              <option value="include" ${state.filter.decision === 'include' ? 'selected' : ''}>📋 Todos Elegíveis (${includedArticles.length})</option>
+              <option value="pending_final" ${state.filter.decision === 'pending_final' ? 'selected' : ''}>⏳ Aguardando Decisão (${pendingFinalArticles.length})</option>
+              <option value="final_selected" ${state.filter.decision === 'final_selected' ? 'selected' : ''}>⭐ Confirmados na Seleção Final (${finalSelectedArticles.length})</option>
+            </select>
+          ` : ''}
 
           <!-- Sort (Auto-triggers on change) -->
           <select id="art-sort" class="input input-sm select" style="width:auto;min-width:120px;max-width:160px;border-radius:9999px;background:rgba(22,14,44,0.9);border:1px solid rgba(255,255,255,0.12);font-size:0.76rem;color:#e2e8f0;height:32px;flex-shrink:0;">
@@ -2852,6 +2873,18 @@ const App = (() => {
     // Bind event handlers
     $('art-go-screen-btn')?.addEventListener('click', () => {
       state.tab = 'screen';
+      renderProjectTab(project);
+      updateTabActive();
+    });
+
+    $('art-go-prisma-btn')?.addEventListener('click', () => {
+      state.tab = 'prisma';
+      renderProjectTab(project);
+      updateTabActive();
+    });
+
+    $('art-go-export-btn')?.addEventListener('click', () => {
+      state.tab = 'export';
       renderProjectTab(project);
       updateTabActive();
     });
@@ -3070,6 +3103,7 @@ const App = (() => {
           slice.forEach(article => {
             const card = UI.renderArticleCard(article, project.keywords, {
               isIncludedTab: true,
+              isFinalTab: isFinalTab,
               onInclude: () => makeDecision(project.id, article.id, 'include'),
               onExclude: () => showFullTextExcludeModal(project, article),
               onMaybe:   () => makeDecision(project.id, article.id, 'maybe'),
@@ -3165,6 +3199,7 @@ const App = (() => {
             slice.forEach(article => {
               const card = UI.renderArticleCard(article, project.keywords, {
                 isIncludedTab: true,
+                isFinalTab: isFinalTab,
                 onInclude: () => makeDecision(project.id, article.id, 'include'),
                 onExclude: () => showFullTextExcludeModal(project, article),
                 onMaybe:   () => makeDecision(project.id, article.id, 'maybe'),
@@ -3231,6 +3266,7 @@ const App = (() => {
     pageArticles.forEach(article => {
       const card = UI.renderArticleCard(article, project.keywords, {
         isIncludedTab: true,
+        isFinalTab: isFinalTab,
         onInclude: () => makeDecision(project.id, article.id, 'include'),
         onExclude: () => showFullTextExcludeModal(project, article),
         onMaybe:   () => makeDecision(project.id, article.id, 'maybe'),

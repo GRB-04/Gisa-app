@@ -144,7 +144,7 @@ const UI = (() => {
 
   /* ── Article Card ────────────────────────────────────── */
   function renderArticleCard(article, keywords, callbacks) {
-    const { onInclude, onExclude, onMaybe, onNote, onDelete, onToggleFinalSelection, onCategories, onFullTextExclude, isIncludedTab } = callbacks;
+    const { onInclude, onExclude, onMaybe, onNote, onDelete, onToggleFinalSelection, onCategories, onFullTextExclude, isIncludedTab, isFinalTab } = callbacks;
     const hasKw = keywords && (Array.isArray(keywords) ? keywords.length > 0 : ((keywords.include && keywords.include.length > 0) || (keywords.exclude && keywords.exclude.length > 0)));
 
     const titleHtml = hasKw
@@ -169,13 +169,30 @@ const UI = (() => {
       ? `<span class="badge badge-purple" title="Possui PDF anexado">📄 PDF</span>`
       : '';
 
-    const finalBadge = article.final_selection
-      ? `<span class="badge" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-weight:700;box-shadow:0 2px 10px rgba(245,158,11,0.4);">⭐ Seleção Definitiva</span>`
-      : (isIncludedTab ? `<span class="badge" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.14);color:var(--text-muted);">⏳ Leitura Integral</span>` : '');
+    let statusBadges = '';
+    if (isIncludedTab || isFinalTab) {
+      if (article.final_selection) {
+        statusBadges += `<span class="badge" style="background:linear-gradient(135deg,rgba(245,158,11,0.22),rgba(217,119,6,0.22));border:1px solid rgba(245,158,11,0.45);color:#fbbf24;font-weight:800;padding:2px 10px;border-radius:9999px;font-size:0.74rem;box-shadow:0 2px 8px rgba(245,158,11,0.2);">⭐ Seleção Final</span>`;
+      } else {
+        statusBadges += `<span class="badge" style="background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#4ade80;font-weight:700;padding:2px 10px;border-radius:9999px;font-size:0.73rem;">📋 Elegível (Texto Integral)</span>`;
+      }
+    } else {
+      statusBadges += decisionLabel(article.decision);
+      if (article.final_selection) {
+        statusBadges += ` <span class="badge" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;font-weight:700;padding:2px 8px;border-radius:9999px;font-size:0.72rem;">⭐ Seleção Final</span>`;
+      }
+    }
 
-    const catBadges = (article.categories || []).map(cat =>
-      `<span class="badge" style="background:rgba(168,85,247,0.18);border:1px solid rgba(168,85,247,0.35);color:#d8b4fe;padding:2px 8px;border-radius:9999px;font-size:0.74rem;font-weight:600;">🏷️ ${escapeHtml(cat)}</span>`
-    ).join(' ');
+    const cats = article.categories || [];
+    let catBadges = '';
+    if (cats.length > 0) {
+      catBadges = cats.slice(0, 2).map(cat =>
+        `<span class="badge" style="background:rgba(168,85,247,0.14);border:1px solid rgba(168,85,247,0.3);color:#d8b4fe;padding:2px 8px;border-radius:9999px;font-size:0.73rem;font-weight:600;">🏷️ ${escapeHtml(cat)}</span>`
+      ).join(' ');
+      if (cats.length > 2) {
+        catBadges += ` <span class="badge btn-cat-action" style="cursor:pointer;background:rgba(168,85,247,0.08);border:1px dashed rgba(168,85,247,0.35);color:#c084fc;padding:2px 7px;border-radius:9999px;font-size:0.72rem;font-weight:700;" title="${escapeHtml(cats.slice(2).join(', '))}">+${cats.length - 2} temas</span>`;
+      }
+    }
 
     const scholarUrl = `https://scholar.google.com/scholar?q=${encodeURIComponent(article.title)}`;
     const doiUrl = article.doi ? `https://doi.org/${article.doi}` : scholarUrl;
@@ -195,25 +212,15 @@ const UI = (() => {
       <div class="article-card-inner">
         <div class="article-card-top" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
           <div class="article-badges" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-            ${relevBadge}${dupBadge}${pdfBadge}${decisionLabel(article.decision)}${finalBadge}${catBadges}${exReasonBadge}
+            ${relevBadge}${dupBadge}${pdfBadge}${statusBadges}${catBadges}${exReasonBadge}
           </div>
           <div class="article-card-top-actions" style="display:flex;align-items:center;gap:6px;margin-left:auto;">
-            ${isIncludedTab ? `
-              <button class="btn btn-sm ${article.final_selection ? 'btn-primary' : 'btn-ghost'} btn-final-top" title="Alternar Seleção Definitiva" style="border-radius:9999px;padding:4px 12px;font-size:0.78rem;font-weight:700;${article.final_selection ? 'background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;' : 'color:#f59e0b;border:1px solid rgba(245,158,11,0.4);'}">
-                ${article.final_selection ? '⭐ Selecionado (Final)' : '☆ Selecionar Definitivo'}
-              </button>
-              <button class="btn btn-sm btn-ghost btn-cat-top" title="Gerenciar Temas / Categorias" style="border-radius:9999px;padding:4px 10px;font-size:0.78rem;color:#c084fc;border:1px solid rgba(168,85,247,0.35);">
-                🏷️ Categorizar
-              </button>
-              <button class="btn btn-sm btn-exclude btn-exclude-top" title="Excluir do estudo na leitura integral" style="border-radius:9999px;padding:4px 10px;font-size:0.78rem;">
-                ✗ Excluir
-              </button>
-            ` : `
+            ${!(isIncludedTab || isFinalTab) ? `
               <button class="btn btn-sm btn-include ${article.decision === 'include' ? 'active' : ''}" data-top-action="include" title="Marcar como Incluído" style="border-radius:9999px;padding:4px 12px;font-size:0.78rem;font-weight:600;">✓ Incluído</button>
               <button class="btn btn-sm btn-maybe ${article.decision === 'maybe' ? 'active' : ''}" data-top-action="maybe" title="Dúvida / Talvez" style="border-radius:9999px;padding:4px 12px;font-size:0.78rem;font-weight:600;">? Talvez</button>
               <button class="btn btn-sm btn-exclude ${article.decision === 'exclude' ? 'active' : ''}" data-top-action="exclude" title="Excluir estudo" style="border-radius:9999px;padding:4px 12px;font-size:0.78rem;font-weight:600;">✗ Excluir</button>
-            `}
-            <span style="font-size:0.75rem;color:var(--text-muted);margin-left:4px;">${article.year ? `📅 ${escapeHtml(article.year)}` : ''}${article.journal ? ` · ${escapeHtml(article.journal)}` : ''}</span>
+            ` : ''}
+            <span style="font-size:0.76rem;color:var(--text-muted);font-weight:600;margin-left:4px;">${article.year ? `📅 ${escapeHtml(article.year)}` : ''}${article.journal ? ` · ${escapeHtml(article.journal)}` : ''}</span>
           </div>
         </div>
         <h4 class="article-title" style="cursor:pointer" title="Clique para abrir detalhes">${titleHtml}</h4>
@@ -225,18 +232,20 @@ const UI = (() => {
           ${abstractDisplay}
         </div>
         ${article.note ? `<div class="article-note">Nota: ${escapeHtml(article.note)}</div>` : ''}
-        <div class="article-footer" style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+        <div class="article-footer" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
           <div class="article-actions-row">
-            ${isIncludedTab ? `
-              <button class="btn btn-sm ${article.final_selection ? 'btn-primary' : 'btn-secondary'} btn-final-action" style="border-radius:9999px;font-weight:700;${article.final_selection ? 'background:linear-gradient(135deg,#f59e0b,#d97706);border-color:#b45309;color:#fff;' : 'border-color:rgba(245,158,11,0.5);color:#f59e0b;background:rgba(245,158,11,0.1);'}">
-                ${article.final_selection ? '✓ Estudo Selecionado Definitivo' : '⭐ Confirmar Seleção Final'}
+            ${(isIncludedTab || isFinalTab) ? `
+              <button class="btn btn-sm ${article.final_selection ? 'btn-primary' : 'btn-ghost'} btn-final-action" style="border-radius:9999px;font-weight:800;font-size:0.78rem;padding:5px 16px;${article.final_selection ? 'background:linear-gradient(135deg,#f59e0b,#d97706);border:none;color:#fff;box-shadow:0 2px 10px rgba(245,158,11,0.35);' : 'background:rgba(245,158,11,0.08);color:#f59e0b;border:1px solid rgba(245,158,11,0.4);'}" title="${article.final_selection ? 'Clique para desmarcar da Seleção Final' : 'Confirmar estudo na Seleção Final da revisão'}">
+                ${article.final_selection ? '⭐ Na Seleção Final' : '☆ Confirmar Seleção Final'}
               </button>
-              <button class="btn btn-sm btn-ghost btn-cat-action" style="border-radius:9999px;border:1px solid rgba(168,85,247,0.35);color:#c084fc;background:rgba(168,85,247,0.08);font-weight:600;">
-                🏷️ Temas (${(article.categories || []).length})
+              <button class="btn btn-sm btn-ghost btn-cat-action" style="border-radius:9999px;border:1px solid rgba(168,85,247,0.35);color:#c084fc;background:rgba(168,85,247,0.06);font-size:0.78rem;font-weight:600;padding:5px 12px;" title="Atribuir temas">
+                🏷️ Temas ${(article.categories && article.categories.length) ? `(${article.categories.length})` : ''}
               </button>
-              <button class="btn btn-sm btn-exclude btn-exclude-action" style="border-radius:9999px;font-weight:600;">
-                ✗ Excluir (Texto Completo)
-              </button>
+              ${!isFinalTab ? `
+                <button class="btn btn-sm btn-exclude btn-exclude-action" style="border-radius:9999px;font-size:0.78rem;font-weight:600;padding:5px 12px;" title="Excluir da leitura integral com justificativa PRISMA">
+                  ✗ Excluir (Texto Completo)
+                </button>
+              ` : ''}
             ` : `
               <button class="btn btn-sm btn-include ${article.decision === 'include' ? 'active' : ''}" data-action="include" title="Incluir" aria-pressed="${article.decision === 'include'}" style="border-radius:9999px;">✓ Incluir</button>
               <button class="btn btn-sm btn-maybe ${article.decision === 'maybe' ? 'active' : ''}" data-action="maybe" title="Talvez" aria-pressed="${article.decision === 'maybe'}" style="border-radius:9999px;">? Talvez</button>
@@ -244,8 +253,8 @@ const UI = (() => {
             `}
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <button class="btn btn-sm ai-analyze-btn" style="border-radius:9999px;background:linear-gradient(135deg,var(--purple-dark),var(--violet));color:white;box-shadow:0 2px 10px var(--purple-glow)" title="Analisar com IA (PICO, Resumo e Chat)">Analisar com IA</button>
-            <button class="btn btn-sm btn-ghost note-btn" style="border-radius:9999px;" title="Adicionar nota">Nota</button>
+            <button class="btn btn-sm ai-analyze-btn" style="border-radius:9999px;background:linear-gradient(135deg,var(--purple-dark),var(--violet));color:white;box-shadow:0 2px 10px var(--purple-glow);font-size:0.76rem;padding:4px 12px;" title="Analisar com IA (PICO, Resumo e Chat)">✨ Analisar com IA</button>
+            <button class="btn btn-sm btn-ghost note-btn" style="border-radius:9999px;font-size:0.76rem;padding:4px 10px;" title="Adicionar nota">📝 Nota</button>
             <a href="${scholarUrl}" target="_blank" rel="noopener noreferrer" style="font-size:0.75rem;color:var(--purple);text-decoration:none;font-weight:600">Scholar ↗</a>
           </div>
         </div>
