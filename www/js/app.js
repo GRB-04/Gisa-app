@@ -358,37 +358,52 @@ const App = (() => {
   function triggerGoogleOAuth2(clientId) {
     const cid = clientId || DEFAULT_GOOGLE_CLIENT_ID;
 
-    // 1. If Google Identity Services (GSI) Token Client is available in browser
-    if (window.google && window.google.accounts && window.google.accounts.oauth2) {
-      try {
-        const tokenClient = google.accounts.oauth2.initTokenClient({
-          client_id: cid,
-          scope: 'email profile openid',
-          prompt: 'select_account',
-          callback: async (tokenResponse) => {
-            if (tokenResponse && tokenResponse.access_token) {
-              await handleGoogleAccessToken(tokenResponse.access_token);
-            } else if (tokenResponse && tokenResponse.error) {
-              UI.toast('Erro no Google OAuth: ' + tokenResponse.error, 'error');
+    const startGSI = () => {
+      if (window.google && window.google.accounts && window.google.accounts.oauth2) {
+        try {
+          const tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: cid,
+            scope: 'email profile openid',
+            prompt: 'select_account',
+            callback: async (tokenResponse) => {
+              if (tokenResponse && tokenResponse.access_token) {
+                await handleGoogleAccessToken(tokenResponse.access_token);
+              } else if (tokenResponse && tokenResponse.error) {
+                UI.toast('Erro no Google OAuth: ' + tokenResponse.error, 'error');
+              }
             }
-          }
-        });
-        tokenClient.requestAccessToken({ prompt: 'select_account' });
-        return;
-      } catch (e) {
-        console.warn('GSI TokenClient falhou, usando redirecionamento:', e);
+          });
+          tokenClient.requestAccessToken({ prompt: 'select_account' });
+          return true;
+        } catch (e) {
+          console.warn('GSI TokenClient falhou, usando redirecionamento:', e);
+        }
       }
-    }
+      return false;
+    };
 
-    // 2. Direct Google OAuth 2.0 Redirect Fallback
-    const redirectUri = window.location.origin + window.location.pathname;
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-      `client_id=${encodeURIComponent(cid)}&` +
-      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-      `response_type=token&` +
-      `scope=email%20profile%20openid&` +
-      `prompt=select_account`;
-    window.location.href = authUrl;
+    if (startGSI()) return;
+
+    // If GSI library is still loading asynchronously, wait up to 2 seconds before fallback
+    UI.toast('Conectando ao Google...', 'info');
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts++;
+      if (startGSI()) {
+        clearInterval(interval);
+      } else if (attempts >= 10) {
+        clearInterval(interval);
+        // Fallback: Direct Google OAuth 2.0 Redirect Fallback
+        const redirectUri = window.location.origin + window.location.pathname;
+        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+          `client_id=${encodeURIComponent(cid)}&` +
+          `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+          `response_type=token&` +
+          `scope=email%20profile%20openid&` +
+          `prompt=select_account`;
+        window.location.href = authUrl;
+      }
+    }, 200);
   }
 
   async function handleGoogleJwtCredential(jwt) {
@@ -408,24 +423,31 @@ const App = (() => {
         avatar: payload.picture || 'https://lh3.googleusercontent.com/a/default-user=s96-c'
       });
 
-      if (typeof SupabaseSync !== 'undefined' && SupabaseSync.isConfigured()) {
-        try {
-          const sb = SupabaseSync.getClient();
-          if (sb && sb.auth && sb.auth.signInWithIdToken) {
-            await sb.auth.signInWithIdToken({
-              provider: 'google',
-              token: jwt
-            });
-          }
-          await SupabaseSync.syncAll();
-        } catch {}
-      }
-
+      // Navigate immediately so the user never faces a frozen screen
       state.view = 'home';
       render();
       UI.toast(`Bem-vindo(a), ${payload.name}! Conectado via Google.`, 'success');
       UI.updateUserProfileNavbarUI();
       UI.updateCloudStatusUI();
+
+      // Cloud sync in background
+      if (typeof SupabaseSync !== 'undefined' && SupabaseSync.isConfigured()) {
+        (async () => {
+          try {
+            const sb = SupabaseSync.getClient();
+            if (sb && sb.auth && sb.auth.signInWithIdToken) {
+              await sb.auth.signInWithIdToken({
+                provider: 'google',
+                token: jwt
+              });
+            }
+            const res = await SupabaseSync.syncAll();
+            if (res && res.success) render();
+          } catch (e) {
+            console.warn('Sync em segundo plano:', e);
+          }
+        })();
+      }
     } catch (err) {
       console.error('Erro ao decodificar credencial do Google:', err);
       UI.toast('Erro ao autenticar com o Google.', 'error');
@@ -449,16 +471,19 @@ const App = (() => {
         avatar: user.picture || 'https://lh3.googleusercontent.com/a/default-user=s96-c'
       });
 
-      // If Supabase is configured, also link to Supabase session
-      if (typeof SupabaseSync !== 'undefined' && SupabaseSync.isConfigured()) {
-        try { await SupabaseSync.syncAll(); } catch {}
-      }
-
+      // Navigate immediately so the user never faces a frozen screen
       state.view = 'home';
       render();
       UI.toast(`Bem-vindo(a), ${user.name}! Login com Google realizado.`, 'success');
       UI.updateUserProfileNavbarUI();
       UI.updateCloudStatusUI();
+
+      // Cloud sync in background
+      if (typeof SupabaseSync !== 'undefined' && SupabaseSync.isConfigured()) {
+        SupabaseSync.syncAll().then(res => {
+          if (res && res.success) render();
+        }).catch(err => console.warn('Sync em segundo plano:', err));
+      }
     } catch (err) {
       UI.toast('Erro ao autenticar com o Google: ' + err.message, 'error');
     }
