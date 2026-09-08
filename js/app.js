@@ -868,6 +868,7 @@ const App = (() => {
     const duplicatesTotal = project.articles ? project.articles.filter(a => a.is_duplicate).length : (project.stats?.duplicates || 0);
     const screenableTotal = project.articles ? project.articles.filter(a => !a.is_duplicate).length : Math.max(0, (project.stats?.total || 0) - duplicatesTotal);
     const includedTotal = project.articles ? project.articles.filter(a => a.decision === 'include' && !a.is_duplicate).length : (project.stats?.included || 0);
+    const finalSelectedTotal = project.articles ? project.articles.filter(a => a.decision === 'include' && !a.is_duplicate && a.final_selection).length : 0;
     const triadosTotal = project.articles ? project.articles.filter(a => a.decision && !a.is_duplicate).length : Math.max(0, screenableTotal - (project.stats?.pending || 0));
 
     const tabs = [
@@ -876,6 +877,7 @@ const App = (() => {
       { id: 'dedup',    icon: '🔄', label: `Duplicatas${duplicatesTotal ? ` (${duplicatesTotal})` : ''}` },
       { id: 'screen',   icon: '🔍', label: `Triagem (${screenableTotal})` },
       { id: 'articles', icon: '✅', label: `Incluídos (${includedTotal})` },
+      { id: 'final',    icon: '⭐', label: `Selecionados (${finalSelectedTotal})` },
       { id: 'prisma',   icon: '📐', label: 'PRISMA 2020' },
       { id: 'stats',    icon: '📊', label: 'Dashboard' },
       { id: 'export',   icon: '💾', label: 'Exportar' },
@@ -950,7 +952,8 @@ const App = (() => {
       case 'upload':   renderUploadTab(project); break;
       case 'dedup':    renderDedupTab(project); break;
       case 'screen':   renderScreenTab(project); break;
-      case 'articles': renderArticlesTab(project); break;
+      case 'articles': renderArticlesTab(project, false); break;
+      case 'final':    renderArticlesTab(project, true); break;
       case 'prisma':   renderPrismaTab(project); break;
       case 'stats':    renderStatsTab(project); break;
       case 'export':   renderExportTab(project); break;
@@ -2314,10 +2317,16 @@ const App = (() => {
   }
 
   // ─── ARTICLES TAB (FASE 2: LEITURA INTEGRAL & SELEÇÃO DEFINITIVA) ───
-  function renderArticlesTab(project) {
+  function renderArticlesTab(project, isFinalTab = false) {
     const content = $('tab-content');
-    if (!state.filter.decision || state.filter.decision === 'all') {
-      state.filter.decision = 'include'; // Default to included articles
+    if (!content) return;
+
+    state.thematicViewMode = state.thematicViewMode || 'trays';
+
+    if (isFinalTab) {
+      state.filter.decision = 'final_selected';
+    } else if (!state.filter.decision || state.filter.decision === 'final_selected') {
+      state.filter.decision = 'include';
     }
     if (!state.filter.category) {
       state.filter.category = 'all';
@@ -2327,36 +2336,68 @@ const App = (() => {
     const includedArticles = articles.filter(a => a.decision === 'include' && !a.is_duplicate);
     const finalSelectedArticles = includedArticles.filter(a => a.final_selection);
     const pendingFinalArticles = includedArticles.filter(a => !a.final_selection);
+
+    // Initial project categories preset
+    const defaultCats = [
+      'Violência no Trabalho',
+      'Violência Escolar',
+      'Violência Virtual',
+      'Violência Doméstica',
+      'Saúde Mental & Psicológica',
+      'Políticas Públicas & Intervenção',
+      'Adolescentes e Jovens'
+    ];
     const projectCategories = Array.from(new Set([
-      ...(project.categories || []),
+      ...(project.categories && project.categories.length ? project.categories : defaultCats),
       ...articles.flatMap(a => a.categories || [])
     ])).filter(Boolean);
 
+    if (!project.categories || !project.categories.length) {
+      Storage.updateProject(project.id, { categories: projectCategories });
+    }
+
+    const currentContextArticles = isFinalTab ? finalSelectedArticles : includedArticles;
+    const uncatCount = currentContextArticles.filter(a => !(a.categories && a.categories.length > 0)).length;
+
     const categoryOptionsHtml = [
-      `<option value="all" ${state.filter.category === 'all' ? 'selected' : ''}>🏷️ Todos os Temas (${includedArticles.length})</option>`,
+      `<option value="all" ${state.filter.category === 'all' ? 'selected' : ''}>🏷️ Todos os Temas (${currentContextArticles.length})</option>`,
       ...projectCategories.map(cat => {
-        const count = includedArticles.filter(a => (a.categories || []).includes(cat)).length;
+        const count = currentContextArticles.filter(a => (a.categories || []).includes(cat)).length;
         return `<option value="${escapeHtml(cat)}" ${state.filter.category === cat ? 'selected' : ''}>${escapeHtml(cat)} (${count})</option>`;
-      })
-    ].join('');
+      }),
+      uncatCount > 0 ? `<option value="__uncat__" ${state.filter.category === '__uncat__' ? 'selected' : ''}>📂 Sem Tema (${uncatCount})</option>` : ''
+    ].filter(Boolean).join('');
 
     content.innerHTML = `
       <div class="articles-tab">
-        <!-- Banner Fase 2 (Liquid Glass) -->
-        <div style="background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.22);border-radius:18px;padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;backdrop-filter:blur(14px);box-shadow:0 4px 20px rgba(0,0,0,0.15);">
+        <!-- Banner Superior (Liquid Glass) -->
+        <div style="background:${isFinalTab ? 'rgba(245,158,11,0.08)' : 'rgba(34,197,94,0.06)'};border:1px solid ${isFinalTab ? 'rgba(245,158,11,0.3)' : 'rgba(34,197,94,0.22)'};border-radius:18px;padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;backdrop-filter:blur(14px);box-shadow:0 4px 20px rgba(0,0,0,0.15);">
           <div>
-            <div style="font-weight:800;font-size:0.95rem;color:var(--text-primary);display:flex;align-items:center;gap:8px;">
-              <span style="font-size:1.2rem;">✅</span>
-              <span>Fase 2: Elegibilidade & Leitura Integral (${includedArticles.length})</span>
+            <div style="font-weight:800;font-size:0.98rem;color:var(--text-primary);display:flex;align-items:center;gap:8px;">
+              <span style="font-size:1.25rem;">${isFinalTab ? '⭐' : '✅'}</span>
+              <span>${isFinalTab ? `Fase 3: Seleção Final dos Estudos (${finalSelectedArticles.length})` : `Fase 2: Elegibilidade & Leitura Integral (${includedArticles.length})`}</span>
             </div>
             <div style="font-size:0.8rem;color:var(--text-secondary);margin-top:4px;line-height:1.45;">
-              Aqui ficam reunidos os estudos aprovados na triagem de resumos. Faça a leitura do texto completo para confirmar a <strong>Seleção Definitiva (⭐)</strong> ou <strong>Excluir com justificativa PRISMA (✗)</strong>, e organize por temas de pesquisa.
+              ${isFinalTab 
+                ? 'Estes são os estudos selecionados em definitivo para compor a síntese da sua revisão sistemática. Organize-os por categorias temáticas para redigir a discussão do seu trabalho.'
+                : 'Aqui ficam reunidos os estudos aprovados na triagem de resumos. Leia o texto completo para confirmar a <strong>Seleção Definitiva (⭐)</strong> ou <strong>Excluir com justificativa PRISMA (✗)</strong>, organizando por temas.'}
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <button class="btn btn-sm btn-ghost" id="art-go-screen-btn" style="border-radius:9999px;border:1px solid rgba(255,255,255,0.18);font-size:0.78rem;">
-              🔍 Ir para Triagem de Resumos →
-            </button>
+            ${isFinalTab ? `
+              <button class="btn btn-sm btn-ghost" id="art-switch-to-incl-btn" style="border-radius:9999px;border:1px solid rgba(255,255,255,0.18);font-size:0.78rem;">
+                ← Voltar para Incluídos (${includedArticles.length})
+              </button>
+            ` : `
+              <button class="btn btn-sm btn-ghost" id="art-go-screen-btn" style="border-radius:9999px;border:1px solid rgba(255,255,255,0.18);font-size:0.78rem;">
+                🔍 Triagem de Resumos →
+              </button>
+              ${finalSelectedArticles.length > 0 ? `
+                <button class="btn btn-sm btn-primary" id="art-switch-to-final-btn" style="border-radius:9999px;background:linear-gradient(135deg,#f59e0b,#d97706);border-color:#b45309;color:#fff;font-weight:700;font-size:0.78rem;">
+                  ⭐ Ver Seleção Final (${finalSelectedArticles.length}) →
+                </button>
+              ` : ''}
+            `}
           </div>
         </div>
 
@@ -2386,35 +2427,72 @@ const App = (() => {
           <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(168,85,247,0.3);border-radius:16px;padding:12px 16px;display:flex;align-items:center;gap:12px;">
             <span style="font-size:1.5rem;">🏷️</span>
             <div>
-              <span style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;letter-spacing:0.05em;">Temas Registrados</span>
+              <span style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;font-weight:700;letter-spacing:0.05em;">Temas de Pesquisa</span>
               <div style="font-size:1.2rem;font-weight:800;color:#c084fc;">${projectCategories.length}</div>
             </div>
           </div>
         </div>
 
-        <!-- Filter Bar -->
-        <div class="articles-filters" style="gap:10px;flex-wrap:wrap;">
-          <input id="art-search" class="input input-sm" style="flex:1;min-width:200px;" placeholder="Buscar por título, resumo, autor ou tema…" value="${escapeHtml(state.filter.search || '')}"/>
+        <!-- Thematic Chips Bar (1-Click Filters & Actions) -->
+        <div class="thematic-chip-bar">
+          <button type="button" class="thematic-chip-item ${state.filter.category === 'all' ? 'active' : ''}" data-chip-cat="all">
+            🌟 Todos (${currentContextArticles.length})
+          </button>
+          ${projectCategories.map(cat => {
+            const count = currentContextArticles.filter(a => (a.categories || []).includes(cat)).length;
+            return `
+              <button type="button" class="thematic-chip-item ${state.filter.category === cat ? 'active' : ''}" data-chip-cat="${escapeHtml(cat)}">
+                🏷️ ${escapeHtml(cat)} (${count})
+              </button>
+            `;
+          }).join('')}
+          ${uncatCount > 0 ? `
+            <button type="button" class="thematic-chip-item ${state.filter.category === '__uncat__' ? 'active' : ''}" data-chip-cat="__uncat__" style="border-style:dashed;">
+              📂 Sem Tema (${uncatCount})
+            </button>
+          ` : ''}
+          <button type="button" class="thematic-chip-item" id="art-chip-add-cat-btn" style="border-color:rgba(168,85,247,0.4);color:#c084fc;font-weight:700;">
+            + Novo Tema
+          </button>
+          <button type="button" class="thematic-chip-item" id="art-chip-auto-cat-btn" style="border-color:rgba(245,158,11,0.4);color:#fbbf24;background:rgba(245,158,11,0.08);font-weight:700;" title="Auto-categorizar artigos analisando termos de títulos e resumos">
+            ✨ Auto-Categorizar
+          </button>
+        </div>
+
+        <!-- Filter & View Controls Bar -->
+        <div class="articles-filters" style="gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
+          <!-- View Switcher -->
+          <div class="thematic-view-switcher">
+            <button type="button" class="thematic-view-btn ${state.thematicViewMode !== 'list' ? 'active' : ''}" id="view-trays-btn" title="Visualização em bandejas temáticas agrupadas">
+              <span>🗂️</span> Agrupado por Temas
+            </button>
+            <button type="button" class="thematic-view-btn ${state.thematicViewMode === 'list' ? 'active' : ''}" id="view-list-btn" title="Visualização em lista simples corrida">
+              <span>📄</span> Lista Simples
+            </button>
+          </div>
+
+          <input id="art-search" class="input input-sm" style="flex:1;min-width:180px;" placeholder="Buscar por título, resumo, autor ou tema…" value="${escapeHtml(state.filter.search || '')}"/>
           
-          <select id="art-decision-filter" class="input input-sm select" style="min-width:180px;">
-            <option value="include" ${state.filter.decision === 'include' ? 'selected' : ''}>📋 Todos os Elegíveis (${includedArticles.length})</option>
-            <option value="final_selected" ${state.filter.decision === 'final_selected' ? 'selected' : ''}>⭐ Apenas Seleção Final (${finalSelectedArticles.length})</option>
-            <option value="pending_final" ${state.filter.decision === 'pending_final' ? 'selected' : ''}>⏳ Pendentes de Leitura (${pendingFinalArticles.length})</option>
-            <option value="maybe" ${state.filter.decision === 'maybe' ? 'selected' : ''}>❓ Talvez (Dúvidas)</option>
-            <option value="exclude" ${state.filter.decision === 'exclude' ? 'selected' : ''}>❌ Excluídos</option>
-            <option value="all" ${state.filter.decision === 'all' ? 'selected' : ''}>Todos os Artigos Únicos</option>
+          <select id="art-decision-filter" class="input input-sm select" style="min-width:170px;">
+            ${isFinalTab ? `
+              <option value="final_selected" selected>⭐ Seleção Final (${finalSelectedArticles.length})</option>
+              <option value="include">📋 Todos os Elegíveis (${includedArticles.length})</option>
+            ` : `
+              <option value="include" ${state.filter.decision === 'include' ? 'selected' : ''}>📋 Todos os Elegíveis (${includedArticles.length})</option>
+              <option value="final_selected" ${state.filter.decision === 'final_selected' ? 'selected' : ''}>⭐ Apenas Seleção Final (${finalSelectedArticles.length})</option>
+              <option value="pending_final" ${state.filter.decision === 'pending_final' ? 'selected' : ''}>⏳ Pendentes de Leitura (${pendingFinalArticles.length})</option>
+              <option value="maybe" ${state.filter.decision === 'maybe' ? 'selected' : ''}>❓ Talvez (Dúvidas)</option>
+              <option value="exclude" ${state.filter.decision === 'exclude' ? 'selected' : ''}>❌ Excluídos</option>
+              <option value="all" ${state.filter.decision === 'all' ? 'selected' : ''}>Todos os Artigos Únicos</option>
+            `}
           </select>
 
-          <select id="art-category-filter" class="input input-sm select" style="min-width:170px;">
+          <select id="art-category-filter" class="input input-sm select" style="min-width:160px;">
             ${categoryOptionsHtml}
           </select>
 
-          <button class="btn btn-sm btn-ghost" id="art-add-cat-btn" style="border-radius:9999px;border:1px solid rgba(168,85,247,0.35);color:#c084fc;font-weight:700;padding:5px 12px;" title="Criar um novo tema / categoria de pesquisa">
-            + Novo Tema
-          </button>
-
-          <select id="art-sort" class="input input-sm select" style="width:140px;">
-            <option value="relevance">Por relevância</option>
+          <select id="art-sort" class="input input-sm select" style="width:130px;">
+            <option value="relevance">Relevância</option>
             <option value="year-desc">Ano (recente)</option>
             <option value="year-asc">Ano (antigo)</option>
             <option value="title">Título A–Z</option>
@@ -2428,14 +2506,52 @@ const App = (() => {
       </div>
     `;
 
+    // Bind event handlers
     $('art-go-screen-btn')?.addEventListener('click', () => {
       state.tab = 'screen';
       renderProjectTab(project);
       updateTabActive();
     });
 
-    $('art-add-cat-btn')?.addEventListener('click', () => {
+    $('art-switch-to-final-btn')?.addEventListener('click', () => {
+      state.tab = 'final';
+      renderProjectTab(project);
+      updateTabActive();
+    });
+
+    $('art-switch-to-incl-btn')?.addEventListener('click', () => {
+      state.tab = 'articles';
+      renderProjectTab(project);
+      updateTabActive();
+    });
+
+    $('art-chip-add-cat-btn')?.addEventListener('click', () => {
       showCategoryModal(project, null);
+    });
+
+    $('art-chip-auto-cat-btn')?.addEventListener('click', () => {
+      autoCategorizeArticles(project);
+    });
+
+    $('view-trays-btn')?.addEventListener('click', () => {
+      state.thematicViewMode = 'trays';
+      renderArticlesTab(project, isFinalTab);
+    });
+
+    $('view-list-btn')?.addEventListener('click', () => {
+      state.thematicViewMode = 'list';
+      renderArticlesTab(project, isFinalTab);
+    });
+
+    // Chips click binding
+    content.querySelectorAll('.thematic-chip-item[data-chip-cat]').forEach(chip => {
+      chip.addEventListener('click', () => {
+        state.filter.category = chip.dataset.chipCat;
+        const catSelect = $('art-category-filter');
+        if (catSelect) catSelect.value = state.filter.category;
+        state.articleOffset = 0;
+        renderArticlesTab(project, isFinalTab);
+      });
     });
 
     $('art-apply-btn').onclick = () => {
@@ -2443,14 +2559,14 @@ const App = (() => {
       state.filter.decision = $('art-decision-filter').value;
       state.filter.category = $('art-category-filter').value;
       state.articleOffset = 0;
-      renderArticlesList(Storage.getProject(state.projectId));
+      renderArticlesList(Storage.getProject(state.projectId), isFinalTab);
     };
     $('art-search').addEventListener('keydown', e => { if (e.key === 'Enter') $('art-apply-btn').click(); });
 
-    renderArticlesList(project);
+    renderArticlesList(project, isFinalTab);
   }
 
-  function renderArticlesList(project) {
+  function renderArticlesList(project, isFinalTab = false) {
     const list = $('articles-list');
     const pag = $('articles-pagination');
     if (!list) return;
@@ -2466,7 +2582,7 @@ const App = (() => {
       );
     }
 
-    if (state.filter.decision === 'final_selected') {
+    if (isFinalTab || state.filter.decision === 'final_selected') {
       articles = articles.filter(a => a.decision === 'include' && !a.is_duplicate && a.final_selection);
     } else if (state.filter.decision === 'pending_final') {
       articles = articles.filter(a => a.decision === 'include' && !a.is_duplicate && !a.final_selection);
@@ -2482,7 +2598,11 @@ const App = (() => {
 
     // Category filter
     if (state.filter.category && state.filter.category !== 'all') {
-      articles = articles.filter(a => (a.categories || []).includes(state.filter.category));
+      if (state.filter.category === '__uncat__') {
+        articles = articles.filter(a => !(a.categories && a.categories.length > 0));
+      } else {
+        articles = articles.filter(a => (a.categories || []).includes(state.filter.category));
+      }
     }
 
     // Sort
@@ -2492,22 +2612,189 @@ const App = (() => {
     else if (sort === 'year-asc') articles.sort((a, b) => (a.year || '').localeCompare(b.year || ''));
     else if (sort === 'title') articles.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'pt-BR'));
 
-    const total = articles.length;
-    const pageSize = state.articlePageSize || 20;
-    const offset = state.articleOffset || 0;
-    const page = articles.slice(offset, offset + pageSize);
-
-    if (!page.length) {
+    if (!articles.length) {
       list.innerHTML = UI.emptyState(
-        '📋',
-        'Nenhum artigo encontrado',
-        state.filter.decision === 'final_selected'
-          ? 'Nenhum artigo foi marcado com <strong>Seleção Definitiva (⭐)</strong> ainda. Clique no botão de estrela dos artigos para adicioná-los à seleção final.'
+        isFinalTab ? '⭐' : '📋',
+        isFinalTab ? 'Nenhum estudo na Seleção Final ainda' : 'Nenhum artigo encontrado',
+        isFinalTab
+          ? 'Nenhum artigo foi marcado com <strong>Seleção Definitiva (⭐)</strong> ainda. Na aba <strong>Incluídos</strong>, clique no botão de estrela para eleger os estudos que irão para a síntese final.'
           : 'Ajuste os filtros de busca ou categorize artigos aprovados.'
       );
       if (pag) pag.innerHTML = '';
       return;
     }
+
+    // ─── THEMATIC TRAYS VIEW (AGRUPADO POR TEMAS) ───────────
+    if (state.thematicViewMode !== 'list') {
+      if (pag) pag.innerHTML = '';
+      list.innerHTML = '';
+
+      const defaultCats = [
+        'Violência no Trabalho',
+        'Violência Escolar',
+        'Violência Virtual',
+        'Violência Doméstica',
+        'Saúde Mental & Psicológica',
+        'Políticas Públicas & Intervenção',
+        'Adolescentes e Jovens'
+      ];
+      const projectCategories = Array.from(new Set([
+        ...(project.categories && project.categories.length ? project.categories : defaultCats),
+        ...articles.flatMap(a => a.categories || [])
+      ])).filter(Boolean);
+
+      const catsToShow = (state.filter.category && state.filter.category !== 'all' && state.filter.category !== '__uncat__')
+        ? [state.filter.category]
+        : projectCategories;
+
+      let renderedTrays = 0;
+
+      catsToShow.forEach(cat => {
+        const catArticles = articles.filter(a => (a.categories || []).includes(cat));
+        if (!catArticles.length) return;
+
+        renderedTrays++;
+        const finalCount = catArticles.filter(a => a.final_selection).length;
+        const tray = document.createElement('div');
+        tray.className = 'thematic-category-tray';
+        tray.id = `tray-${escapeHtml(cat).replace(/\s+/g, '-').toLowerCase()}`;
+
+        tray.innerHTML = `
+          <div class="tray-header">
+            <div class="tray-title-wrap">
+              <span style="font-size:1.35rem;">🏷️</span>
+              <span class="tray-title">${escapeHtml(cat)}</span>
+              <span class="tray-badge-count">${catArticles.length} estudo${catArticles.length !== 1 ? 's' : ''}</span>
+              <span class="tray-badge-final">⭐ ${finalCount} final</span>
+            </div>
+            <div class="tray-actions">
+              ${!isFinalTab && finalCount < catArticles.length ? `
+                <button type="button" class="btn btn-sm btn-ghost select-all-theme-btn" data-theme="${escapeHtml(cat)}" style="border-radius:9999px;font-size:0.75rem;font-weight:700;color:#f59e0b;border:1px solid rgba(245,158,11,0.4);background:rgba(245,158,11,0.06);" title="Selecionar todos os estudos deste tema para a síntese final">
+                  ⭐ Selecionar Todos Deste Tema
+                </button>
+              ` : ''}
+              <button type="button" class="btn btn-sm btn-ghost toggle-tray-btn" title="Expandir ou recolher este tema">
+                <span class="tray-chevron" style="font-size:0.8rem;transition:transform 0.2s;">▼</span>
+              </button>
+            </div>
+          </div>
+          <div class="tray-body"></div>
+        `;
+
+        const trayBody = tray.querySelector('.tray-body');
+        catArticles.forEach(article => {
+          const card = UI.renderArticleCard(article, project.keywords, {
+            isIncludedTab: true,
+            onInclude: () => makeDecision(project.id, article.id, 'include'),
+            onExclude: () => showFullTextExcludeModal(project, article),
+            onMaybe:   () => makeDecision(project.id, article.id, 'maybe'),
+            onNote:    () => showNoteModal(project.id, article),
+            onDelete:  () => {},
+            onToggleFinalSelection: () => toggleFinalSelection(project, article),
+            onCategories: () => showCategoryModal(project, article),
+            onFullTextExclude: () => showFullTextExcludeModal(project, article)
+          });
+          trayBody.appendChild(card);
+        });
+
+        // Header click toggles collapse
+        const header = tray.querySelector('.tray-header');
+        const chevron = tray.querySelector('.tray-chevron');
+        header.addEventListener('click', (e) => {
+          if (e.target.closest('.select-all-theme-btn')) return;
+          const isCollapsed = trayBody.classList.toggle('collapsed');
+          chevron.style.transform = isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+        });
+
+        // Select all button
+        const selAllBtn = tray.querySelector('.select-all-theme-btn');
+        if (selAllBtn) {
+          selAllBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectAllInTheme(project, cat);
+          });
+        }
+
+        list.appendChild(tray);
+      });
+
+      // Tray for Uncategorized Articles
+      if (state.filter.category === 'all' || state.filter.category === '__uncat__') {
+        const uncatArticles = articles.filter(a => !(a.categories && a.categories.length > 0));
+        if (uncatArticles.length > 0) {
+          renderedTrays++;
+          const finalCount = uncatArticles.filter(a => a.final_selection).length;
+          const uncatTray = document.createElement('div');
+          uncatTray.className = 'thematic-category-tray uncategorized';
+
+          uncatTray.innerHTML = `
+            <div class="tray-header" style="background:linear-gradient(90deg,rgba(255,255,255,0.06),transparent);">
+              <div class="tray-title-wrap">
+                <span style="font-size:1.35rem;">📂</span>
+                <span class="tray-title">Geral / Aguardando Tema</span>
+                <span class="tray-badge-count" style="background:rgba(255,255,255,0.08);color:var(--text-secondary);border-color:rgba(255,255,255,0.15);">${uncatArticles.length} estudos</span>
+                <span class="tray-badge-final">⭐ ${finalCount} final</span>
+              </div>
+              <div class="tray-actions">
+                <button type="button" class="btn btn-sm btn-ghost trigger-auto-cat-btn" style="border-radius:9999px;font-size:0.75rem;font-weight:700;color:#fbbf24;border:1px solid rgba(245,158,11,0.35);" title="Auto-categorizar artigos analisando termos de títulos e resumos">
+                  ✨ Auto-Categorizar
+                </button>
+                <button type="button" class="btn btn-sm btn-ghost toggle-tray-btn">
+                  <span class="tray-chevron" style="font-size:0.8rem;transition:transform 0.2s;">▼</span>
+                </button>
+              </div>
+            </div>
+            <div class="tray-body">
+              <div style="font-size:0.82rem;color:var(--text-muted);padding:8px 12px;background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.12);border-radius:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                <span>💡 Estes artigos foram aprovados na triagem, mas ainda não possuem temas atribuídos. Clique em <strong>🏷️ Categorizar</strong> no cartão ou use a <strong>Auto-Categorização</strong>.</span>
+              </div>
+            </div>
+          `;
+
+          const uncatBody = uncatTray.querySelector('.tray-body');
+          uncatArticles.forEach(article => {
+            const card = UI.renderArticleCard(article, project.keywords, {
+              isIncludedTab: true,
+              onInclude: () => makeDecision(project.id, article.id, 'include'),
+              onExclude: () => showFullTextExcludeModal(project, article),
+              onMaybe:   () => makeDecision(project.id, article.id, 'maybe'),
+              onNote:    () => showNoteModal(project.id, article),
+              onDelete:  () => {},
+              onToggleFinalSelection: () => toggleFinalSelection(project, article),
+              onCategories: () => showCategoryModal(project, article),
+              onFullTextExclude: () => showFullTextExcludeModal(project, article)
+            });
+            uncatBody.appendChild(card);
+          });
+
+          const header = uncatTray.querySelector('.tray-header');
+          const chevron = uncatTray.querySelector('.tray-chevron');
+          header.addEventListener('click', (e) => {
+            if (e.target.closest('.trigger-auto-cat-btn')) return;
+            const isCollapsed = uncatBody.classList.toggle('collapsed');
+            chevron.style.transform = isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+          });
+
+          uncatTray.querySelector('.trigger-auto-cat-btn')?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            autoCategorizeArticles(project);
+          });
+
+          list.appendChild(uncatTray);
+        }
+      }
+
+      if (renderedTrays === 0) {
+        list.innerHTML = UI.emptyState('🏷️', 'Nenhum artigo nesta categoria', 'Selecione outra categoria ou clique em "Todos os Temas".');
+      }
+      return;
+    }
+
+    // ─── FLAT LIST VIEW ────────────────────────────────────
+    const total = articles.length;
+    const pageSize = state.articlePageSize || 20;
+    const offset = state.articleOffset || 0;
+    const page = articles.slice(offset, offset + pageSize);
 
     list.innerHTML = '';
     page.forEach(article => {
@@ -2531,7 +2818,7 @@ const App = (() => {
         const prev = document.createElement('button');
         prev.className = 'btn btn-ghost btn-sm';
         prev.textContent = '← Anterior';
-        prev.onclick = () => { state.articleOffset -= pageSize; renderArticlesList(Storage.getProject(state.projectId)); };
+        prev.onclick = () => { state.articleOffset -= pageSize; renderArticlesList(Storage.getProject(state.projectId), isFinalTab); };
         pag.appendChild(prev);
       }
       const info = document.createElement('span');
@@ -2542,10 +2829,97 @@ const App = (() => {
         const next = document.createElement('button');
         next.className = 'btn btn-ghost btn-sm';
         next.textContent = 'Próximo →';
-        next.onclick = () => { state.articleOffset += pageSize; renderArticlesList(Storage.getProject(state.projectId)); };
+        next.onclick = () => { state.articleOffset += pageSize; renderArticlesList(Storage.getProject(state.projectId), isFinalTab); };
         pag.appendChild(next);
       }
     }
+  }
+
+  function selectAllInTheme(project, categoryName) {
+    const articles = (project.articles || []).filter(a =>
+      a.decision === 'include' && !a.is_duplicate && (a.categories || []).includes(categoryName)
+    );
+    if (!articles.length) return;
+
+    articles.forEach(a => {
+      if (!a.final_selection) {
+        Storage.updateArticle(project.id, a.id, { final_selection: true });
+      }
+    });
+
+    UI.toast(`⭐ Todos os ${articles.length} estudos de "${categoryName}" foram adicionados à Seleção Final!`, 'success');
+    updateProjectNavHeader(Storage.getProject(project.id));
+    renderArticlesTab(Storage.getProject(project.id), state.tab === 'final');
+  }
+
+  function autoCategorizeArticles(project) {
+    const articles = project.articles || [];
+    const included = articles.filter(a => a.decision === 'include' && !a.is_duplicate);
+    if (!included.length) {
+      UI.toast('Nenhum artigo incluído para categorizar.', 'info');
+      return;
+    }
+
+    const defaultCats = [
+      'Violência no Trabalho',
+      'Violência Escolar',
+      'Violência Virtual',
+      'Violência Doméstica',
+      'Saúde Mental & Psicológica',
+      'Políticas Públicas & Intervenção',
+      'Adolescentes e Jovens'
+    ];
+    let allCats = Array.from(new Set([
+      ...(project.categories && project.categories.length ? project.categories : defaultCats),
+      ...articles.flatMap(a => a.categories || [])
+    ])).filter(Boolean);
+
+    Storage.updateProject(project.id, { categories: allCats });
+
+    const keywordRules = {
+      'Violência Escolar': ['escola', 'escolar', 'alunos', 'aluno', 'professores', 'professor', 'bullying', 'estudante', 'estudantes', 'colégio', 'school', 'student', 'students', 'peer', 'educação infantil', 'ensino fundamental', 'ensino médio'],
+      'Violência no Trabalho': ['trabalho', 'trabalhador', 'trabalhadores', 'ocupacional', 'assédio moral', 'ambiente de trabalho', 'empresa', 'organização', 'laboral', 'workplace', 'worker', 'workers', 'occupational', 'job', 'employment', 'servidor', 'enfermagem', 'médicos'],
+      'Violência Virtual': ['virtual', 'cyber', 'ciber', 'internet', 'online', 'redes sociais', 'mídia social', 'digital', 'cyberbullying', 'whatsapp', 'redes', 'eletrônica', 'smartphones'],
+      'Violência Doméstica': ['doméstica', 'familiar', 'cônjuge', 'parceiro', 'lar', 'gênero', 'mulheres', 'feminicídio', 'esposa', 'namorado', 'intimate partner', 'domestic', 'family', 'home', 'gender'],
+      'Saúde Mental & Psicológica': ['ansiedade', 'depressão', 'estresse', 'psicológico', 'psicologia', 'trauma', 'suicídio', 'sofrimento', 'burnout', 'mental health', 'psychological', 'anxiety', 'depression'],
+      'Políticas Públicas & Intervenção': ['prevenção', 'intervenção', 'programa', 'política pública', 'capacitação', 'treinamento', 'terapia', 'interventions', 'prevention', 'program', 'protocolo', 'leis', 'legislação'],
+      'Adolescentes e Jovens': ['adolescente', 'adolescentes', 'jovem', 'jovens', 'juventude', 'infância', 'criança', 'adolescence', 'youth', 'teen', 'teenager', 'children']
+    };
+
+    let categorizedCount = 0;
+
+    included.forEach(art => {
+      const text = `${art.title || ''} ${art.abstract || ''} ${(art.keywords || []).join(' ')}`.toLowerCase();
+      const current = new Set(art.categories || []);
+      const prevSize = current.size;
+
+      allCats.forEach(cat => {
+        const rules = keywordRules[cat];
+        if (rules && rules.some(kw => text.includes(kw.toLowerCase()))) {
+          current.add(cat);
+        } else {
+          // Generic fallback: check if words from the category title appear in the text
+          const catWords = cat.toLowerCase().split(/\s+/).filter(w => w.length > 3 && !['para', 'com', 'dos', 'das', 'sobre'].includes(w));
+          if (catWords.length && catWords.some(w => text.includes(w))) {
+            current.add(cat);
+          }
+        }
+      });
+
+      if (current.size > prevSize) {
+        art.categories = Array.from(current);
+        Storage.updateArticle(project.id, art.id, { categories: art.categories });
+        categorizedCount++;
+      }
+    });
+
+    if (categorizedCount > 0) {
+      UI.toast(`✨ Sucesso! ${categorizedCount} artigos foram auto-categorizados por temas!`, 'success');
+    } else {
+      UI.toast('Artigos já estavam categorizados ou nenhum novo termo foi associado.', 'info');
+    }
+
+    renderArticlesTab(Storage.getProject(project.id), state.tab === 'final');
   }
 
   function toggleFinalSelection(project, article) {
@@ -2558,19 +2932,25 @@ const App = (() => {
       newVal ? '⭐ Estudo confirmado na Seleção Definitiva da revisão!' : 'Seleção definitiva desmarcada.',
       'success'
     );
-    renderArticlesTab(Storage.getProject(project.id));
+    updateProjectNavHeader(Storage.getProject(project.id));
+    renderArticlesTab(Storage.getProject(project.id), state.tab === 'final');
   }
 
   function showCategoryModal(project, article) {
     const currentCats = new Set((article && article.categories) || []);
-    let allProjectCats = Array.from(new Set([
-      ...(project.categories || []),
-      'Violência Doméstica',
+    const defaultCats = [
       'Violência no Trabalho',
+      'Violência Escolar',
+      'Violência Virtual',
+      'Violência Doméstica',
       'Saúde Mental & Psicológica',
       'Políticas Públicas & Intervenção',
       'Adolescentes e Jovens'
-    ]));
+    ];
+    let allProjectCats = Array.from(new Set([
+      ...(project.categories && project.categories.length ? project.categories : defaultCats),
+      ...((project.articles || []).flatMap(a => a.categories || []))
+    ])).filter(Boolean);
 
     function buildChipsHtml() {
       return allProjectCats.map(cat => {
@@ -2586,7 +2966,7 @@ const App = (() => {
     const bodyHtml = `
       <div style="display:flex;flex-direction:column;gap:16px;">
         <p style="font-size:0.84rem;color:var(--text-secondary);margin:0;line-height:1.5;">
-          ${article ? 'Atribua temas a este artigo para organizar a síntese da revisão por categorias temáticas (ex: <em>Violência Doméstica</em>, <em>Violência no Trabalho</em>).' : 'Crie novos temas temáticos para organizar e filtrar os estudos na revisão.'}
+          ${article ? 'Atribua temas a este artigo para organizar a síntese da revisão por categorias temáticas (ex: <em>Violência no Trabalho</em>, <em>Violência Escolar</em>).' : 'Crie novos temas temáticos para organizar e filtrar os estudos na revisão.'}
         </p>
 
         ${article ? `
@@ -2624,7 +3004,7 @@ const App = (() => {
           }
           Storage.updateProject(project.id, { categories: allProjectCats });
           UI.toast('✓ Categorias temáticas salvas com sucesso!', 'success');
-          renderArticlesTab(Storage.getProject(project.id));
+          renderArticlesTab(Storage.getProject(project.id), state.tab === 'final');
         }
       }
     ]);
@@ -2665,7 +3045,7 @@ const App = (() => {
 
       addBtn?.addEventListener('click', addNewCat);
       input?.addEventListener('keydown', e => { if (e.key === 'Enter') addNewCat(); });
-    }, 40);
+    }, 50);
   }
 
   function showFullTextExcludeModal(project, article) {
@@ -3209,6 +3589,7 @@ Gerado por Gisa · ${date}
     const duplicatesTotal = p.articles ? p.articles.filter(a => a.is_duplicate).length : (p.stats?.duplicates || 0);
     const screenableTotal = p.articles ? p.articles.filter(a => !a.is_duplicate).length : Math.max(0, (p.stats?.total || 0) - duplicatesTotal);
     const includedTotal = p.articles ? p.articles.filter(a => a.decision === 'include' && !a.is_duplicate).length : (p.stats?.included || 0);
+    const finalSelectedTotal = p.articles ? p.articles.filter(a => a.decision === 'include' && !a.is_duplicate && a.final_selection).length : 0;
     const triadosTotal = p.articles ? p.articles.filter(a => a.decision && !a.is_duplicate).length : Math.max(0, screenableTotal - (p.stats?.pending || 0));
 
     // Update mini progress text in navbar
@@ -3221,6 +3602,11 @@ Gerado por Gisa · ${date}
     const tabArticles = document.querySelector('.tab-btn[data-tab="articles"] .tab-label');
     if (tabArticles) {
       tabArticles.textContent = `Incluídos (${includedTotal})`;
+    }
+
+    const tabFinal = document.querySelector('.tab-btn[data-tab="final"] .tab-label');
+    if (tabFinal) {
+      tabFinal.textContent = `Selecionados (${finalSelectedTotal})`;
     }
 
     const tabScreen = document.querySelector('.tab-btn[data-tab="screen"] .tab-label');

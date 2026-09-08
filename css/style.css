@@ -4550,3 +4550,178 @@ input, textarea, [contenteditable="true"] {
   margin-bottom: 0.85em;
 }
 
+/* ─── Thematic Categories System (Apple iOS 26 Liquid Glass) ──────── */
+.thematic-category-tray {
+  background: rgba(25, 16, 48, 0.45);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(168, 85, 247, 0.22);
+  border-radius: var(--ios26-squircle);
+  margin-bottom: 20px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.45);
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.thematic-category-tray:hover {
+  border-color: rgba(168, 85, 247, 0.42);
+  box-shadow: 0 12px 40px -4px rgba(168, 85, 247, 0.15), 0 8px 32px -4px rgba(0, 0, 0, 0.5);
+}
+
+.thematic-category-tray.uncategorized {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(18, 12, 36, 0.35);
+}
+
+.thematic-category-tray.uncategorized:hover {
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.tray-header {
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+  background: linear-gradient(90deg, rgba(168, 85, 247, 0.08) 0%, transparent 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  transition: background var(--transition);
+}
+
+.tray-header:hover {
+  background: linear-gradient(90deg, rgba(168, 85, 247, 0.15) 0%, rgba(255, 255, 255, 0.02) 100%);
+}
+
+.tray-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tray-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: -0.015em;
+}
+
+.tray-badge-count {
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: rgba(168, 85, 247, 0.18);
+  color: var(--violet);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+}
+
+.tray-badge-final {
+  font-size: 0.76rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: rgba(245, 158, 11, 0.18);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tray-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tray-body {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: max-height 0.3s ease;
+}
+
+.tray-body.collapsed {
+  display: none;
+}
+
+.thematic-view-switcher {
+  display: inline-flex;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-full);
+  padding: 3px;
+  gap: 2px;
+}
+
+.thematic-view-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.thematic-view-btn.active {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.35), rgba(99, 102, 241, 0.35));
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(168, 85, 247, 0.25);
+  border: 1px solid rgba(168, 85, 247, 0.5);
+}
+
+.thematic-chip-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 6px 2px;
+  margin-bottom: 14px;
+  scrollbar-width: thin;
+}
+
+.thematic-chip-item {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all var(--transition);
+}
+
+.thematic-chip-item:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(168, 85, 247, 0.4);
+  color: #fff;
+}
+
+.thematic-chip-item.active {
+  background: linear-gradient(135deg, #a855f7, #6366f1);
+  color: #fff;
+  border-color: #c084fc;
+  box-shadow: 0 2px 12px rgba(168, 85, 247, 0.35);
+}
+
+
