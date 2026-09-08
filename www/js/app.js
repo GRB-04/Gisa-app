@@ -604,7 +604,7 @@ const App = (() => {
           <div class="feature-item"><span>🔒</span><p><strong>Auditabilidade</strong><br>Registro completo de decisões</p></div>
           <div class="feature-item"><span>👁️</span><p><strong>Modo Cego</strong><br>Triagem sem viés de seleção</p></div>
           <div class="feature-item"><span>📊</span><p><strong>Fluxo PRISMA</strong><br>Gráficos % e tabela automatizada</p></div>
-          <div class="feature-item"><span>🔄</span><p><strong>Auto-Deduplicação</strong><br>Detecção por % de similaridade</p></div>
+          <div class="feature-item"><span>🔄</span><p><strong>Deduplicação</strong><br>Detecção por % de similaridade</p></div>
           <div class="feature-item"><span>⌨️</span><p><strong>Atalhos (Hotkeys)</strong><br>Triagem rápida via teclas I, E, M</p></div>
           <div class="feature-item"><span>🤖</span><p><strong>Assistente de IA</strong><br>Destaque de termos no resumo</p></div>
         </div>

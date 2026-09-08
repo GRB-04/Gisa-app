@@ -4151,9 +4151,8 @@ input, textarea, [contenteditable="true"] {
   font-size: 0.82rem;
   display: block;
   margin-bottom: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  line-height: 1.25;
 }
 
 @media (max-width: 1024px) {
