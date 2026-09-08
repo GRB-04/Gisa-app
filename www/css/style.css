@@ -2889,10 +2889,32 @@ textarea.input { resize: vertical; min-height: 100px; }
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  padding: 14px 16px;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  padding: 8px 14px;
+  background: rgba(22, 14, 44, 0.75);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(168, 85, 247, 0.22);
+  border-radius: var(--radius-full);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+
+.articles-filters .input {
+  width: auto;
+  border-radius: var(--radius-full);
+}
+
+.articles-filters input.input {
+  flex: 1 1 180px;
+  min-width: 140px;
+  border-radius: var(--radius-full);
+}
+
+.articles-filters select.input {
+  width: auto !important;
+  min-width: 130px;
+  max-width: 220px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-full);
 }
 
 /* ── Keywords Tag Actions ───────────────────────────────────── */
@@ -4707,9 +4729,14 @@ input, textarea, [contenteditable="true"] {
   align-items: center;
   gap: 8px;
   overflow-x: auto;
-  padding: 6px 2px;
-  margin-bottom: 14px;
-  scrollbar-width: thin;
+  white-space: nowrap;
+  padding: 6px 2px 10px 2px;
+  margin-bottom: 8px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.thematic-chip-bar::-webkit-scrollbar {
+  display: none;
 }
 
 .thematic-chip-item {
@@ -4725,20 +4752,177 @@ input, textarea, [contenteditable="true"] {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  transition: all var(--transition);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+  user-select: none;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .thematic-chip-item:hover {
-  background: rgba(255, 255, 255, 0.09);
-  border-color: rgba(168, 85, 247, 0.4);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(168, 85, 247, 0.5);
   color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 
 .thematic-chip-item.active {
   background: linear-gradient(135deg, #a855f7, #6366f1);
   color: #fff;
   border-color: #c084fc;
-  box-shadow: 0 2px 12px rgba(168, 85, 247, 0.35);
+  box-shadow: 0 3px 14px rgba(168, 85, 247, 0.45);
 }
+
+.thematic-chip-item .chip-counter {
+  background: rgba(0, 0, 0, 0.28);
+  border-radius: var(--radius-full);
+  padding: 1px 7px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   LIQUID GLASS THEMATIC TRAYS (FASE 2 & 3 BANDEJAS)
+   ══════════════════════════════════════════════════════════════ */
+
+.thematic-category-tray {
+  background: rgba(18, 12, 38, 0.65);
+  border: 1px solid rgba(168, 85, 247, 0.18);
+  border-radius: 20px;
+  margin-bottom: 18px;
+  overflow: hidden;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  transition: all 0.25s ease;
+}
+
+.thematic-category-tray:hover {
+  border-color: rgba(168, 85, 247, 0.35);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+}
+
+.thematic-category-tray.uncategorized {
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.thematic-category-tray .tray-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: linear-gradient(90deg, rgba(168, 85, 247, 0.12), rgba(99, 102, 241, 0.05), transparent);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s ease;
+}
+
+.thematic-category-tray .tray-header:hover {
+  background: linear-gradient(90deg, rgba(168, 85, 247, 0.2), rgba(99, 102, 241, 0.1), transparent);
+}
+
+.thematic-category-tray .tray-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.thematic-category-tray .tray-title {
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.thematic-category-tray .tray-badge-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  border-radius: var(--radius-full);
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #d8b4fe;
+}
+
+.thematic-category-tray .tray-badge-final {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: var(--radius-full);
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #fbbf24;
+}
+
+.thematic-category-tray .tray-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.thematic-category-tray .tray-body {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: all 0.3s ease;
+}
+
+.thematic-category-tray .tray-body.collapsed {
+  display: none;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   STAGE HUD & METRIC PILLS
+   ══════════════════════════════════════════════════════════════ */
+
+.stage-hud-wrapper {
+  background: rgba(22, 14, 44, 0.78);
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  border-radius: 20px;
+  padding: 14px 20px;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stage-metric-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-full);
+  padding: 4px 14px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.stage-metric-pill:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.stage-metric-pill.active {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
 
 
