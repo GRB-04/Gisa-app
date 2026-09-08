@@ -2520,10 +2520,11 @@ const UI = (() => {
           </div>
           <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
             <input type="range" id="ar-thresh-slider" min="50" max="100" value="97" style="flex:1;min-width:180px;cursor:pointer;accent-color:var(--purple);" />
-            <div style="display:flex;gap:6px;">
-              <button class="btn btn-sm btn-ghost ar-preset-btn" data-val="97" style="border-radius:9999px;padding:4px 12px;font-size:0.75rem;font-weight:600;border:1px solid rgba(255,255,255,0.12);">97% (Estrito)</button>
-              <button class="btn btn-sm btn-ghost ar-preset-btn" data-val="85" style="border-radius:9999px;padding:4px 12px;font-size:0.75rem;font-weight:600;border:1px solid rgba(255,255,255,0.12);">85%</button>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <button class="btn btn-sm btn-primary ar-preset-btn" data-val="97" style="border-radius:9999px;padding:4px 12px;font-size:0.75rem;font-weight:600;">97% (Estrito)</button>
+              <button class="btn btn-sm btn-ghost ar-preset-btn" data-val="85" style="border-radius:9999px;padding:4px 12px;font-size:0.75rem;font-weight:600;border:1px solid rgba(255,255,255,0.12);">85% (Moderado)</button>
               <button class="btn btn-sm btn-ghost ar-preset-btn" data-val="65" style="border-radius:9999px;padding:4px 12px;font-size:0.75rem;font-weight:600;border:1px solid rgba(255,255,255,0.12);">65% (Amplo)</button>
+              <button class="btn btn-sm btn-ghost ar-preset-btn" data-val="55" style="border-radius:9999px;padding:4px 12px;font-size:0.75rem;font-weight:600;border:1px solid rgba(255,255,255,0.12);">55% (Todos)</button>
             </div>
           </div>
         </div>
@@ -2615,11 +2616,18 @@ const UI = (() => {
         }
       }
 
+      function syncArPresets(val) {
+        document.querySelectorAll('.ar-preset-btn').forEach(b => {
+          b.className = parseInt(b.dataset.val) === val ? 'btn btn-sm btn-primary ar-preset-btn' : 'btn btn-sm btn-ghost ar-preset-btn';
+        });
+      }
+
       let debounceTimer = null;
       if (slider) {
         slider.oninput = () => {
           currentThreshold = parseInt(slider.value);
           if (displayVal) displayVal.textContent = currentThreshold + '%';
+          syncArPresets(currentThreshold);
           clearTimeout(debounceTimer);
           debounceTimer = setTimeout(updateLivePreview, 60);
         };
@@ -2631,6 +2639,7 @@ const UI = (() => {
           currentThreshold = val;
           if (slider) slider.value = val;
           if (displayVal) displayVal.textContent = val + '%';
+          syncArPresets(val);
           clearTimeout(debounceTimer);
           debounceTimer = setTimeout(updateLivePreview, 20);
         };

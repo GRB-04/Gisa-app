@@ -2644,9 +2644,10 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
               <input type="range" id="dup-threshold" min="50" max="100" value="${state.dupThreshold}" class="range-input" style="flex:1;cursor:pointer;accent-color:var(--purple);"/>
             </div>
             <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
-              <button type="button" class="btn btn-sm btn-ghost dup-preset-quick" data-val="97" style="font-size:0.75rem;padding:2px 10px;border-radius:9999px;border:1px solid rgba(255,255,255,0.12);">97% (Estrito)</button>
-              <button type="button" class="btn btn-sm btn-ghost dup-preset-quick" data-val="85" style="font-size:0.75rem;padding:2px 10px;border-radius:9999px;border:1px solid rgba(255,255,255,0.12);">85% (Moderado)</button>
-              <button type="button" class="btn btn-sm btn-ghost dup-preset-quick" data-val="65" style="font-size:0.75rem;padding:2px 10px;border-radius:9999px;border:1px solid rgba(255,255,255,0.12);">65% (Amplo)</button>
+              <button type="button" class="btn btn-sm ${state.dupThreshold === 97 ? 'btn-primary' : 'btn-ghost'} dup-preset-quick" data-val="97" style="font-size:0.75rem;padding:3px 12px;border-radius:9999px;">97% (Estrito)</button>
+              <button type="button" class="btn btn-sm ${state.dupThreshold === 85 ? 'btn-primary' : 'btn-ghost'} dup-preset-quick" data-val="85" style="font-size:0.75rem;padding:3px 12px;border-radius:9999px;">85% (Moderado)</button>
+              <button type="button" class="btn btn-sm ${state.dupThreshold === 65 ? 'btn-primary' : 'btn-ghost'} dup-preset-quick" data-val="65" style="font-size:0.75rem;padding:3px 12px;border-radius:9999px;">65% (Amplo)</button>
+              <button type="button" class="btn btn-sm ${state.dupThreshold === 55 ? 'btn-primary' : 'btn-ghost'} dup-preset-quick" data-val="55" style="font-size:0.75rem;padding:3px 12px;border-radius:9999px;">55% (Todos)</button>
             </div>
           </div>
           <div class="dedup-top-buttons" style="display:flex;gap:10px;flex-wrap:wrap;">
@@ -2662,11 +2663,25 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
 
     const range = $('dup-threshold');
     const display = $('threshold-display');
+
+    const syncPresetButtons = (val) => {
+      content.querySelectorAll('.dup-preset-quick').forEach(b => {
+        const bVal = parseInt(b.dataset.val);
+        if (bVal === val) {
+          b.className = 'btn btn-sm btn-primary dup-preset-quick';
+        } else {
+          b.className = 'btn btn-sm btn-ghost dup-preset-quick';
+        }
+      });
+    };
+
     if (range && display) {
       range.oninput = () => {
         state.dupThreshold = parseInt(range.value);
+        state.dupFilter = 'pending_all';
+        state.dupOffset = 0;
         display.textContent = state.dupThreshold + '%';
-        // Only update results if we already have pairs (do not clear progress UI if scanning)
+        syncPresetButtons(state.dupThreshold);
         if (state.dupPairs && state.dupPairs.length > 0) {
           renderDupResults(Storage.getProject(project.id) || project);
         }
@@ -2677,8 +2692,11 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
       btn.onclick = () => {
         const val = parseInt(btn.dataset.val);
         state.dupThreshold = val;
+        state.dupFilter = 'pending_all';
+        state.dupOffset = 0;
         if (range) range.value = val;
         if (display) display.textContent = val + '%';
+        syncPresetButtons(val);
         if (state.dupPairs && state.dupPairs.length > 0) {
           renderDupResults(Storage.getProject(project.id) || project);
         }
@@ -2848,23 +2866,23 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
     const pendingMed = pendingPairs.filter(p => p.score >= 85 && p.score < 97);
     const pendingManual = pendingPairs.filter(p => p.score < 85); // 55% - 84% (os 107 manuais!)
 
+    const currentThresh = state.dupThreshold || 65;
+    const pendingAtThreshold = pendingPairs.filter(p => p.score >= currentThresh);
+
     // Determine current active filter list
     state.dupFilter = state.dupFilter || 'pending_all';
     let filteredPairs = [];
-    if (state.dupFilter === 'pending_all') filteredPairs = pendingPairs;
+    if (state.dupFilter === 'pending_all') filteredPairs = pendingAtThreshold;
     else if (state.dupFilter === 'pending_high') filteredPairs = pendingHigh;
     else if (state.dupFilter === 'pending_med') filteredPairs = pendingMed;
     else if (state.dupFilter === 'pending_manual') filteredPairs = pendingManual;
     else if (state.dupFilter === 'resolved') filteredPairs = resolvedPairs;
 
-    const currentThresh = state.dupThreshold || 65;
-    const pendingAtThreshold = pendingPairs.filter(p => p.score >= currentThresh);
-
     results.innerHTML = `
       <div class="dedup-summary" style="margin-bottom:20px;">
-        <div class="dedup-stat-chip all ${state.dupFilter === 'pending_all' ? 'active' : ''}" data-filter="pending_all" title="Pares de artigos com títulos/autores semelhantes que aguardam sua conferência para descartar cópias repetidas">
-          <span>${pendingPairs.length}</span>
-          <small>Pares Suspeitos</small>
+        <div class="dedup-stat-chip all ${state.dupFilter === 'pending_all' ? 'active' : ''}" data-filter="pending_all" title="Pares de artigos com similaridade igual ou superior a ${currentThresh}%">
+          <span>${pendingAtThreshold.length} <small style="font-size:0.7rem;color:var(--text-muted);font-weight:normal;">/ ${pendingPairs.length}</small></span>
+          <small>Suspeitos (≥ ${currentThresh}%)</small>
         </div>
         <div class="dedup-stat-chip high ${state.dupFilter === 'pending_high' ? 'active' : ''}" data-filter="pending_high" title="Pares com 97% a 100% de similaridade (praticamente idênticos)">
           <span>${pendingHigh.length}</span>
@@ -2874,9 +2892,9 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
           <span>${pendingMed.length}</span>
           <small>Média (85%–96%)</small>
         </div>
-        <div class="dedup-stat-chip manual ${state.dupFilter === 'pending_manual' ? 'active' : ''}" data-filter="pending_manual" title="Pares de artigos com similaridade média/baixa para conferência humana">
+        <div class="dedup-stat-chip manual ${state.dupFilter === 'pending_manual' ? 'active' : ''}" data-filter="pending_manual" title="Pares de artigos com similaridade abaixo de 85% para conferência humana">
           <span>${pendingManual.length}</span>
-          <small>Verificação Manual</small>
+          <small>Verificação Manual (&lt; 85%)</small>
         </div>
         <div class="dedup-stat-chip resolved ${state.dupFilter === 'resolved' ? 'active' : ''}" data-filter="resolved" title="Total de artigos repetidos que já foram descartados pelo desduplicador">
           <span>${resolvedTotal}</span>
@@ -2922,8 +2940,20 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
     // Bind Filter Chips Click
     results.querySelectorAll('.dedup-stat-chip[data-filter]').forEach(chip => {
       chip.addEventListener('click', () => {
-        state.dupFilter = chip.dataset.filter;
+        const f = chip.dataset.filter;
+        state.dupFilter = f;
         state.dupOffset = 0;
+        if (f === 'pending_high') state.dupThreshold = 97;
+        else if (f === 'pending_med') state.dupThreshold = 85;
+        else if (f === 'pending_manual') state.dupThreshold = 65;
+        
+        const r = $('dup-threshold');
+        const d = $('threshold-display');
+        if (r) r.value = state.dupThreshold;
+        if (d) d.textContent = state.dupThreshold + '%';
+        document.querySelectorAll('.dup-preset-quick').forEach(b => {
+          b.className = parseInt(b.dataset.val) === state.dupThreshold ? 'btn btn-sm btn-primary dup-preset-quick' : 'btn btn-sm btn-ghost dup-preset-quick';
+        });
         renderDupResults(currentProject);
       });
     });
@@ -2952,10 +2982,52 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
     if (!list) return;
 
     if (!filteredPairs.length) {
-      if (state.dupFilter === 'pending_manual') {
+      if (state.dupFilter === 'pending_all') {
+        list.innerHTML = `
+          <div style="text-align:center;padding:40px 20px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);margin:20px 0;">
+            <div style="font-size:2.4rem;margin-bottom:12px;">✅</div>
+            <h3 style="color:var(--text-primary);margin-bottom:8px;">Nenhum par pendente com similaridade ≥ ${currentThresh}%</h3>
+            <p style="color:var(--text-muted);font-size:0.9rem;max-width:580px;margin:0 auto 18px;line-height:1.5;">
+              ${pendingPairs.length > 0 
+                ? `Todas as duplicatas com similaridade acima de <strong>${currentThresh}%</strong> já foram resolvidas! Restam <strong>${pendingPairs.length} pares com menor similaridade (&lt; 85%)</strong> que requerem verificação humana.` 
+                : 'Todas as duplicatas encontradas já foram descartadas e a base está 100% limpa.'}
+            </p>
+            ${pendingPairs.length > 0 ? `
+              <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+                <button class="btn btn-secondary btn-sm" id="btn-show-manual-pairs" style="border-radius:9999px;">
+                  🔍 Ver os ${pendingPairs.length} Pares para Verificação Manual (&lt; 85%)
+                </button>
+                <button class="btn btn-ghost btn-sm" id="btn-lower-threshold-55" style="border-radius:9999px;border:1px solid rgba(255,255,255,0.15);">
+                  Exibir Todos os Pares (55%)
+                </button>
+              </div>
+            ` : ''}
+          </div>
+        `;
+        list.querySelector('#btn-show-manual-pairs')?.addEventListener('click', () => {
+          state.dupFilter = 'pending_manual';
+          state.dupOffset = 0;
+          renderDupResults(currentProject);
+        });
+        list.querySelector('#btn-lower-threshold-55')?.addEventListener('click', () => {
+          state.dupThreshold = 55;
+          state.dupFilter = 'pending_all';
+          state.dupOffset = 0;
+          const r = $('dup-threshold');
+          const d = $('threshold-display');
+          if (r) r.value = 55;
+          if (d) d.textContent = '55%';
+          document.querySelectorAll('.dup-preset-quick').forEach(b => {
+            b.className = parseInt(b.dataset.val) === 55 ? 'btn btn-sm btn-primary dup-preset-quick' : 'btn btn-sm btn-ghost dup-preset-quick';
+          });
+          renderDupResults(currentProject);
+        });
+      } else if (state.dupFilter === 'pending_manual') {
         list.innerHTML = UI.emptyState('✨', 'Nenhum par manual pendente', 'Todos os casos de média/baixa similaridade já foram resolvidos ou não existem na base.');
       } else if (state.dupFilter === 'pending_high') {
         list.innerHTML = UI.emptyState('✓', 'Nenhuma duplicata de alta similaridade pendente', 'Todas as duplicatas estritas (≥97%) foram descartadas.');
+      } else if (state.dupFilter === 'pending_med') {
+        list.innerHTML = UI.emptyState('✓', 'Nenhuma duplicata de média similaridade pendente', 'Todas as duplicatas entre 85% e 96% foram descartadas.');
       } else if (state.dupFilter === 'resolved') {
         list.innerHTML = UI.emptyState('📋', 'Nenhuma duplicata descartada ainda', 'Execute a resolução automática ou manual acima para eliminar duplicatas.');
       } else {
@@ -2982,14 +3054,14 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
     banner.innerHTML = `
       <span style="font-size:0.84rem;font-weight:700;color:var(--text-primary);">
         Exibindo: <strong style="color:var(--purple);">${
-          state.dupFilter === 'pending_manual' ? '🔍 107 Pares para Verificação Manual' :
+          state.dupFilter === 'pending_manual' ? '🔍 Pares para Verificação Manual (< 85%)' :
           state.dupFilter === 'pending_high' ? '🔴 Alta Similaridade (≥ 97%)' :
           state.dupFilter === 'pending_med' ? '🟡 Média Similaridade (85%–96%)' :
           state.dupFilter === 'resolved' ? '🟢 Duplicatas Já Descartadas' :
-          '🔘 Todos os Pares Pendentes'
-        }</strong> (${total} pares)
+          `🔘 Pares Pendentes com Similaridade ≥ ${currentThresh}%`
+        }</strong> (${total} ${total === 1 ? 'par' : 'pares'})
       </span>
-      <span style="font-size:0.78rem;color:var(--text-muted);">Página ${currentPage} de ${totalPages}</span>
+      <span style="font-size:0.78rem;color:var(--text-muted);">${totalPages > 1 ? `Página ${currentPage} de ${totalPages}` : ''}</span>
     `;
     list.appendChild(banner);
 

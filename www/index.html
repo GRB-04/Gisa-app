@@ -25,7 +25,7 @@
 
   <!-- Cache Buster & SW Sync Engine -->
   <script>
-    const GISA_VERSION = 'v87';
+    const GISA_VERSION = 'v88';
     if (localStorage.getItem('gisa_build_ver') !== GISA_VERSION) {
       localStorage.setItem('gisa_build_ver', GISA_VERSION);
       if ('caches' in window) {
@@ -35,7 +35,7 @@
   </script>
 
   <!-- Stylesheet -->
-  <link rel="stylesheet" href="css/style.css?v=87"/>
+  <link rel="stylesheet" href="css/style.css?v=88"/>
 
   <!-- Critical Inline Styles (Guaranteed Zero-Scroll Wizard Layout & Stage HUD) -->
   <style>
@@ -295,9 +295,9 @@
 
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js?v=87').then((reg) => {
+      navigator.serviceWorker.register('./sw.js?v=88').then((reg) => {
         reg.update();
-        console.log('Service Worker Gisa registrado (v87):', reg.scope);
+        console.log('Service Worker Gisa registrado (v88):', reg.scope);
       }).catch((err) => {
         console.warn('Falha no registro do Service Worker:', err);
       });
