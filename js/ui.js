@@ -766,9 +766,11 @@ const UI = (() => {
   }
 
   /* ── PRISMA 2020 Flowchart Render ───────────────────── */
-  function renderPRISMA(project) {
-    const s = project.stats;
+  function renderPRISMA(project, options = {}) {
+    const s = project.stats || {};
     const articles = project.articles || [];
+    const customFile = project.prisma_custom_file || null;
+    const activeView = options.activeSubTab || (customFile ? 'imported' : 'auto');
 
     // PRISMA 2020: Duplicates are removed in Phase 2.
     // In Phase 3 (Screening), only non-duplicate exclusions are counted and listed with their screening criteria.
@@ -783,77 +785,169 @@ const UI = (() => {
       .map(([reason, count]) => `<li style="margin-bottom:4px">${escapeHtml(reason)}: <strong>${count}</strong></li>`)
       .join('');
 
-    const recordsIdentified = s.total;
-    const duplicatesRemoved = s.duplicates || 0;
-    const recordsScreened = Math.max(0, s.total - duplicatesRemoved);
+    const recordsIdentified = s.total || articles.length;
+    const duplicatesRemoved = s.duplicates || articles.filter(a => a.is_duplicate).length;
+    const recordsScreened = Math.max(0, recordsIdentified - duplicatesRemoved);
     const recordsExcluded = excludedScreening.length;
     const recordsIncluded = articles.filter(a => a.decision === 'include' && !a.is_duplicate).length;
     const finalSelectedCount = articles.filter(a => a.decision === 'include' && !a.is_duplicate && a.final_selection === true).length;
 
     return `
-      <div class="prisma-container" style="max-width:820px;margin:0 auto;padding:32px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;">
+      <div class="prisma-container" style="max-width:920px;margin:0 auto;padding:28px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);">
+        
+        <!-- TOP CONTROLS & SCIENTIFIC ACTIONS -->
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;gap:16px;flex-wrap:wrap;">
           <div>
-            <h2 style="font-size:1.4rem;font-weight:800;color:var(--text-primary)">Fluxograma PRISMA 2020</h2>
-            <p class="muted" style="margin-top:2px">Diagrama de fluxo de triagem no padrão científico internacional</p>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <h2 style="font-size:1.45rem;font-weight:800;color:var(--text-primary);margin:0;">Fluxograma PRISMA 2020</h2>
+              ${customFile ? `<span class="badge" style="background:rgba(168,85,247,0.15);color:#c084fc;border:1px solid rgba(168,85,247,0.35);font-size:0.75rem;padding:3px 10px;">✨ Arquivo Oficial Anexado</span>` : ''}
+            </div>
+            <p class="muted" style="margin-top:4px;font-size:0.85rem;">
+              Diagrama de fluxo oficial no padrão internacional PRISMA 2020. Exporte para a ferramenta oficial externa ou anexe o arquivo gerado por sua equipe.
+            </p>
           </div>
-          <button class="btn btn-sm btn-secondary" onclick="window.print()">Imprimir / Salvar PDF</button>
+
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-sm btn-primary" id="btn-prisma-download-csv" title="Baixar arquivo CSV formatado para a ferramenta oficial ShinyApp do PRISMA 2020" style="background:linear-gradient(135deg, var(--purple), var(--violet));">
+              📥 Baixar CSV Oficial (ShinyApp)
+            </button>
+            <button class="btn btn-sm btn-secondary" id="btn-prisma-copy-summary" title="Copiar resumo textual dos números para colar na ferramenta oficial">
+              📋 Copiar Dados
+            </button>
+            <a href="https://estech.shinyapps.io/prisma_flowdiagram/" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-ghost" title="Abrir a ferramenta web oficial do PRISMA 2020 em nova aba" style="color:var(--cyan);border:1px solid rgba(6,182,212,0.3);background:rgba(6,182,212,0.06);">
+              🔗 Ferramenta Oficial Estech ↗
+            </a>
+            <button class="btn btn-sm btn-ghost" id="btn-prisma-hide-tab" title="Ocultar a aba PRISMA desta revisão (pode ser reativada a qualquer momento no topo)" style="color:var(--text-muted);border:1px dashed var(--border);">
+              👁️ Ocultar Aba
+            </button>
+          </div>
         </div>
 
-        <div class="prisma-flow" style="display:flex;flex-direction:column;gap:20px;">
-
-          <div class="prisma-phase" style="border-left:4px solid var(--purple);padding-left:16px;">
-            <span style="font-size:0.75rem;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:0.05em">1. Identificação</span>
-            <div class="prisma-box" style="margin-top:8px;padding:16px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md)">
-              <strong>Registros identificados através de busca nas bases de dados (n = ${recordsIdentified})</strong>
+        <!-- SUB-TABS: IMPORTED FILE VS GISA NATIVE DIAGRAM -->
+        ${customFile ? `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px;padding:8px 12px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-lg);flex-wrap:wrap;">
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-sm ${activeView === 'imported' ? 'btn-primary' : 'btn-ghost'}" id="btn-tab-view-imported" style="font-size:0.82rem;font-weight:700;">
+                📁 Fluxograma Oficial Importado (${escapeHtml(customFile.name)})
+              </button>
+              <button class="btn btn-sm ${activeView === 'auto' ? 'btn-primary' : 'btn-ghost'}" id="btn-tab-view-auto" style="font-size:0.82rem;font-weight:700;">
+                📊 Fluxograma Calculado pelo Gisa
+              </button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button class="btn btn-sm btn-ghost" id="btn-replace-prisma-file" style="font-size:0.78rem;color:var(--text-secondary);border:1px solid var(--border);">
+                🔄 Substituir Arquivo
+              </button>
+              <button class="btn btn-sm btn-ghost" id="btn-remove-prisma-file" style="font-size:0.78rem;color:#ef4444;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.06);">
+                🗑️ Remover
+              </button>
             </div>
           </div>
-
-          <div style="text-align:center;color:var(--purple);font-size:1.2rem;font-weight:bold">↓</div>
-
-          <div class="prisma-phase" style="border-left:4px solid var(--amber);padding-left:16px;">
-            <span style="font-size:0.75rem;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:0.05em">2. Remoção de Duplicatas</span>
-            <div class="prisma-box" style="margin-top:8px;padding:16px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md)">
-              <strong>Registros duplicados removidos antes da triagem (n = ${duplicatesRemoved})</strong>
-            </div>
-          </div>
-
-          <div style="text-align:center;color:var(--amber);font-size:1.2rem;font-weight:bold">↓</div>
-
-          <div class="prisma-phase" style="border-left:4px solid var(--cyan);padding-left:16px;">
-            <span style="font-size:0.75rem;font-weight:700;color:var(--cyan);text-transform:uppercase;letter-spacing:0.05em">3. Triagem (Título & Resumo)</span>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 240px), 1fr));gap:16px;margin-top:8px;">
-              <div class="prisma-box" style="padding:16px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md)">
-                <strong>Registros únicos avaliados (n = ${recordsScreened})</strong>
+        ` : `
+          <!-- DROPZONE / IMPORT CARD (SE NENHUM ARQUIVO IMPORTADO AINDA) -->
+          <div style="margin-bottom:24px;padding:20px;background:linear-gradient(135deg, rgba(168,85,247,0.06), rgba(99,102,241,0.04));border:1px dashed rgba(168,85,247,0.35);border-radius:var(--radius-lg);display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;">
+            <div style="max-width:560px;">
+              <div style="display:flex;align-items:center;gap:8px;font-weight:700;color:var(--text-primary);font-size:0.95rem;margin-bottom:4px;">
+                <span>📁 Importar Fluxograma da Ferramenta Oficial (PNG, SVG, PDF)</span>
               </div>
-              <div class="prisma-box" style="padding:16px;background:var(--red-bg);border:1px solid rgba(239,68,68,0.4);border-radius:var(--radius-md);color:var(--red)">
-                <strong style="display:block;margin-bottom:8px">Registros excluídos na triagem (n = ${recordsExcluded})</strong>
-                ${reasonsListHtml ? `<ul style="margin:0;font-size:0.8rem;padding-left:16px;line-height:1.6">${reasonsListHtml}</ul>` : '<span style="font-size:0.8rem;opacity:0.8">Nenhum artigo excluído na triagem ainda.</span>'}
+              <p style="margin:0;font-size:0.82rem;color:var(--text-secondary);line-height:1.45;">
+                Sua orientadora gerou o diagrama mais detalhado na ferramenta externa? Baixe o CSV acima, carregue lá e anexe o arquivo final aqui para manter seu projeto com tudo centralizado.
+              </p>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="btn-trigger-prisma-upload" style="font-weight:700;border:1px solid rgba(168,85,247,0.4);">
+              📁 Selecionar Arquivo (PNG, SVG, PDF)
+            </button>
+          </div>
+        `}
+
+        <input type="file" id="prisma-file-upload-input" accept="image/png,image/jpeg,image/svg+xml,application/pdf" style="display:none;" />
+
+        <!-- VIEW 1: IMPORTED FILE DISPLAY -->
+        ${(customFile && activeView === 'imported') ? `
+          <div style="background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-xl);padding:24px;text-align:center;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:10px;">
+              <div style="text-align:left;">
+                <strong style="color:var(--text-primary);font-size:0.92rem;">${escapeHtml(customFile.name)}</strong>
+                <span class="muted" style="font-size:0.78rem;margin-left:8px;">(${(customFile.size / 1024).toFixed(1)} KB)</span>
+              </div>
+              <div style="display:flex;gap:8px;">
+                <a href="${customFile.dataUrl}" download="${escapeHtml(customFile.name)}" class="btn btn-sm btn-secondary" style="font-size:0.8rem;">
+                  📥 Baixar Arquivo Anexado
+                </a>
               </div>
             </div>
+
+            ${customFile.type === 'application/pdf' ? `
+              <embed src="${customFile.dataUrl}" type="application/pdf" width="100%" height="700px" style="border-radius:var(--radius-md);border:1px solid var(--border);" />
+            ` : `
+              <div style="padding:16px;background:white;border-radius:var(--radius-md);box-shadow:0 8px 30px rgba(0,0,0,0.25);overflow:auto;max-height:750px;">
+                <img src="${customFile.dataUrl}" alt="Fluxograma PRISMA 2020 Oficial" style="max-width:100%;height:auto;object-fit:contain;" />
+              </div>
+            `}
+          </div>
+        ` : `
+          <!-- VIEW 2: GISA NATIVE 5-PHASE FLOWCHART -->
+          <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+            <button class="btn btn-sm btn-ghost" onclick="window.print()" style="font-size:0.8rem;">
+              🖨️ Imprimir / Salvar PDF
+            </button>
           </div>
 
-          <div style="text-align:center;color:var(--cyan);font-size:1.2rem;font-weight:bold">↓</div>
+          <div class="prisma-flow" style="display:flex;flex-direction:column;gap:20px;">
 
-          <div class="prisma-phase" style="border-left:4px solid var(--green);padding-left:16px;">
-            <span style="font-size:0.75rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.05em">4. Elegibilidade (Texto Completo)</span>
-            <div class="prisma-box" style="margin-top:8px;padding:16px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);border-radius:var(--radius-md);color:var(--green)">
-              <h3 style="font-size:1.05rem;font-weight:800;margin-bottom:4px">Artigos avaliados para elegibilidade integral (n = ${recordsIncluded})</h3>
-              <p style="font-size:0.82rem;margin:0;opacity:0.9">Estudos com potencial de inclusão que passaram para leitura do texto completo.</p>
+            <div class="prisma-phase" style="border-left:4px solid var(--purple);padding-left:16px;">
+              <span style="font-size:0.75rem;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:0.05em">1. Identificação</span>
+              <div class="prisma-box" style="margin-top:8px;padding:16px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md)">
+                <strong>Registros identificados através de busca nas bases de dados (n = ${recordsIdentified})</strong>
+              </div>
             </div>
-          </div>
 
-          <div style="text-align:center;color:#f59e0b;font-size:1.2rem;font-weight:bold">↓</div>
+            <div style="text-align:center;color:var(--purple);font-size:1.2rem;font-weight:bold">↓</div>
 
-          <div class="prisma-phase" style="border-left:4px solid #f59e0b;padding-left:16px;">
-            <span style="font-size:0.75rem;font-weight:700;color:#fbbf24;text-transform:uppercase;letter-spacing:0.05em">5. Síntese Definitiva</span>
-            <div class="prisma-box" style="margin-top:8px;padding:20px;background:linear-gradient(135deg,rgba(245,158,11,0.16),rgba(217,119,6,0.24));border:1px solid rgba(245,158,11,0.5);border-radius:var(--radius-md);color:#fbbf24;box-shadow:0 4px 16px rgba(245,158,11,0.15)">
-              <h3 style="font-size:1.15rem;font-weight:800;margin-bottom:4px">⭐ Estudos incluídos na revisão sistemática e síntese (n = ${finalSelectedCount})</h3>
-              <p style="font-size:0.84rem;margin:0;color:var(--text-secondary)">Estudos que cumpriram todos os critérios de qualidade e compõem a discussão científica final.</p>
+            <div class="prisma-phase" style="border-left:4px solid var(--amber);padding-left:16px;">
+              <span style="font-size:0.75rem;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:0.05em">2. Remoção de Duplicatas</span>
+              <div class="prisma-box" style="margin-top:8px;padding:16px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md)">
+                <strong>Registros duplicados removidos antes da triagem (n = ${duplicatesRemoved})</strong>
+              </div>
             </div>
-          </div>
 
-        </div>
+            <div style="text-align:center;color:var(--amber);font-size:1.2rem;font-weight:bold">↓</div>
+
+            <div class="prisma-phase" style="border-left:4px solid var(--cyan);padding-left:16px;">
+              <span style="font-size:0.75rem;font-weight:700;color:var(--cyan);text-transform:uppercase;letter-spacing:0.05em">3. Triagem (Título & Resumo)</span>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 240px), 1fr));gap:16px;margin-top:8px;">
+                <div class="prisma-box" style="padding:16px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md)">
+                  <strong>Registros únicos avaliados (n = ${recordsScreened})</strong>
+                </div>
+                <div class="prisma-box" style="padding:16px;background:var(--red-bg);border:1px solid rgba(239,68,68,0.4);border-radius:var(--radius-md);color:var(--red)">
+                  <strong style="display:block;margin-bottom:8px">Registros excluídos na triagem (n = ${recordsExcluded})</strong>
+                  ${reasonsListHtml ? `<ul style="margin:0;font-size:0.8rem;padding-left:16px;line-height:1.6">${reasonsListHtml}</ul>` : '<span style="font-size:0.8rem;opacity:0.8">Nenhum artigo excluído na triagem ainda.</span>'}
+                </div>
+              </div>
+            </div>
+
+            <div style="text-align:center;color:var(--cyan);font-size:1.2rem;font-weight:bold">↓</div>
+
+            <div class="prisma-phase" style="border-left:4px solid var(--green);padding-left:16px;">
+              <span style="font-size:0.75rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.05em">4. Elegibilidade (Texto Completo)</span>
+              <div class="prisma-box" style="margin-top:8px;padding:16px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);border-radius:var(--radius-md);color:var(--green)">
+                <h3 style="font-size:1.05rem;font-weight:800;margin-bottom:4px">Artigos avaliados para elegibilidade integral (n = ${recordsIncluded})</h3>
+                <p style="font-size:0.82rem;margin:0;opacity:0.9">Estudos com potencial de inclusão que passaram para leitura do texto completo.</p>
+              </div>
+            </div>
+
+            <div style="text-align:center;color:#f59e0b;font-size:1.2rem;font-weight:bold">↓</div>
+
+            <div class="prisma-phase" style="border-left:4px solid #f59e0b;padding-left:16px;">
+              <span style="font-size:0.75rem;font-weight:700;color:#fbbf24;text-transform:uppercase;letter-spacing:0.05em">5. Síntese Definitiva</span>
+              <div class="prisma-box" style="margin-top:8px;padding:20px;background:linear-gradient(135deg,rgba(245,158,11,0.16),rgba(217,119,6,0.24));border:1px solid rgba(245,158,11,0.5);border-radius:var(--radius-md);color:#fbbf24;box-shadow:0 4px 16px rgba(245,158,11,0.15)">
+                <h3 style="font-size:1.15rem;font-weight:800;margin-bottom:4px">⭐ Estudos incluídos na revisão sistemática e síntese (n = ${finalSelectedCount})</h3>
+                <p style="font-size:0.84rem;margin:0;color:var(--text-secondary)">Estudos que cumpriram todos os critérios de qualidade e compõem a discussão científica final.</p>
+              </div>
+            </div>
+
+          </div>
+        `}
       </div>
     `;
   }

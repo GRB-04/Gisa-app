@@ -23,6 +23,7 @@ const App = (() => {
     articlePageSize: 20,
     serialIndex: 0,
     activeArticleId: null,
+    prismaSubTab: 'auto',
     wizard: { step: 1, name: '', desc: '', keywords: [], files: [] }
   };
 
@@ -889,7 +890,7 @@ const App = (() => {
       { id: 'screen',   icon: '🔍', label: `Triagem (${screenableTotal})` },
       { id: 'articles', icon: '✅', label: `Incluídos (${includedTotal})` },
       { id: 'final',    icon: '⭐', label: `Selecionados (${finalSelectedTotal})` },
-      { id: 'prisma',   icon: '📐', label: 'PRISMA 2020' },
+      ...(project.hide_prisma_tab ? [] : [{ id: 'prisma',   icon: '📐', label: 'PRISMA 2020' }]),
       { id: 'stats',    icon: '📊', label: 'Dashboard' },
       { id: 'export',   icon: '💾', label: 'Exportar' },
     ];
@@ -904,6 +905,11 @@ const App = (() => {
             ${project.keywords?.length ? `<div class="kw-chips">${project.keywords.map(k => `<span class="kw-chip">${k}</span>`).join('')}</div>` : ''}
           </div>
           <div class="project-progress-mini" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            ${project.hide_prisma_tab ? `
+              <button class="btn btn-sm btn-ghost" id="btn-restore-prisma-tab" title="Reativar e exibir a aba PRISMA 2020 nesta revisão" style="color:#a855f7;border:1px dashed rgba(168,85,247,0.45);background:rgba(168,85,247,0.08);border-radius:var(--radius-md);font-size:0.78rem;">
+                📐 Reativar Aba PRISMA
+              </button>
+            ` : ''}
             <button class="btn btn-sm ${project.blindMode ? 'btn-primary' : 'btn-ghost'}" id="blind-mode-btn" title="Ativar/Desativar Modo Cego">
               ${project.blindMode ? '👁️ Modo Cego ON' : '👁️ Modo Cego OFF'}
             </button>
@@ -928,6 +934,16 @@ const App = (() => {
 
     $('back-btn').onclick = () => navigate('home');
     $('project-delete-btn').onclick = () => confirmDeleteProject(project);
+
+    const restorePrismaBtn = $('btn-restore-prisma-tab');
+    if (restorePrismaBtn) {
+      restorePrismaBtn.onclick = () => {
+        Storage.updateProject(project.id, { hide_prisma_tab: false });
+        project.hide_prisma_tab = false;
+        UI.toast('Aba PRISMA 2020 reativada com sucesso!', 'success');
+        navigate('project', { tab: 'prisma' });
+      };
+    }
     $('blind-mode-btn').onclick = () => {
       const updated = Storage.updateProject(project.id, { blindMode: !project.blindMode });
       UI.toast(updated.blindMode ? '👁️ Modo Cego Ativado' : '👁️ Modo Cego Desativado', 'info');
@@ -994,9 +1010,216 @@ const App = (() => {
     }
   }
 
+  // ─── PRISMA 2020 OFFICIAL CSV TEMPLATE GENERATOR ──────
+  function generatePrisma2020Csv(project) {
+    const s = project.stats || {};
+    const articles = project.articles || [];
+    const excludedScreening = articles.filter(a => a.decision === 'exclude' && !a.is_duplicate);
+    const reasonsMap = {};
+    excludedScreening.forEach(a => {
+      const r = (a.exclusion_reason || 'Outros motivos metodológicos').replace(/[,;"]/g, ' ');
+      reasonsMap[r] = (reasonsMap[r] || 0) + 1;
+    });
+    const reasonsStr = Object.entries(reasonsMap).map(([r, c]) => `${r}, ${c}`).join('; ');
+
+    const recordsIdentified = s.total || articles.length;
+    const duplicatesRemoved = s.duplicates || articles.filter(a => a.is_duplicate).length;
+    const recordsScreened = Math.max(0, recordsIdentified - duplicatesRemoved);
+    const recordsExcluded = excludedScreening.length;
+    const recordsIncluded = articles.filter(a => a.decision === 'include' && !a.is_duplicate).length;
+    const finalSelectedCount = articles.filter(a => a.decision === 'include' && !a.is_duplicate && a.final_selection === true).length;
+
+    return `data,node,box,description,boxtext,tooltips,url,n
+NA,node4,prevstud,Grey title box; Previous studies,Previous studies,Grey title box; Previous studies,prevstud.html,0
+previous_studies,node5,box1,Studies included in previous version of review,Studies included in previous version of review,Studies included in previous version of review,previous_studies.html,0
+previous_reports,NA,box1,Reports of studies included in previous version of review,Reports of studies included in previous version of review,NA,previous_reports.html,0
+NA,node6,newstud,Yellow title box; Identification of new studies via databases and registers,Identification of new studies via databases and registers,Yellow title box; Identification of new studies via databases and registers,newstud.html,0
+database_results,node7,box2,Records identified from: Databases,Databases,Records identified from: Databases and Registers,database_results.html,${recordsIdentified}
+database_specific_results,NA,box2,Records identified from: specific databases,Specific Databases,NA,database_results.html,"Bases de dados, ${recordsIdentified}"
+register_results,NA,box2,Records identified from: Registers,Registers,NA,NA,0
+register_specific_results,NA,box2,Records identified from: specific registers,Specific Registers,NA,database_results.html,"Registros, 0"
+NA,node16,othstud,Grey title box; Identification of new studies via other methods,Identification of new studies via other methods,Grey title box; Identification of new studies via other methods,othstud.html,0
+website_results,node17,box11,Records identified from: Websites,Websites,"Records identified from: Websites, Organisations and Citation Searching",website_results.html,0
+organisation_results,,box11,Records identified from: Organisations,Organisations,NA,NA,0
+citations_results,NA,box11,Records identified from: Citation searching,Citation searching,NA,NA,0
+duplicates,node8,box3,Duplicate records,Duplicate records,Duplicate records,duplicates.html,${duplicatesRemoved}
+excluded_automatic,NA,box3,Records marked as ineligible by automation tools,Records marked as ineligible by automation tools,NA,NA,0
+excluded_other,NA,box3,Records removed for other reasons,Records removed for other reasons,NA,NA,0
+records_screened,node9,box4,Records screened (databases and registers),Records screened,Records screened (databases and registers),records_screened.html,${recordsScreened}
+records_excluded,node10,box5,Records excluded (databases and registers),Records excluded,Records excluded (databases and registers),records_excluded.html,${recordsExcluded}
+dbr_sought_reports,node11,box6,Reports sought for retrieval (databases and registers),Reports sought for retrieval,Reports sought for retrieval (databases and registers),dbr_sought_reports.html,${recordsIncluded}
+dbr_notretrieved_reports,node12,box7,Reports not retrieved (databases and registers),Reports not retrieved,Reports not retrieved (databases and registers),dbr_notretrieved_reports.html,0
+other_sought_reports,node18,box12,Reports sought for retrieval (other),Reports sought for retrieval,Reports sought for retrieval (other),other_sought_reports.html,0
+other_notretrieved_reports,node19,box13,Reports not retrieved (other),Reports not retrieved,Reports not retrieved (other),other_notretrieved_reports.html,0
+dbr_assessed,node13,box8,Reports assessed for eligibility (databases and registers),Reports assessed for eligibility,Reports assessed for eligibility (databases and registers),dbr_assessed.html,${recordsIncluded}
+dbr_excluded,node14,box9,"Reports excluded (databases and registers): [separate reasons and numbers using ; e.g. Reason1, xxx; Reason2, xxx; Reason3, xxx]",Reports excluded,Reports excluded (databases and registers),dbrexcludedrecords.html,"${reasonsStr || 'Critérios metodológicos, 0'}"
+other_assessed,node20,box14,Reports assessed for eligibility (other),Reports assessed for eligibility,Reports assessed for eligibility (other),other_assessed.html,0
+other_excluded,node21,box15,"Reports excluded (other): [separate reasons and numbers using ; e.g. Reason1, xxx; Reason2, xxx; Reason3, xxx]",Reports excluded,Reports excluded (other),other_excluded.html,"Reason1, 0"
+new_studies,node15,box10,New studies included in review,New studies included in review,New studies included in review,new_studies.html,${finalSelectedCount}
+new_reports,NA,box10,Reports of new included studies,Reports of new included studies,NA,NA,${finalSelectedCount}
+
+total_studies,node22,box16,Total studies included in review,Total studies included in review,Total studies included in review,total_studies.html,${finalSelectedCount}
+total_reports,NA,box16,Reports of total included studies,Reports of total included studies,NA,NA,${finalSelectedCount}
+identification,node1,identification,Blue identification box,Identification,Blue identification box,identification.html,0
+screening,node2,screening,Blue screening box,Screening,Blue screening box,screening.html,0
+included,node3,included,Blue included box,Included,Blue included box,included.html,0
+total_studies_ma,node23,box17,Total studies included in meta-analysis,Total studies included in meta-analysis,Total studies included in meta-analysis,total_studies_meta_analysis.html,${finalSelectedCount}
+total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Reports of total included studies in meta-analysis,NA,NA,${finalSelectedCount}
+`;
+  }
+
   function renderPrismaTab(project) {
     const content = $('tab-content');
-    content.innerHTML = UI.renderPRISMA(project);
+    if (!content) return;
+    content.innerHTML = UI.renderPRISMA(project, { activeSubTab: state.prismaSubTab || (project.prisma_custom_file ? 'imported' : 'auto') });
+
+    // 1. Download CSV for official ShinyApp tool
+    const btnDownloadCsv = $('btn-prisma-download-csv');
+    if (btnDownloadCsv) {
+      btnDownloadCsv.onclick = () => {
+        const csvContent = generatePrisma2020Csv(project);
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const safeName = (project.name || 'revisao').toLowerCase().replace(/[^a-z0-9]/g, '_');
+        a.download = `PRISMA2020_${safeName}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        UI.toast('Arquivo CSV oficial PRISMA 2020 baixado com sucesso!', 'success');
+      };
+    }
+
+    // 2. Copy summary numbers to clipboard
+    const btnCopySummary = $('btn-prisma-copy-summary');
+    if (btnCopySummary) {
+      btnCopySummary.onclick = () => {
+        const s = project.stats || {};
+        const articles = project.articles || [];
+        const excludedScreening = articles.filter(a => a.decision === 'exclude' && !a.is_duplicate);
+        const reasonsMap = {};
+        excludedScreening.forEach(a => {
+          const r = a.exclusion_reason || 'Critério não informado';
+          reasonsMap[r] = (reasonsMap[r] || 0) + 1;
+        });
+
+        const recordsIdentified = s.total || articles.length;
+        const duplicatesRemoved = s.duplicates || articles.filter(a => a.is_duplicate).length;
+        const recordsScreened = Math.max(0, recordsIdentified - duplicatesRemoved);
+        const recordsExcluded = excludedScreening.length;
+        const recordsIncluded = articles.filter(a => a.decision === 'include' && !a.is_duplicate).length;
+        const finalSelectedCount = articles.filter(a => a.decision === 'include' && !a.is_duplicate && a.final_selection === true).length;
+
+        const summaryText = `RESUMO DE DADOS PRISMA 2020 - ${project.name}
+--------------------------------------------------
+1. Identificação:
+- Registros identificados nas bases de dados: ${recordsIdentified}
+
+2. Remoção de Duplicatas:
+- Registros duplicados removidos antes da triagem: ${duplicatesRemoved}
+
+3. Triagem (Título & Resumo):
+- Registros únicos avaliados: ${recordsScreened}
+- Registros excluídos na triagem: ${recordsExcluded}
+${Object.entries(reasonsMap).map(([r, c]) => `  * ${r}: ${c}`).join('\n')}
+
+4. Elegibilidade (Texto Completo):
+- Artigos avaliados para elegibilidade integral: ${recordsIncluded}
+
+5. Síntese Definitiva:
+- Estudos finais incluídos na revisão sistemática e síntese: ${finalSelectedCount}
+--------------------------------------------------
+Gerado pelo Gisa em ${new Date().toLocaleDateString('pt-BR')}`;
+
+        navigator.clipboard.writeText(summaryText).then(() => {
+          UI.toast('Dados copiados para a área de transferência!', 'success');
+        }).catch(() => {
+          UI.toast('Não foi possível copiar automaticamente.', 'error');
+        });
+      };
+    }
+
+    // 3. Trigger File Upload
+    const fileInput = $('prisma-file-upload-input');
+    const triggerUploadBtn = $('btn-trigger-prisma-upload');
+    const replaceFileBtn = $('btn-replace-prisma-file');
+
+    if (triggerUploadBtn && fileInput) {
+      triggerUploadBtn.onclick = () => fileInput.click();
+    }
+    if (replaceFileBtn && fileInput) {
+      replaceFileBtn.onclick = () => fileInput.click();
+    }
+
+    if (fileInput) {
+      fileInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        if (file.size > 25 * 1024 * 1024) {
+          UI.toast('O arquivo é muito grande (máx 25MB).', 'error');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          const customFile = {
+            name: file.name,
+            type: file.type || 'application/octet-stream',
+            size: file.size,
+            dataUrl: reader.result,
+            uploadedAt: new Date().toISOString()
+          };
+          Storage.updateProject(project.id, { prisma_custom_file: customFile });
+          project.prisma_custom_file = customFile;
+          state.prismaSubTab = 'imported';
+          UI.toast(`Fluxograma oficial "${file.name}" importado com sucesso!`, 'success');
+          renderPrismaTab(project);
+        };
+        reader.readAsDataURL(file);
+      };
+    }
+
+    // 4. Sub-tab toggle (Imported vs Auto)
+    const tabViewImported = $('btn-tab-view-imported');
+    const tabViewAuto = $('btn-tab-view-auto');
+    if (tabViewImported) {
+      tabViewImported.onclick = () => {
+        state.prismaSubTab = 'imported';
+        renderPrismaTab(project);
+      };
+    }
+    if (tabViewAuto) {
+      tabViewAuto.onclick = () => {
+        state.prismaSubTab = 'auto';
+        renderPrismaTab(project);
+      };
+    }
+
+    // 5. Remove custom imported file
+    const btnRemove = $('btn-remove-prisma-file');
+    if (btnRemove) {
+      btnRemove.onclick = () => {
+        if (confirm('Deseja remover o fluxograma anexado desta revisão?')) {
+          Storage.updateProject(project.id, { prisma_custom_file: null });
+          project.prisma_custom_file = null;
+          state.prismaSubTab = 'auto';
+          UI.toast('Fluxograma removido.', 'info');
+          renderPrismaTab(project);
+        }
+      };
+    }
+
+    // 6. Hide PRISMA tab
+    const btnHide = $('btn-prisma-hide-tab');
+    if (btnHide) {
+      btnHide.onclick = () => {
+        if (confirm('Deseja ocultar a aba PRISMA 2020 desta revisão?\n\nVocê poderá reativá-la a qualquer momento no topo da tela através do botão "📐 Reativar Aba PRISMA".')) {
+          Storage.updateProject(project.id, { hide_prisma_tab: true });
+          project.hide_prisma_tab = true;
+          UI.toast('Aba PRISMA ocultada. Você pode reativá-la a qualquer momento no topo.', 'info');
+          navigate('project', { tab: 'overview' });
+        }
+      };
+    }
   }
 
   // ─── OVERVIEW TAB ─────────────────────────────────────
