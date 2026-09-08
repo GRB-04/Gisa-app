@@ -23,7 +23,8 @@ const App = (() => {
     articlePageSize: 20,
     serialIndex: 0,
     activeArticleId: null,
-    prismaSubTab: 'auto',
+    prismaSubTab: 'template',
+    prismaEditMode: true,
     wizard: { step: 1, name: '', desc: '', keywords: [], files: [] }
   };
 
@@ -1068,12 +1069,249 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
 `;
   }
 
+  function getDefaultPrismaManualData(project) {
+    const s = project.stats || {};
+    const articles = project.articles || [];
+
+    // 1. Group databases from articles
+    const dbMap = {};
+    articles.forEach(a => {
+      let source = a.database || a.source || a.db_source || a.file_name || '';
+      source = source.trim();
+      if (!source || source === 'undefined') {
+        source = 'Bases de dados consultadas';
+      }
+      source = source.replace(/\.(csv|ris|bib|txt|ciw|enw)$/i, '');
+      dbMap[source] = (dbMap[source] || 0) + 1;
+    });
+
+    const databases = Object.entries(dbMap).map(([name, count]) => ({ name, count }));
+    if (databases.length === 0) {
+      databases.push({ name: 'Bases de dados consultadas', count: s.total || articles.length });
+    }
+
+    // 2. Duplicates
+    const duplicatesCount = s.duplicates || articles.filter(a => a.is_duplicate).length;
+    const totalIdentified = s.total || articles.length;
+    const recordsScreened = Math.max(0, totalIdentified - duplicatesCount);
+
+    // 3. Screening exclusions
+    const excludedScreening = articles.filter(a => a.decision === 'exclude' && !a.is_duplicate);
+    const screeningReasonsMap = {};
+    excludedScreening.forEach(a => {
+      const r = (a.exclusion_reason && a.exclusion_reason.trim()) ? a.exclusion_reason.trim() : 'Critério de exclusão na triagem';
+      screeningReasonsMap[r] = (screeningReasonsMap[r] || 0) + 1;
+    });
+    const screeningExclusionReasons = Object.entries(screeningReasonsMap).map(([reason, count]) => ({ reason, count }));
+    if (screeningExclusionReasons.length === 0 && excludedScreening.length > 0) {
+      screeningExclusionReasons.push({ reason: 'Artigos fora do escopo temático', count: excludedScreening.length });
+    }
+
+    // 4. Reports sought and assessed for eligibility (Phase 2)
+    const includedPhase1 = articles.filter(a => a.decision === 'include' && !a.is_duplicate);
+    const reportsSought = includedPhase1.length;
+    const reportsNotRetrieved = 0;
+    const reportsAssessed = reportsSought - reportsNotRetrieved;
+
+    // 5. Final Selection (Phase 3)
+    const finalSelected = articles.filter(a => a.decision === 'include' && !a.is_duplicate && a.final_selection === true);
+    const studiesIncluded = finalSelected.length > 0 ? finalSelected.length : reportsAssessed;
+    const reportsExcluded = Math.max(0, reportsAssessed - studiesIncluded);
+
+    const eligibilityExclusionReasons = [];
+    if (reportsExcluded > 0) {
+      eligibilityExclusionReasons.push({ reason: 'Critérios PICO não preenchidos integralmente', count: reportsExcluded });
+    } else {
+      eligibilityExclusionReasons.push({ reason: 'Critérios de inclusão não atendidos', count: 0 });
+    }
+
+    return {
+      includeOtherSources: false,
+      identification: {
+        databases,
+        registersCount: 0,
+        duplicatesRemoved: duplicatesCount,
+        automationIneligible: 0,
+        otherReasonsRemoved: 0
+      },
+      screening: {
+        recordsScreened,
+        recordsExcluded: excludedScreening.length,
+        screeningExclusionReasons: screeningExclusionReasons.length > 0 ? screeningExclusionReasons : [{ reason: 'Artigos fora do escopo', count: 0 }],
+        reportsSought,
+        reportsNotRetrieved: 0,
+        reportsNotRetrievedReason: 'Texto completo indisponível',
+        reportsAssessed,
+        reportsExcluded,
+        eligibilityExclusionReasons
+      },
+      included: {
+        studiesIncluded,
+        reportsOfIncludedStudies: studiesIncluded,
+        includeMetaAnalysis: false,
+        studiesIncludedMetaAnalysis: 0,
+        metaAnalysisText: 'Estudos incluídos na síntese quantitativa (meta-análise)'
+      }
+    };
+  }
+
+  function convertPrismaSvgToCanvas(svgString, scale = 2) {
+    return new Promise((resolve, reject) => {
+      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const URL = window.URL || window.webkitURL || window;
+      const blobUrl = URL.createObjectURL(svgBlob);
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = 880 * scale;
+          canvas.height = 980 * scale;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          URL.revokeObjectURL(blobUrl);
+          resolve(canvas);
+        } catch (err) {
+          URL.revokeObjectURL(blobUrl);
+          reject(err);
+        }
+      };
+      img.onerror = (e) => {
+        URL.revokeObjectURL(blobUrl);
+        reject(e);
+      };
+      img.src = blobUrl;
+    });
+  }
+
+  function downloadCanvasAsPng(canvas, project) {
+    const a = document.createElement('a');
+    const safeName = (project.name || 'revisao').toLowerCase().replace(/[^a-z0-9]/g, '_');
+    a.download = `PRISMA2020_${safeName}.png`;
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  }
+
+  async function copyPrismaImage(project) {
+    try {
+      const manualData = project.prisma_manual_data || getDefaultPrismaManualData(project);
+      const svgString = UI.renderPrismaOfficialSvg(manualData, project);
+      const canvas = await convertPrismaSvgToCanvas(svgString, 2);
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          UI.toast('Erro ao gerar imagem.', 'error');
+          return;
+        }
+        if (navigator.clipboard && navigator.clipboard.write) {
+          try {
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+            UI.toast('📋 Imagem do PRISMA copiada! Cole no Google Docs com Ctrl+V.', 'success');
+            return;
+          } catch (clipErr) {
+            console.warn('Clipboard write failed, downloading instead:', clipErr);
+          }
+        }
+        downloadCanvasAsPng(canvas, project);
+        UI.toast('Imagem PNG baixada (cópia direta não suportada pelo navegador).', 'info');
+      }, 'image/png');
+    } catch (err) {
+      console.error('Erro ao copiar imagem PRISMA:', err);
+      UI.toast('Falha ao gerar imagem do diagrama.', 'error');
+    }
+  }
+
+  async function downloadPrismaPng(project) {
+    try {
+      const manualData = project.prisma_manual_data || getDefaultPrismaManualData(project);
+      const svgString = UI.renderPrismaOfficialSvg(manualData, project);
+      const canvas = await convertPrismaSvgToCanvas(svgString, 2);
+      downloadCanvasAsPng(canvas, project);
+      UI.toast('📷 Imagem PNG (300 DPI) baixada com sucesso!', 'success');
+    } catch (err) {
+      console.error('Erro ao baixar PNG:', err);
+      UI.toast('Falha ao baixar imagem PNG.', 'error');
+    }
+  }
+
+  function downloadPrismaSvg(project) {
+    const manualData = project.prisma_manual_data || getDefaultPrismaManualData(project);
+    const svgString = UI.renderPrismaOfficialSvg(manualData, project);
+    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const safeName = (project.name || 'revisao').toLowerCase().replace(/[^a-z0-9]/g, '_');
+    a.download = `PRISMA2020_${safeName}.svg`;
+    a.href = url;
+    a.click();
+    URL.revokeObjectURL(url);
+    UI.toast('📄 Arquivo vetorial SVG baixado com sucesso!', 'success');
+  }
+
   function renderPrismaTab(project) {
     const content = $('tab-content');
     if (!content) return;
-    content.innerHTML = UI.renderPRISMA(project, { activeSubTab: state.prismaSubTab || (project.prisma_custom_file ? 'imported' : 'auto') });
 
-    // 1. Download CSV for official ShinyApp tool
+    if (!project.prisma_manual_data) {
+      project.prisma_manual_data = getDefaultPrismaManualData(project);
+      Storage.updateProject(project.id, { prisma_manual_data: project.prisma_manual_data });
+    }
+
+    const currentSubTab = state.prismaSubTab || 'template';
+    const isEditMode = state.prismaEditMode !== false;
+
+    content.innerHTML = UI.renderPRISMA(project, {
+      activeSubTab: currentSubTab,
+      isEditMode: isEditMode
+    });
+
+    // ── 1. Preencher com Dados do Gisa ──
+    const btnFillGisa = $('btn-prisma-fill-gisa');
+    if (btnFillGisa) {
+      btnFillGisa.onclick = () => {
+        if (confirm('Deseja recarregar o molde com as contagens atuais do Gisa?\n\nIsso atualizará os números com os artigos e motivos registrados nesta revisão.')) {
+          project.prisma_manual_data = getDefaultPrismaManualData(project);
+          Storage.updateProject(project.id, { prisma_manual_data: project.prisma_manual_data });
+          UI.toast('🪄 Molde PRISMA 2020 preenchido com os dados do Gisa!', 'success');
+          renderPrismaTab(project);
+        }
+      };
+    }
+
+    // ── 2. Alternar Modo Edição / Modo Publicação ──
+    const btnModeToggle = $('btn-prisma-mode-toggle');
+    if (btnModeToggle) {
+      btnModeToggle.onclick = () => {
+        state.prismaEditMode = !state.prismaEditMode;
+        renderPrismaTab(project);
+      };
+    }
+
+    // ── 3. Copiar Imagem para o Google Docs (Ctrl+V) ──
+    const btnCopyImage = $('btn-prisma-copy-image');
+    if (btnCopyImage) {
+      btnCopyImage.onclick = () => copyPrismaImage(project);
+    }
+
+    // ── 4. Download PNG 300 DPI ──
+    const btnDownloadPng = $('btn-prisma-download-png');
+    if (btnDownloadPng) {
+      btnDownloadPng.onclick = () => downloadPrismaPng(project);
+    }
+
+    // ── 5. Download SVG ──
+    const btnDownloadSvg = $('btn-prisma-download-svg');
+    if (btnDownloadSvg) {
+      btnDownloadSvg.onclick = () => downloadPrismaSvg(project);
+    }
+
+    // ── 6. Imprimir / Salvar PDF ──
+    const btnPrint = $('btn-prisma-print');
+    if (btnPrint) {
+      btnPrint.onclick = () => window.print();
+    }
+
+    // ── 7. Download CSV para ferramenta oficial ShinyApp ──
     const btnDownloadCsv = $('btn-prisma-download-csv');
     if (btnDownloadCsv) {
       btnDownloadCsv.onclick = () => {
@@ -1090,56 +1328,43 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
       };
     }
 
-    // 2. Copy summary numbers to clipboard
-    const btnCopySummary = $('btn-prisma-copy-summary');
-    if (btnCopySummary) {
-      btnCopySummary.onclick = () => {
-        const s = project.stats || {};
-        const articles = project.articles || [];
-        const excludedScreening = articles.filter(a => a.decision === 'exclude' && !a.is_duplicate);
-        const reasonsMap = {};
-        excludedScreening.forEach(a => {
-          const r = a.exclusion_reason || 'Critério não informado';
-          reasonsMap[r] = (reasonsMap[r] || 0) + 1;
-        });
-
-        const recordsIdentified = s.total || articles.length;
-        const duplicatesRemoved = s.duplicates || articles.filter(a => a.is_duplicate).length;
-        const recordsScreened = Math.max(0, recordsIdentified - duplicatesRemoved);
-        const recordsExcluded = excludedScreening.length;
-        const recordsIncluded = articles.filter(a => a.decision === 'include' && !a.is_duplicate).length;
-        const finalSelectedCount = articles.filter(a => a.decision === 'include' && !a.is_duplicate && a.final_selection === true).length;
-
-        const summaryText = `RESUMO DE DADOS PRISMA 2020 - ${project.name}
---------------------------------------------------
-1. Identificação:
-- Registros identificados nas bases de dados: ${recordsIdentified}
-
-2. Remoção de Duplicatas:
-- Registros duplicados removidos antes da triagem: ${duplicatesRemoved}
-
-3. Triagem (Título & Resumo):
-- Registros únicos avaliados: ${recordsScreened}
-- Registros excluídos na triagem: ${recordsExcluded}
-${Object.entries(reasonsMap).map(([r, c]) => `  * ${r}: ${c}`).join('\n')}
-
-4. Elegibilidade (Texto Completo):
-- Artigos avaliados para elegibilidade integral: ${recordsIncluded}
-
-5. Síntese Definitiva:
-- Estudos finais incluídos na revisão sistemática e síntese: ${finalSelectedCount}
---------------------------------------------------
-Gerado pelo Gisa em ${new Date().toLocaleDateString('pt-BR')}`;
-
-        navigator.clipboard.writeText(summaryText).then(() => {
-          UI.toast('Dados copiados para a área de transferência!', 'success');
-        }).catch(() => {
-          UI.toast('Não foi possível copiar automaticamente.', 'error');
-        });
+    // ── 8. Ocultar Aba PRISMA ──
+    const btnHide = $('btn-prisma-hide-tab');
+    if (btnHide) {
+      btnHide.onclick = () => {
+        if (confirm('Deseja ocultar a aba PRISMA 2020 desta revisão?\n\nVocê poderá reativá-la a qualquer momento no topo da tela através do botão "📐 Reativar Aba PRISMA".')) {
+          Storage.updateProject(project.id, { hide_prisma_tab: true });
+          project.hide_prisma_tab = true;
+          UI.toast('Aba PRISMA ocultada. Você pode reativá-la a qualquer momento no topo.', 'info');
+          navigate('project', { tab: 'overview' });
+        }
       };
     }
 
-    // 3. Trigger File Upload
+    // ── 9. Sub-tabs toggle (Template vs Imported vs Auto) ──
+    const tabTemplate = $('btn-tab-view-template');
+    const tabImported = $('btn-tab-view-imported');
+    const tabAuto = $('btn-tab-view-auto');
+    if (tabTemplate) {
+      tabTemplate.onclick = () => {
+        state.prismaSubTab = 'template';
+        renderPrismaTab(project);
+      };
+    }
+    if (tabImported) {
+      tabImported.onclick = () => {
+        state.prismaSubTab = 'imported';
+        renderPrismaTab(project);
+      };
+    }
+    if (tabAuto) {
+      tabAuto.onclick = () => {
+        state.prismaSubTab = 'auto';
+        renderPrismaTab(project);
+      };
+    }
+
+    // ── 10. File upload handlers (Imported View) ──
     const fileInput = $('prisma-file-upload-input');
     const triggerUploadBtn = $('btn-trigger-prisma-upload');
     const replaceFileBtn = $('btn-replace-prisma-file');
@@ -1178,47 +1403,196 @@ Gerado pelo Gisa em ${new Date().toLocaleDateString('pt-BR')}`;
       };
     }
 
-    // 4. Sub-tab toggle (Imported vs Auto)
-    const tabViewImported = $('btn-tab-view-imported');
-    const tabViewAuto = $('btn-tab-view-auto');
-    if (tabViewImported) {
-      tabViewImported.onclick = () => {
-        state.prismaSubTab = 'imported';
-        renderPrismaTab(project);
-      };
-    }
-    if (tabViewAuto) {
-      tabViewAuto.onclick = () => {
-        state.prismaSubTab = 'auto';
-        renderPrismaTab(project);
-      };
-    }
-
-    // 5. Remove custom imported file
-    const btnRemove = $('btn-remove-prisma-file');
-    if (btnRemove) {
-      btnRemove.onclick = () => {
+    const btnRemoveFile = $('btn-remove-prisma-file');
+    if (btnRemoveFile) {
+      btnRemoveFile.onclick = () => {
         if (confirm('Deseja remover o fluxograma anexado desta revisão?')) {
           Storage.updateProject(project.id, { prisma_custom_file: null });
           project.prisma_custom_file = null;
-          state.prismaSubTab = 'auto';
-          UI.toast('Fluxograma removido.', 'info');
+          state.prismaSubTab = 'template';
+          UI.toast('Fluxograma anexado removido.', 'info');
           renderPrismaTab(project);
         }
       };
     }
 
-    // 6. Hide PRISMA tab
-    const btnHide = $('btn-prisma-hide-tab');
-    if (btnHide) {
-      btnHide.onclick = () => {
-        if (confirm('Deseja ocultar a aba PRISMA 2020 desta revisão?\n\nVocê poderá reativá-la a qualquer momento no topo da tela através do botão "📐 Reativar Aba PRISMA".')) {
-          Storage.updateProject(project.id, { hide_prisma_tab: true });
-          project.hide_prisma_tab = true;
-          UI.toast('Aba PRISMA ocultada. Você pode reativá-la a qualquer momento no topo.', 'info');
-          navigate('project', { tab: 'overview' });
-        }
+    // ── 11. Inline Edit Listeners on Paper ──
+    const paper = $('prisma-official-paper');
+    if (paper && isEditMode) {
+      let saveTimer = null;
+      const debouncedSave = () => {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(() => {
+          Storage.updateProject(project.id, { prisma_manual_data: project.prisma_manual_data });
+        }, 500);
       };
+
+      paper.addEventListener('input', (e) => {
+        const t = e.target;
+        const m = project.prisma_manual_data;
+        if (!m) return;
+
+        // Databases
+        if (t.dataset.prismaDbIdx !== undefined) {
+          const idx = Number(t.dataset.prismaDbIdx);
+          const key = t.dataset.prismaDbKey;
+          if (m.identification?.databases?.[idx]) {
+            m.identification.databases[idx][key] = key === 'count' ? (Number(t.value) || 0) : t.value;
+          }
+        }
+        // Registers
+        else if (t.id === 'prisma-in-registers') {
+          m.identification.registersCount = Number(t.value) || 0;
+        }
+        // Duplicates
+        else if (t.id === 'prisma-in-duplicates') {
+          m.identification.duplicatesRemoved = Number(t.value) || 0;
+        }
+        // Automation
+        else if (t.id === 'prisma-in-automation') {
+          m.identification.automationIneligible = Number(t.value) || 0;
+        }
+        // Other reasons
+        else if (t.id === 'prisma-in-other-reasons') {
+          m.identification.otherReasonsRemoved = Number(t.value) || 0;
+        }
+        // Screened
+        else if (t.id === 'prisma-in-screened') {
+          m.screening.recordsScreened = Number(t.value) || 0;
+        }
+        // Screened excluded
+        else if (t.id === 'prisma-in-screened-excluded') {
+          m.screening.recordsExcluded = Number(t.value) || 0;
+        }
+        // Screening reasons list item
+        else if (t.dataset.prismaScreenIdx !== undefined) {
+          const idx = Number(t.dataset.prismaScreenIdx);
+          const key = t.dataset.prismaScreenKey;
+          if (m.screening?.screeningExclusionReasons?.[idx]) {
+            m.screening.screeningExclusionReasons[idx][key] = key === 'count' ? (Number(t.value) || 0) : t.value;
+          }
+        }
+        // Reports sought
+        else if (t.id === 'prisma-in-reports-sought') {
+          m.screening.reportsSought = Number(t.value) || 0;
+        }
+        // Reports not retrieved
+        else if (t.id === 'prisma-in-reports-not-retrieved') {
+          m.screening.reportsNotRetrieved = Number(t.value) || 0;
+        }
+        else if (t.id === 'prisma-in-reports-not-retrieved-reason') {
+          m.screening.reportsNotRetrievedReason = t.value;
+        }
+        // Reports assessed
+        else if (t.id === 'prisma-in-reports-assessed') {
+          m.screening.reportsAssessed = Number(t.value) || 0;
+        }
+        // Reports excluded
+        else if (t.id === 'prisma-in-reports-excluded') {
+          m.screening.reportsExcluded = Number(t.value) || 0;
+        }
+        // Eligibility reasons list item
+        else if (t.dataset.prismaEligIdx !== undefined) {
+          const idx = Number(t.dataset.prismaEligIdx);
+          const key = t.dataset.prismaEligKey;
+          if (m.screening?.eligibilityExclusionReasons?.[idx]) {
+            m.screening.eligibilityExclusionReasons[idx][key] = key === 'count' ? (Number(t.value) || 0) : t.value;
+          }
+        }
+        // Studies included
+        else if (t.id === 'prisma-in-studies-included') {
+          m.included.studiesIncluded = Number(t.value) || 0;
+        }
+        // Reports included
+        else if (t.id === 'prisma-in-reports-included') {
+          m.included.reportsOfIncludedStudies = Number(t.value) || 0;
+        }
+        // Meta analysis
+        else if (t.id === 'prisma-in-meta-text') {
+          m.included.metaAnalysisText = t.value;
+        }
+        else if (t.id === 'prisma-in-studies-meta') {
+          m.included.studiesIncludedMetaAnalysis = Number(t.value) || 0;
+        }
+
+        debouncedSave();
+      });
+
+      // Meta analysis toggle
+      const chkMeta = $('prisma-chk-meta');
+      if (chkMeta) {
+        chkMeta.onchange = () => {
+          project.prisma_manual_data.included.includeMetaAnalysis = chkMeta.checked;
+          Storage.updateProject(project.id, { prisma_manual_data: project.prisma_manual_data });
+          renderPrismaTab(project);
+        };
+      }
+
+      // Add database button
+      const btnAddDb = $('btn-prisma-add-db');
+      if (btnAddDb) {
+        btnAddDb.onclick = () => {
+          project.prisma_manual_data.identification.databases = project.prisma_manual_data.identification.databases || [];
+          project.prisma_manual_data.identification.databases.push({ name: 'Nova Base de Dados', count: 0 });
+          Storage.updateProject(project.id, { prisma_manual_data: project.prisma_manual_data });
+          renderPrismaTab(project);
+        };
+      }
+
+      // Delete database buttons
+      $$('.btn-del-prisma-db').forEach(btn => {
+        btn.onclick = (ev) => {
+          ev.stopPropagation();
+          const idx = Number(btn.dataset.idx);
+          project.prisma_manual_data.identification.databases.splice(idx, 1);
+          Storage.updateProject(project.id, { prisma_manual_data: project.prisma_manual_data });
+          renderPrismaTab(project);
+        };
+      });
+
+      // Add screening reason button
+      const btnAddScreenReason = $('btn-prisma-add-screening-reason');
+      if (btnAddScreenReason) {
+        btnAddScreenReason.onclick = () => {
+          project.prisma_manual_data.screening.screeningExclusionReasons = project.prisma_manual_data.screening.screeningExclusionReasons || [];
+          project.prisma_manual_data.screening.screeningExclusionReasons.push({ reason: 'Novo motivo de exclusão', count: 0 });
+          Storage.updateProject(project.id, { prisma_manual_data: project.prisma_manual_data });
+          renderPrismaTab(project);
+        };
+      }
+
+      // Delete screening reason buttons
+      $$('.btn-del-screen-reason').forEach(btn => {
+        btn.onclick = (ev) => {
+          ev.stopPropagation();
+          const idx = Number(btn.dataset.idx);
+          project.prisma_manual_data.screening.screeningExclusionReasons.splice(idx, 1);
+          Storage.updateProject(project.id, { prisma_manual_data: project.prisma_manual_data });
+          renderPrismaTab(project);
+        };
+      });
+
+      // Add eligibility reason button
+      const btnAddEligReason = $('btn-prisma-add-eligibility-reason');
+      if (btnAddEligReason) {
+        btnAddEligReason.onclick = () => {
+          project.prisma_manual_data.screening.eligibilityExclusionReasons = project.prisma_manual_data.screening.eligibilityExclusionReasons || [];
+          project.prisma_manual_data.screening.eligibilityExclusionReasons.push({ reason: 'Novo critério PICO não atendido', count: 0 });
+          Storage.updateProject(project.id, { prisma_manual_data: project.prisma_manual_data });
+          renderPrismaTab(project);
+        };
+      }
+
+      // Delete eligibility reason buttons
+      $$('.btn-del-elig-reason').forEach(btn => {
+        btn.onclick = (ev) => {
+          ev.stopPropagation();
+          const idx = Number(btn.dataset.idx);
+          project.prisma_manual_data.screening.eligibilityExclusionReasons.splice(idx, 1);
+          Storage.updateProject(project.id, { prisma_manual_data: project.prisma_manual_data });
+          renderPrismaTab(project);
+        };
+      });
     }
   }
 

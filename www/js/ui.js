@@ -765,140 +765,651 @@ const UI = (() => {
     return container;
   }
 
-  /* ── PRISMA 2020 Flowchart Render ───────────────────── */
-  function renderPRISMA(project, options = {}) {
-    const s = project.stats || {};
-    const articles = project.articles || [];
-    const customFile = project.prisma_custom_file || null;
-    const activeView = options.activeSubTab || (customFile ? 'imported' : 'auto');
+  /* ── PRISMA 2020 Official In-App Template & Editor ── */
+  function renderPrismaOfficialSvg(manualData, project) {
+    const pName = project?.name || 'Revisão Sistemática';
+    const m = manualData || {};
+    const idf = m.identification || {};
+    const scr = m.screening || {};
+    const inc = m.included || {};
 
-    // PRISMA 2020: Duplicates are removed in Phase 2.
-    // In Phase 3 (Screening), only non-duplicate exclusions are counted and listed with their screening criteria.
-    const excludedScreening = articles.filter(a => a.decision === 'exclude' && !a.is_duplicate);
-    const reasonsMap = {};
-    excludedScreening.forEach(a => {
-      const r = a.exclusion_reason || 'Critério de exclusão não informado';
-      reasonsMap[r] = (reasonsMap[r] || 0) + 1;
-    });
+    const dbs = idf.databases || [];
+    const totalDbs = dbs.reduce((sum, d) => sum + (Number(d.count) || 0), 0);
+    const regCount = Number(idf.registersCount) || 0;
+    const totalIdentified = totalDbs + regCount;
 
-    const reasonsListHtml = Object.entries(reasonsMap)
-      .map(([reason, count]) => `<li style="margin-bottom:4px">${escapeHtml(reason)}: <strong>${count}</strong></li>`)
-      .join('');
+    const dupCount = Number(idf.duplicatesRemoved) || 0;
+    const autoCount = Number(idf.automationIneligible) || 0;
+    const otherCount = Number(idf.otherReasonsRemoved) || 0;
+    const totalRemoved = dupCount + autoCount + otherCount;
 
-    const recordsIdentified = s.total || articles.length;
-    const duplicatesRemoved = s.duplicates || articles.filter(a => a.is_duplicate).length;
-    const recordsScreened = Math.max(0, recordsIdentified - duplicatesRemoved);
-    const recordsExcluded = excludedScreening.length;
-    const recordsIncluded = articles.filter(a => a.decision === 'include' && !a.is_duplicate).length;
-    const finalSelectedCount = articles.filter(a => a.decision === 'include' && !a.is_duplicate && a.final_selection === true).length;
+    const screenedCount = Number(scr.recordsScreened) || Math.max(0, totalIdentified - totalRemoved);
+    const screenedExcludedCount = Number(scr.recordsExcluded) || 0;
+    const screenReasons = scr.screeningExclusionReasons || [];
+
+    const reportsSought = Number(scr.reportsSought) || Math.max(0, screenedCount - screenedExcludedCount);
+    const reportsNotRetrieved = Number(scr.reportsNotRetrieved) || 0;
+    const reportsNotRetrievedReason = scr.reportsNotRetrievedReason || 'Texto completo indisponível';
+
+    const reportsAssessed = Number(scr.reportsAssessed) || Math.max(0, reportsSought - reportsNotRetrieved);
+    const reportsExcluded = Number(scr.reportsExcluded) || 0;
+    const eligReasons = scr.eligibilityExclusionReasons || [];
+
+    const studiesIncluded = Number(inc.studiesIncluded) || Math.max(0, reportsAssessed - reportsExcluded);
+    const reportsIncluded = Number(inc.reportsOfIncludedStudies) || studiesIncluded;
+    const includeMeta = inc.includeMetaAnalysis !== false;
+    const studiesMeta = Number(inc.studiesIncludedMetaAnalysis) || 0;
+    const metaText = inc.metaAnalysisText || 'Estudos incluídos na síntese quantitativa (meta-análise)';
+
+    function escapeXml(unsafe) {
+      if (unsafe === null || unsafe === undefined) return '';
+      return String(unsafe).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+    }
+
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 980" width="880" height="980">
+  <defs>
+    <marker id="prisma-arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#334155" />
+    </marker>
+  </defs>
+
+  <!-- Background Paper -->
+  <rect width="880" height="980" fill="#ffffff" />
+
+  <!-- Header -->
+  <text x="440" y="32" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="bold" fill="#0f172a" letter-spacing="1">FLUXOGRAMA PRISMA 2020 PARA REVISÕES SISTEMÁTICAS</text>
+  <text x="440" y="48" text-anchor="middle" font-family="Arial, sans-serif" font-size="10.5" font-style="italic" fill="#64748b">De acordo com a declaração PRISMA 2020 (Page MJ, et al. BMJ 2021;372:n71)</text>
+
+  <!-- Left Phase Badges -->
+  <!-- Phase 1: Identificação -->
+  <rect x="20" y="70" width="34" height="170" rx="4" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5" />
+  <text x="37" y="155" transform="rotate(-90 37 155)" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#1d4ed8" letter-spacing="2">IDENTIFICAÇÃO</text>
+
+  <!-- Phase 2: Triagem -->
+  <rect x="20" y="260" width="34" height="470" rx="4" fill="#ecfeff" stroke="#06b6d4" stroke-width="1.5" />
+  <text x="37" y="495" transform="rotate(-90 37 495)" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#0e7490" letter-spacing="2">TRIAGEM</text>
+
+  <!-- Phase 3: Inclusão -->
+  <rect x="20" y="750" width="34" height="170" rx="4" fill="#f0fdf4" stroke="#22c55e" stroke-width="1.5" />
+  <text x="37" y="835" transform="rotate(-90 37 835)" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#15803d" letter-spacing="2">INCLUSÃO</text>
+
+  <!-- BOX 1: Bases e Registros Identificados -->
+  <rect x="68" y="70" width="350" height="170" rx="4" fill="#f8fafc" stroke="#334155" stroke-width="1.5" />
+  <text x="80" y="90" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#0f172a">Registros identificados nas bases (n = ${totalIdentified}):</text>
+  <text x="80" y="106" font-family="Arial, sans-serif" font-size="10.5" fill="#334155">Bases de dados consultadas (n = ${totalDbs}):</text>
+  ${dbs.slice(0, 4).map((d, i) => `<text x="94" y="${122 + (i * 15)}" font-family="Arial, sans-serif" font-size="10" fill="#475569">• ${escapeXml(d.name)} (n = ${d.count})</text>`).join('')}
+  <text x="80" y="190" font-family="Arial, sans-serif" font-size="10.5" fill="#334155">Registros de ensaios/registros (n = ${regCount})</text>
+
+  <!-- Arrow 1 -> 2 (Lateral) -->
+  <line x1="418" y1="155" x2="472" y2="155" stroke="#334155" stroke-width="1.8" marker-end="url(#prisma-arrow)" />
+
+  <!-- BOX 2: Registros Removidos antes da Triagem -->
+  <rect x="472" y="70" width="380" height="170" rx="4" fill="#f8fafc" stroke="#334155" stroke-width="1.5" />
+  <text x="484" y="90" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#0f172a">Registros removidos antes da triagem (n = ${totalRemoved}):</text>
+  <text x="498" y="112" font-family="Arial, sans-serif" font-size="10" fill="#475569">• Registros duplicados removidos (n = ${dupCount})</text>
+  <text x="498" y="132" font-family="Arial, sans-serif" font-size="10" fill="#475569">• Inelegíveis por automação (n = ${autoCount})</text>
+  <text x="498" y="152" font-family="Arial, sans-serif" font-size="10" fill="#475569">• Removidos por outros motivos (n = ${otherCount})</text>
+
+  <!-- Arrow 1 -> 3 (Down) -->
+  <line x1="243" y1="240" x2="243" y2="260" stroke="#334155" stroke-width="1.8" marker-end="url(#prisma-arrow)" />
+
+  <!-- BOX 3: Registros Triados -->
+  <rect x="68" y="260" width="350" height="75" rx="4" fill="#f8fafc" stroke="#334155" stroke-width="1.5" />
+  <text x="80" y="286" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#0f172a">Registros triados por título e resumo:</text>
+  <text x="80" y="306" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#2563eb">(n = ${screenedCount})</text>
+
+  <!-- Arrow 3 -> 4 (Lateral) -->
+  <line x1="418" y1="295" x2="472" y2="295" stroke="#334155" stroke-width="1.8" marker-end="url(#prisma-arrow)" />
+
+  <!-- BOX 4: Registros Excluídos na Triagem -->
+  <rect x="472" y="260" width="380" height="110" rx="4" fill="#fef2f2" stroke="#ef4444" stroke-width="1.5" />
+  <text x="484" y="282" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#991b1b">Registros excluídos na triagem (n = ${screenedExcludedCount}):</text>
+  ${screenReasons.slice(0, 3).map((r, i) => `<text x="498" y="${302 + (i * 16)}" font-family="Arial, sans-serif" font-size="10" fill="#b91c1c">• ${escapeXml(r.reason)} (n = ${r.count})</text>`).join('')}
+
+  <!-- Arrow 3 -> 5 (Down) -->
+  <line x1="243" y1="335" x2="243" y2="390" stroke="#334155" stroke-width="1.8" marker-end="url(#prisma-arrow)" />
+
+  <!-- BOX 5: Relatórios Buscados -->
+  <rect x="68" y="390" width="350" height="75" rx="4" fill="#f8fafc" stroke="#334155" stroke-width="1.5" />
+  <text x="80" y="415" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#0f172a">Relatórios buscados para recuperação integral:</text>
+  <text x="80" y="435" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#2563eb">(n = ${reportsSought})</text>
+
+  <!-- Arrow 5 -> 6 (Lateral) -->
+  <line x1="418" y1="425" x2="472" y2="425" stroke="#334155" stroke-width="1.8" marker-end="url(#prisma-arrow)" />
+
+  <!-- BOX 6: Relatórios Não Recuperados -->
+  <rect x="472" y="390" width="380" height="75" rx="4" fill="#f8fafc" stroke="#334155" stroke-width="1.5" />
+  <text x="484" y="415" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#0f172a">Relatórios não recuperados (n = ${reportsNotRetrieved}):</text>
+  <text x="498" y="435" font-family="Arial, sans-serif" font-size="10" fill="#475569">• ${escapeXml(reportsNotRetrievedReason)} (n = ${reportsNotRetrieved})</text>
+
+  <!-- Arrow 5 -> 7 (Down) -->
+  <line x1="243" y1="465" x2="243" y2="500" stroke="#334155" stroke-width="1.8" marker-end="url(#prisma-arrow)" />
+
+  <!-- BOX 7: Relatórios Avaliados para Elegibilidade -->
+  <rect x="68" y="500" width="350" height="75" rx="4" fill="#f8fafc" stroke="#334155" stroke-width="1.5" />
+  <text x="80" y="525" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#0f172a">Relatórios avaliados para elegibilidade:</text>
+  <text x="80" y="545" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#2563eb">(n = ${reportsAssessed})</text>
+
+  <!-- Arrow 7 -> 8 (Lateral) -->
+  <line x1="418" y1="535" x2="472" y2="535" stroke="#334155" stroke-width="1.8" marker-end="url(#prisma-arrow)" />
+
+  <!-- BOX 8: Relatórios Excluídos na Elegibilidade -->
+  <rect x="472" y="500" width="380" height="150" rx="4" fill="#fef2f2" stroke="#ef4444" stroke-width="1.5" />
+  <text x="484" y="522" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#991b1b">Relatórios de texto completo excluídos (n = ${reportsExcluded}):</text>
+  ${eligReasons.slice(0, 4).map((r, i) => `<text x="498" y="${542 + (i * 17)}" font-family="Arial, sans-serif" font-size="10" fill="#b91c1c">• ${escapeXml(r.reason)} (n = ${r.count})</text>`).join('')}
+
+  <!-- Arrow 7 -> 9 (Down to Included) -->
+  <line x1="243" y1="575" x2="243" y2="750" stroke="#334155" stroke-width="1.8" marker-end="url(#prisma-arrow)" />
+
+  <!-- BOX 9: Estudos Incluídos na Síntese -->
+  <rect x="130" y="750" width="600" height="150" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="2" />
+  <text x="145" y="778" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#14532d">Novos estudos incluídos na revisão sistemática (n = ${studiesIncluded}):</text>
+  <text x="160" y="805" font-family="Arial, sans-serif" font-size="10.5" fill="#166534">• Relatórios de novos estudos incluídos (n = ${reportsIncluded})</text>
+  ${includeMeta ? `<text x="160" y="830" font-family="Arial, sans-serif" font-size="10.5" fill="#166534">• ${escapeXml(metaText)} (n = ${studiesMeta})</text>` : ''}
+  <text x="145" y="865" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#15803d">Revisão: ${escapeXml(pName)}</text>
+
+  <!-- Footer -->
+  <text x="440" y="945" text-anchor="middle" font-family="Arial, sans-serif" font-size="9.5" fill="#94a3b8">Gerado pela plataforma Gisa · Compatível com a declaração PRISMA 2020</text>
+</svg>`;
+  }
+
+  function renderPrismaOfficialTemplate(project, manualData, isEditMode) {
+    const pName = project?.name || 'Revisão Sistemática';
+    const m = manualData || {};
+    const idf = m.identification || {};
+    const scr = m.screening || {};
+    const inc = m.included || {};
+
+    const dbs = idf.databases || [];
+    const totalDbs = dbs.reduce((sum, d) => sum + (Number(d.count) || 0), 0);
+    const regCount = Number(idf.registersCount) || 0;
+    const totalIdentified = totalDbs + regCount;
+
+    const dupCount = Number(idf.duplicatesRemoved) || 0;
+    const autoCount = Number(idf.automationIneligible) || 0;
+    const otherCount = Number(idf.otherReasonsRemoved) || 0;
+    const totalRemoved = dupCount + autoCount + otherCount;
+
+    const screenedCount = Number(scr.recordsScreened) || Math.max(0, totalIdentified - totalRemoved);
+    const screenedExcludedCount = Number(scr.recordsExcluded) || 0;
+    const screenReasons = scr.screeningExclusionReasons || [];
+
+    const reportsSought = Number(scr.reportsSought) || Math.max(0, screenedCount - screenedExcludedCount);
+    const reportsNotRetrieved = Number(scr.reportsNotRetrieved) || 0;
+    const reportsNotRetrievedReason = scr.reportsNotRetrievedReason || 'Texto completo indisponível';
+
+    const reportsAssessed = Number(scr.reportsAssessed) || Math.max(0, reportsSought - reportsNotRetrieved);
+    const reportsExcluded = Number(scr.reportsExcluded) || 0;
+    const eligReasons = scr.eligibilityExclusionReasons || [];
+
+    const studiesIncluded = Number(inc.studiesIncluded) || Math.max(0, reportsAssessed - reportsExcluded);
+    const reportsIncluded = Number(inc.reportsOfIncludedStudies) || studiesIncluded;
+    const includeMeta = inc.includeMetaAnalysis !== false;
+    const studiesMeta = Number(inc.studiesIncludedMetaAnalysis) || 0;
+    const metaText = inc.metaAnalysisText || 'Estudos incluídos na síntese quantitativa (meta-análise)';
 
     return `
-      <div class="prisma-container" style="max-width:920px;margin:0 auto;padding:28px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);">
+      <div class="prisma-official-paper" id="prisma-official-paper">
+        <!-- Header -->
+        <div style="text-align:center;margin-bottom:24px;border-bottom:2px solid #e2e8f0;padding-bottom:14px;">
+          <h3 style="font-size:1.15rem;font-weight:800;color:#0f172a;letter-spacing:0.02em;margin:0 0 4px 0;text-transform:uppercase;">
+            Fluxograma PRISMA 2020 para Novas Revisões Sistemáticas
+          </h3>
+          <p style="font-size:0.78rem;color:#64748b;margin:0;font-style:italic;">
+            De acordo com a declaração PRISMA 2020 (Page MJ, et al. BMJ 2021;372:n71. doi: 10.1136/bmj.n71)
+          </p>
+        </div>
+
+        <!-- ── FASE 1: IDENTIFICAÇÃO ── -->
+        <div style="display:flex;gap:14px;margin-bottom:12px;align-items:stretch;">
+          <div class="prisma-phase-badge-v" style="background:#eff6ff;border:1.5px solid #3b82f6;color:#1d4ed8;">
+            IDENTIFICAÇÃO
+          </div>
+
+          <div style="flex:1;display:flex;flex-direction:column;gap:10px;">
+            <div style="display:grid;grid-template-columns:1fr 34px 1fr;align-items:center;gap:8px;">
+              
+              <!-- BOX 1: Bases Identificadas -->
+              <div class="prisma-box-official">
+                <div style="font-weight:700;margin-bottom:6px;color:#0f172a;">
+                  Registros identificados nas bases de dados e registros:
+                </div>
+
+                ${isEditMode ? `
+                  <div style="margin-bottom:8px;">
+                    <span style="font-size:0.75rem;color:#64748b;font-weight:600;">Bases de dados:</span>
+                    <div id="prisma-db-list" style="margin-top:4px;display:flex;flex-direction:column;gap:4px;">
+                      ${dbs.map((d, i) => `
+                        <div style="display:flex;align-items:center;gap:4px;">
+                          <input type="text" class="prisma-input-inline" data-prisma-db-idx="${i}" data-prisma-db-key="name" value="${escapeHtml(d.name)}" placeholder="Nome da base" style="flex:1;" />
+                          <span style="font-size:0.75rem;color:#64748b;">(n =</span>
+                          <input type="number" class="prisma-input-inline num" data-prisma-db-idx="${i}" data-prisma-db-key="count" value="${d.count}" min="0" />
+                          <span style="font-size:0.75rem;color:#64748b;">)</span>
+                          <button type="button" class="btn-del-prisma-db" data-idx="${i}" title="Remover base" style="color:#ef4444;background:none;border:none;cursor:pointer;font-size:1.1rem;padding:0 2px;">×</button>
+                        </div>
+                      `).join('')}
+                    </div>
+                    <button type="button" id="btn-prisma-add-db" style="font-size:0.72rem;padding:2px 8px;margin-top:6px;background:#eff6ff;color:#2563eb;border:1px dashed #3b82f6;border-radius:4px;cursor:pointer;font-weight:600;">
+                      + Adicionar Base
+                    </button>
+                  </div>
+
+                  <div style="display:flex;align-items:center;gap:6px;padding-top:6px;border-top:1px dashed #e2e8f0;">
+                    <span style="font-size:0.78rem;color:#334155;">Registros de ensaios (registers):</span>
+                    <span style="font-size:0.75rem;color:#64748b;">(n =</span>
+                    <input type="number" class="prisma-input-inline num" id="prisma-in-registers" value="${regCount}" min="0" />
+                    <span style="font-size:0.75rem;color:#64748b;">)</span>
+                  </div>
+                ` : `
+                  <div style="font-size:0.8rem;color:#334155;">
+                    <div style="margin-bottom:4px;">Bases de dados consultadas (n = <strong>${totalDbs}</strong>):</div>
+                    <ul style="margin:2px 0 6px 18px;padding:0;line-height:1.5;">
+                      ${dbs.map(d => `<li>${escapeHtml(d.name)} (n = <strong>${d.count}</strong>)</li>`).join('')}
+                    </ul>
+                    <div>Registros de ensaios/registros (n = <strong>${regCount}</strong>)</div>
+                  </div>
+                `}
+
+                <div style="margin-top:8px;padding-top:6px;border-top:1px solid #e2e8f0;font-size:0.8rem;font-weight:700;color:#1e40af;">
+                  Total identificado: (n = ${totalIdentified})
+                </div>
+              </div>
+
+              <!-- Seta Lateral -->
+              <div style="text-align:center;color:#64748b;font-size:1.4rem;font-weight:bold;">→</div>
+
+              <!-- BOX 2: Removidos antes da Triagem -->
+              <div class="prisma-box-official">
+                <div style="font-weight:700;margin-bottom:6px;color:#0f172a;">
+                  Registros removidos antes da triagem:
+                </div>
+
+                ${isEditMode ? `
+                  <div style="display:flex;flex-direction:column;gap:6px;font-size:0.78rem;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                      <span>Registros duplicados removidos:</span>
+                      <div>(n = <input type="number" class="prisma-input-inline num" id="prisma-in-duplicates" value="${dupCount}" min="0" />)</div>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                      <span>Inelegíveis por automação:</span>
+                      <div>(n = <input type="number" class="prisma-input-inline num" id="prisma-in-automation" value="${autoCount}" min="0" />)</div>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                      <span>Removidos por outros motivos:</span>
+                      <div>(n = <input type="number" class="prisma-input-inline num" id="prisma-in-other-reasons" value="${otherCount}" min="0" />)</div>
+                    </div>
+                  </div>
+                ` : `
+                  <ul style="margin:4px 0 0 18px;padding:0;font-size:0.8rem;line-height:1.6;color:#334155;">
+                    <li>Registros duplicados removidos (n = <strong>${dupCount}</strong>)</li>
+                    <li>Marcados como inelegíveis por ferramentas de automação (n = <strong>${autoCount}</strong>)</li>
+                    <li>Removidos por outros motivos (n = <strong>${otherCount}</strong>)</li>
+                  </ul>
+                `}
+
+                <div style="margin-top:8px;padding-top:6px;border-top:1px solid #e2e8f0;font-size:0.8rem;font-weight:700;color:#64748b;">
+                  Total removido: (n = ${totalRemoved})
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- Seta Down -->
+        <div style="text-align:center;color:#64748b;font-size:1.4rem;font-weight:bold;margin:2px 0;">↓</div>
+
+        <!-- ── FASE 2: TRIAGEM ── -->
+        <div style="display:flex;gap:14px;margin-bottom:12px;align-items:stretch;">
+          <div class="prisma-phase-badge-v" style="background:#ecfeff;border:1.5px solid #06b6d4;color:#0e7490;">
+            TRIAGEM
+          </div>
+
+          <div style="flex:1;display:flex;flex-direction:column;gap:12px;">
+            
+            <!-- Linha 1: Triados vs Excluídos na Triagem -->
+            <div style="display:grid;grid-template-columns:1fr 34px 1fr;align-items:center;gap:8px;">
+              <div class="prisma-box-official">
+                <div style="font-weight:700;margin-bottom:4px;color:#0f172a;">
+                  Registros triados por título e resumo:
+                </div>
+                ${isEditMode ? `
+                  <div style="display:flex;align-items:center;gap:6px;margin-top:6px;">
+                    <span style="font-size:0.8rem;">(n =</span>
+                    <input type="number" class="prisma-input-inline num" id="prisma-in-screened" value="${screenedCount}" min="0" />
+                    <span style="font-size:0.8rem;">)</span>
+                  </div>
+                ` : `
+                  <div style="font-size:1.05rem;font-weight:800;color:#2563eb;margin-top:4px;">(n = ${screenedCount})</div>
+                `}
+              </div>
+
+              <div style="text-align:center;color:#64748b;font-size:1.4rem;font-weight:bold;">→</div>
+
+              <div class="prisma-box-official highlight-excluded">
+                <div style="font-weight:700;margin-bottom:4px;color:#991b1b;">
+                  Registros excluídos na triagem:
+                </div>
+                ${isEditMode ? `
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+                    <span style="font-size:0.75rem;color:#b91c1c;font-weight:600;">Total excluídos: (n =</span>
+                    <input type="number" class="prisma-input-inline num" id="prisma-in-screened-excluded" value="${screenedExcludedCount}" min="0" />
+                    <span style="font-size:0.75rem;color:#b91c1c;">)</span>
+                  </div>
+                  <div id="prisma-screening-reasons-list" style="display:flex;flex-direction:column;gap:4px;">
+                    ${screenReasons.map((r, i) => `
+                      <div style="display:flex;align-items:center;gap:4px;">
+                        <input type="text" class="prisma-input-inline" data-prisma-screen-idx="${i}" data-prisma-screen-key="reason" value="${escapeHtml(r.reason)}" placeholder="Motivo de exclusão" style="flex:1;" />
+                        <span style="font-size:0.75rem;color:#64748b;">(n =</span>
+                        <input type="number" class="prisma-input-inline num" data-prisma-screen-idx="${i}" data-prisma-screen-key="count" value="${r.count}" min="0" />
+                        <span style="font-size:0.75rem;color:#64748b;">)</span>
+                        <button type="button" class="btn-del-screen-reason" data-idx="${i}" title="Remover" style="color:#ef4444;background:none;border:none;cursor:pointer;font-size:1.1rem;padding:0 2px;">×</button>
+                      </div>
+                    `).join('')}
+                  </div>
+                  <button type="button" id="btn-prisma-add-screening-reason" style="font-size:0.72rem;padding:2px 8px;margin-top:6px;background:#fef2f2;color:#dc2626;border:1px dashed #f87171;border-radius:4px;cursor:pointer;font-weight:600;">
+                    + Adicionar Motivo
+                  </button>
+                ` : `
+                  <div style="font-size:0.85rem;font-weight:800;color:#dc2626;margin-bottom:4px;">(n = ${screenedExcludedCount})</div>
+                  <ul style="margin:2px 0 0 16px;padding:0;font-size:0.78rem;line-height:1.5;color:#991b1b;">
+                    ${screenReasons.map(r => `<li>${escapeHtml(r.reason)} (n = <strong>${r.count}</strong>)</li>`).join('')}
+                  </ul>
+                `}
+              </div>
+            </div>
+
+            <!-- Seta Down -->
+            <div style="text-align:center;color:#64748b;font-size:1.2rem;font-weight:bold;">↓</div>
+
+            <!-- Linha 2: Relatórios Buscados vs Não Recuperados -->
+            <div style="display:grid;grid-template-columns:1fr 34px 1fr;align-items:center;gap:8px;">
+              <div class="prisma-box-official">
+                <div style="font-weight:700;margin-bottom:4px;color:#0f172a;">
+                  Relatórios buscados para recuperação:
+                </div>
+                ${isEditMode ? `
+                  <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+                    <span style="font-size:0.8rem;">(n =</span>
+                    <input type="number" class="prisma-input-inline num" id="prisma-in-reports-sought" value="${reportsSought}" min="0" />
+                    <span style="font-size:0.8rem;">)</span>
+                  </div>
+                ` : `
+                  <div style="font-size:1rem;font-weight:800;color:#2563eb;margin-top:2px;">(n = ${reportsSought})</div>
+                `}
+              </div>
+
+              <div style="text-align:center;color:#64748b;font-size:1.4rem;font-weight:bold;">→</div>
+
+              <div class="prisma-box-official">
+                <div style="font-weight:700;margin-bottom:4px;color:#0f172a;">
+                  Relatórios não recuperados:
+                </div>
+                ${isEditMode ? `
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                    <span style="font-size:0.75rem;">(n =</span>
+                    <input type="number" class="prisma-input-inline num" id="prisma-in-reports-not-retrieved" value="${reportsNotRetrieved}" min="0" />
+                    <span style="font-size:0.75rem;">)</span>
+                  </div>
+                  <input type="text" class="prisma-input-inline" id="prisma-in-reports-not-retrieved-reason" value="${escapeHtml(reportsNotRetrievedReason)}" placeholder="Motivo (ex: texto indisponível)" style="width:100%;font-size:0.75rem;" />
+                ` : `
+                  <div style="font-size:0.8rem;color:#334155;">(n = <strong>${reportsNotRetrieved}</strong>) - ${escapeHtml(reportsNotRetrievedReason)}</div>
+                `}
+              </div>
+            </div>
+
+            <!-- Seta Down -->
+            <div style="text-align:center;color:#64748b;font-size:1.2rem;font-weight:bold;">↓</div>
+
+            <!-- Linha 3: Relatórios Avaliados vs Excluídos na Elegibilidade -->
+            <div style="display:grid;grid-template-columns:1fr 34px 1fr;align-items:center;gap:8px;">
+              <div class="prisma-box-official">
+                <div style="font-weight:700;margin-bottom:4px;color:#0f172a;">
+                  Relatórios avaliados para elegibilidade:
+                </div>
+                ${isEditMode ? `
+                  <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+                    <span style="font-size:0.8rem;">(n =</span>
+                    <input type="number" class="prisma-input-inline num" id="prisma-in-reports-assessed" value="${reportsAssessed}" min="0" />
+                    <span style="font-size:0.8rem;">)</span>
+                  </div>
+                ` : `
+                  <div style="font-size:1rem;font-weight:800;color:#2563eb;margin-top:2px;">(n = ${reportsAssessed})</div>
+                `}
+              </div>
+
+              <div style="text-align:center;color:#64748b;font-size:1.4rem;font-weight:bold;">→</div>
+
+              <div class="prisma-box-official highlight-excluded">
+                <div style="font-weight:700;margin-bottom:4px;color:#991b1b;">
+                  Relatórios de texto completo excluídos:
+                </div>
+                ${isEditMode ? `
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+                    <span style="font-size:0.75rem;color:#b91c1c;font-weight:600;">Total excluídos: (n =</span>
+                    <input type="number" class="prisma-input-inline num" id="prisma-in-reports-excluded" value="${reportsExcluded}" min="0" />
+                    <span style="font-size:0.75rem;color:#b91c1c;">)</span>
+                  </div>
+                  <div id="prisma-eligibility-reasons-list" style="display:flex;flex-direction:column;gap:4px;">
+                    ${eligReasons.map((r, i) => `
+                      <div style="display:flex;align-items:center;gap:4px;">
+                        <input type="text" class="prisma-input-inline" data-prisma-elig-idx="${i}" data-prisma-elig-key="reason" value="${escapeHtml(r.reason)}" placeholder="Motivo PICO ou metodológico" style="flex:1;" />
+                        <span style="font-size:0.75rem;color:#64748b;">(n =</span>
+                        <input type="number" class="prisma-input-inline num" data-prisma-elig-idx="${i}" data-prisma-elig-key="count" value="${r.count}" min="0" />
+                        <span style="font-size:0.75rem;color:#64748b;">)</span>
+                        <button type="button" class="btn-del-elig-reason" data-idx="${i}" title="Remover" style="color:#ef4444;background:none;border:none;cursor:pointer;font-size:1.1rem;padding:0 2px;">×</button>
+                      </div>
+                    `).join('')}
+                  </div>
+                  <button type="button" id="btn-prisma-add-eligibility-reason" style="font-size:0.72rem;padding:2px 8px;margin-top:6px;background:#fef2f2;color:#dc2626;border:1px dashed #f87171;border-radius:4px;cursor:pointer;font-weight:600;">
+                    + Adicionar Motivo
+                  </button>
+                ` : `
+                  <div style="font-size:0.85rem;font-weight:800;color:#dc2626;margin-bottom:4px;">(n = ${reportsExcluded})</div>
+                  <ul style="margin:2px 0 0 16px;padding:0;font-size:0.78rem;line-height:1.5;color:#991b1b;">
+                    ${eligReasons.map(r => `<li>${escapeHtml(r.reason)} (n = <strong>${r.count}</strong>)</li>`).join('')}
+                  </ul>
+                `}
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Seta Down -->
+        <div style="text-align:center;color:#64748b;font-size:1.4rem;font-weight:bold;margin:2px 0;">↓</div>
+
+        <!-- ── FASE 3: INCLUSÃO ── -->
+        <div style="display:flex;gap:14px;align-items:stretch;">
+          <div class="prisma-phase-badge-v" style="background:#f0fdf4;border:1.5px solid #22c55e;color:#15803d;">
+            INCLUSÃO
+          </div>
+
+          <div style="flex:1;">
+            <div class="prisma-box-official highlight-included" style="max-width:540px;margin:0 auto;">
+              <div style="font-weight:800;font-size:0.95rem;color:#14532d;margin-bottom:8px;">
+                Novos estudos incluídos na revisão sistemática:
+              </div>
+
+              ${isEditMode ? `
+                <div style="display:flex;flex-direction:column;gap:8px;font-size:0.8rem;">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                    <span>Total de estudos incluídos:</span>
+                    <div>(n = <input type="number" class="prisma-input-inline num" id="prisma-in-studies-included" value="${studiesIncluded}" min="0" />)</div>
+                  </div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+                    <span>Relatórios de novos estudos:</span>
+                    <div>(n = <input type="number" class="prisma-input-inline num" id="prisma-in-reports-included" value="${reportsIncluded}" min="0" />)</div>
+                  </div>
+                  <div style="padding-top:6px;border-top:1px dashed #bbf7d0;">
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:4px;font-weight:600;">
+                      <input type="checkbox" id="prisma-chk-meta" ${includeMeta ? 'checked' : ''} />
+                      <span>Incluir menção à síntese quantitativa (meta-análise)</span>
+                    </label>
+                    ${includeMeta ? `
+                      <div style="display:flex;align-items:center;gap:6px;margin-left:22px;">
+                        <input type="text" class="prisma-input-inline" id="prisma-in-meta-text" value="${escapeHtml(metaText)}" style="flex:1;font-size:0.75rem;" />
+                        <span>(n =</span>
+                        <input type="number" class="prisma-input-inline num" id="prisma-in-studies-meta" value="${studiesMeta}" min="0" />
+                        <span>)</span>
+                      </div>
+                    ` : ''}
+                  </div>
+                </div>
+              ` : `
+                <div style="font-size:0.85rem;color:#14532d;">
+                  <div style="font-weight:700;font-size:1.1rem;color:#15803d;margin-bottom:6px;">
+                    ⭐ Estudos incluídos: (n = ${studiesIncluded})
+                  </div>
+                  <ul style="margin:4px 0 0 18px;padding:0;line-height:1.6;">
+                    <li>Relatórios de novos estudos incluídos (n = <strong>${reportsIncluded}</strong>)</li>
+                    ${includeMeta ? `<li>${escapeHtml(metaText)} (n = <strong>${studiesMeta}</strong>)</li>` : ''}
+                  </ul>
+                </div>
+              `}
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="text-align:center;margin-top:20px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:0.75rem;color:#94a3b8;">
+          Projeto: <strong>${escapeHtml(pName)}</strong> · Plataforma Gisa · Padrão PRISMA 2020
+        </div>
+      </div>
+    `;
+  }
+
+  /* ── PRISMA 2020 Flowchart Main Tab View ───────────── */
+  function renderPRISMA(project, options = {}) {
+    const customFile = project.prisma_custom_file || null;
+    const activeView = options.activeSubTab || 'template';
+    const isEditMode = options.isEditMode !== false; // default true
+    const manualData = project.prisma_manual_data || null;
+
+    return `
+      <div class="prisma-container" style="max-width:980px;margin:0 auto;padding:24px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);">
         
         <!-- TOP CONTROLS & SCIENTIFIC ACTIONS -->
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;gap:16px;flex-wrap:wrap;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;gap:16px;flex-wrap:wrap;">
           <div>
             <div style="display:flex;align-items:center;gap:10px;">
               <h2 style="font-size:1.45rem;font-weight:800;color:var(--text-primary);margin:0;">Fluxograma PRISMA 2020</h2>
-              ${customFile ? `<span class="badge" style="background:rgba(168,85,247,0.15);color:#c084fc;border:1px solid rgba(168,85,247,0.35);font-size:0.75rem;padding:3px 10px;">✨ Arquivo Oficial Anexado</span>` : ''}
+              <span class="badge" style="background:rgba(168,85,247,0.15);color:#c084fc;border:1px solid rgba(168,85,247,0.35);font-size:0.75rem;padding:3px 10px;">
+                ✨ Molde Oficial Interativo
+              </span>
             </div>
             <p class="muted" style="margin-top:4px;font-size:0.85rem;">
-              Diagrama de fluxo oficial no padrão internacional PRISMA 2020. Exporte para a ferramenta oficial externa ou anexe o arquivo gerado por sua equipe.
+              Preencha o diagrama à mão ou clique em preencher com os dados do Gisa. Copie a imagem direto para o Google Docs (Ctrl+V) ou baixe em alta resolução.
             </p>
           </div>
 
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <button class="btn btn-sm btn-primary" id="btn-prisma-download-csv" title="Baixar arquivo CSV formatado para a ferramenta oficial ShinyApp do PRISMA 2020" style="background:linear-gradient(135deg, var(--purple), var(--violet));">
-              📥 Baixar CSV Oficial (ShinyApp)
+            <button class="btn btn-sm btn-primary" id="btn-prisma-fill-gisa" title="Carregar os quantitativos reais da revisão calculados pelo Gisa" style="background:linear-gradient(135deg, var(--purple), var(--violet));font-weight:700;">
+              🪄 Preencher com Dados do Gisa
             </button>
-            <button class="btn btn-sm btn-secondary" id="btn-prisma-copy-summary" title="Copiar resumo textual dos números para colar na ferramenta oficial">
-              📋 Copiar Dados
+            <button class="btn btn-sm ${isEditMode ? 'btn-secondary' : 'btn-ghost'}" id="btn-prisma-mode-toggle" title="Alternar entre modo de preenchimento à mão e modo limpo de publicação" style="border:1px solid var(--border);font-weight:600;">
+              ${isEditMode ? '👁️ Modo Publicação' : '✏️ Modo Edição'}
             </button>
-            <a href="https://estech.shinyapps.io/prisma_flowdiagram/" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-ghost" title="Abrir a ferramenta web oficial do PRISMA 2020 em nova aba" style="color:var(--cyan);border:1px solid rgba(6,182,212,0.3);background:rgba(6,182,212,0.06);">
-              🔗 Ferramenta Oficial Estech ↗
-            </a>
+            <button class="btn btn-sm btn-secondary" id="btn-prisma-copy-image" title="Copiar imagem em alta resolução diretamente para a área de transferência (Cole no Google Docs com Ctrl+V)" style="color:#22c55e;border:1px solid rgba(34,197,94,0.35);background:rgba(34,197,94,0.08);font-weight:700;">
+              📋 Copiar Imagem (Ctrl+V no Docs)
+            </button>
+            <button class="btn btn-sm btn-ghost" id="btn-prisma-download-png" title="Baixar imagem PNG de alta resolução (300 DPI) para publicação científica">
+              📷 Baixar PNG
+            </button>
+            <button class="btn btn-sm btn-ghost" id="btn-prisma-download-svg" title="Baixar arquivo vetorial SVG editável">
+              📄 SVG
+            </button>
+            <button class="btn btn-sm btn-ghost" id="btn-prisma-print" title="Imprimir ou salvar como PDF no navegador">
+              🖨️ Imprimir / PDF
+            </button>
+            <button class="btn btn-sm btn-ghost" id="btn-prisma-download-csv" title="Baixar arquivo CSV formatado para a ferramenta oficial ShinyApp do PRISMA 2020">
+              📥 CSV Oficial
+            </button>
             <button class="btn btn-sm btn-ghost" id="btn-prisma-hide-tab" title="Ocultar a aba PRISMA desta revisão (pode ser reativada a qualquer momento no topo)" style="color:var(--text-muted);border:1px dashed var(--border);">
               👁️ Ocultar Aba
             </button>
           </div>
         </div>
 
-        <!-- SUB-TABS: IMPORTED FILE VS GISA NATIVE DIAGRAM -->
-        ${customFile ? `
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px;padding:8px 12px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-lg);flex-wrap:wrap;">
-            <div style="display:flex;gap:8px;">
-              <button class="btn btn-sm ${activeView === 'imported' ? 'btn-primary' : 'btn-ghost'}" id="btn-tab-view-imported" style="font-size:0.82rem;font-weight:700;">
-                📁 Fluxograma Oficial Importado (${escapeHtml(customFile.name)})
-              </button>
-              <button class="btn btn-sm ${activeView === 'auto' ? 'btn-primary' : 'btn-ghost'}" id="btn-tab-view-auto" style="font-size:0.82rem;font-weight:700;">
-                📊 Fluxograma Calculado pelo Gisa
-              </button>
-            </div>
+        <!-- SUB-TABS: TEMPLATE OFICIAL VS ARQUIVO ANEXADO VS VISÃO RÁPIDA -->
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px;padding:8px 12px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-lg);flex-wrap:wrap;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-sm ${activeView === 'template' ? 'btn-primary' : 'btn-ghost'}" id="btn-tab-view-template" style="font-size:0.82rem;font-weight:700;">
+              ✏️ Molde Oficial PRISMA 2020 (Editável à Mão)
+            </button>
+            <button class="btn btn-sm ${activeView === 'imported' ? 'btn-primary' : 'btn-ghost'}" id="btn-tab-view-imported" style="font-size:0.82rem;font-weight:700;">
+              📁 Fluxograma Anexado ${customFile ? `(${escapeHtml(customFile.name)})` : ''}
+            </button>
+            <button class="btn btn-sm ${activeView === 'auto' ? 'btn-primary' : 'btn-ghost'}" id="btn-tab-view-auto" style="font-size:0.82rem;font-weight:700;">
+              📊 Visão Rápida Gisa
+            </button>
+          </div>
+          ${customFile && activeView === 'imported' ? `
             <div style="display:flex;align-items:center;gap:8px;">
               <button class="btn btn-sm btn-ghost" id="btn-replace-prisma-file" style="font-size:0.78rem;color:var(--text-secondary);border:1px solid var(--border);">
-                🔄 Substituir Arquivo
+                🔄 Substituir
               </button>
               <button class="btn btn-sm btn-ghost" id="btn-remove-prisma-file" style="font-size:0.78rem;color:#ef4444;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.06);">
                 🗑️ Remover
               </button>
             </div>
-          </div>
-        ` : `
-          <!-- DROPZONE / IMPORT CARD (SE NENHUM ARQUIVO IMPORTADO AINDA) -->
-          <div style="margin-bottom:24px;padding:20px;background:linear-gradient(135deg, rgba(168,85,247,0.06), rgba(99,102,241,0.04));border:1px dashed rgba(168,85,247,0.35);border-radius:var(--radius-lg);display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;">
-            <div style="max-width:560px;">
-              <div style="display:flex;align-items:center;gap:8px;font-weight:700;color:var(--text-primary);font-size:0.95rem;margin-bottom:4px;">
-                <span>📁 Importar Fluxograma da Ferramenta Oficial (PNG, SVG, PDF)</span>
-              </div>
-              <p style="margin:0;font-size:0.82rem;color:var(--text-secondary);line-height:1.45;">
-                Sua orientadora gerou o diagrama mais detalhado na ferramenta externa? Baixe o CSV acima, carregue lá e anexe o arquivo final aqui para manter seu projeto com tudo centralizado.
-              </p>
-            </div>
-            <button class="btn btn-secondary btn-sm" id="btn-trigger-prisma-upload" style="font-weight:700;border:1px solid rgba(168,85,247,0.4);">
-              📁 Selecionar Arquivo (PNG, SVG, PDF)
-            </button>
-          </div>
-        `}
+          ` : ''}
+        </div>
 
         <input type="file" id="prisma-file-upload-input" accept="image/png,image/jpeg,image/svg+xml,application/pdf" style="display:none;" />
 
-        <!-- VIEW 1: IMPORTED FILE DISPLAY -->
-        ${(customFile && activeView === 'imported') ? `
-          <div style="background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-xl);padding:24px;text-align:center;">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:10px;">
-              <div style="text-align:left;">
-                <strong style="color:var(--text-primary);font-size:0.92rem;">${escapeHtml(customFile.name)}</strong>
-                <span class="muted" style="font-size:0.78rem;margin-left:8px;">(${(customFile.size / 1024).toFixed(1)} KB)</span>
+        <!-- ── SUB-TAB 1: TEMPLATE OFICIAL EDITÁVEL ── -->
+        ${activeView === 'template' ? `
+          <div style="position:relative;">
+            ${renderPrismaOfficialTemplate(project, manualData, isEditMode)}
+          </div>
+        ` : ''}
+
+        <!-- ── SUB-TAB 2: ARQUIVO ANEXADO ── -->
+        ${activeView === 'imported' ? `
+          ${customFile ? `
+            <div style="background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-xl);padding:24px;text-align:center;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:10px;">
+                <div style="text-align:left;">
+                  <strong style="color:var(--text-primary);font-size:0.92rem;">${escapeHtml(customFile.name)}</strong>
+                  <span class="muted" style="font-size:0.78rem;margin-left:8px;">(${(customFile.size / 1024).toFixed(1)} KB)</span>
+                </div>
+                <div style="display:flex;gap:8px;">
+                  <a href="${escapeHtml(customFile.dataUrl)}" download="${escapeHtml(customFile.name)}" class="btn btn-sm btn-secondary" style="font-size:0.8rem;" id="btn-download-imported-file">
+                    📥 Baixar Arquivo Anexado
+                  </a>
+                </div>
               </div>
-              <div style="display:flex;gap:8px;">
-                <a href="${customFile.dataUrl}" download="${escapeHtml(customFile.name)}" class="btn btn-sm btn-secondary" style="font-size:0.8rem;">
-                  📥 Baixar Arquivo Anexado
-                </a>
-              </div>
+
+              ${customFile.type === 'application/pdf' ? `
+                <embed src="${escapeHtml(customFile.dataUrl)}" type="application/pdf" width="100%" height="700px" style="border-radius:var(--radius-md);border:1px solid var(--border);" />
+              ` : `
+                <div style="padding:16px;background:white;border-radius:var(--radius-md);box-shadow:0 8px 30px rgba(0,0,0,0.25);overflow:auto;max-height:750px;">
+                  <img src="${escapeHtml(customFile.dataUrl)}" alt="Fluxograma PRISMA 2020 Oficial" style="max-width:100%;height:auto;object-fit:contain;border-radius:4px;" />
+                </div>
+              `}
             </div>
+          ` : `
+            <div style="padding:32px;background:linear-gradient(135deg, rgba(168,85,247,0.06), rgba(99,102,241,0.04));border:1px dashed rgba(168,85,247,0.35);border-radius:var(--radius-lg);text-align:center;">
+              <h3 style="color:var(--text-primary);margin-bottom:8px;font-size:1.1rem;font-weight:700;">Nenhum arquivo externo anexado</h3>
+              <p class="muted" style="max-width:500px;margin:0 auto 16px auto;font-size:0.84rem;">
+                Você pode anexar aqui uma imagem (PNG, SVG, JPG) ou PDF gerado na ferramenta oficial do PRISMA 2020 ou por sua equipe para mantê-lo centralizado no projeto.
+              </p>
+              <button class="btn btn-primary btn-sm" id="btn-trigger-prisma-upload" style="font-weight:700;">
+                📁 Selecionar Arquivo (PNG, SVG, PDF)
+              </button>
+            </div>
+          `}
+        ` : ''}
 
-            ${customFile.type === 'application/pdf' ? `
-              <embed src="${customFile.dataUrl}" type="application/pdf" width="100%" height="700px" style="border-radius:var(--radius-md);border:1px solid var(--border);" />
-            ` : `
-              <div style="padding:16px;background:white;border-radius:var(--radius-md);box-shadow:0 8px 30px rgba(0,0,0,0.25);overflow:auto;max-height:750px;">
-                <img src="${customFile.dataUrl}" alt="Fluxograma PRISMA 2020 Oficial" style="max-width:100%;height:auto;object-fit:contain;" />
-              </div>
-            `}
-          </div>
-        ` : `
-          <!-- VIEW 2: GISA NATIVE 5-PHASE FLOWCHART -->
-          <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
-            <button class="btn btn-sm btn-ghost" onclick="window.print()" style="font-size:0.8rem;">
-              🖨️ Imprimir / Salvar PDF
-            </button>
-          </div>
-
+        <!-- ── SUB-TAB 3: VISÃO RÁPIDA GISA ── -->
+        ${activeView === 'auto' ? `
           <div class="prisma-flow" style="display:flex;flex-direction:column;gap:20px;">
-
             <div class="prisma-phase" style="border-left:4px solid var(--purple);padding-left:16px;">
               <span style="font-size:0.75rem;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:0.05em">1. Identificação</span>
               <div class="prisma-box" style="margin-top:8px;padding:16px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md)">
-                <strong>Registros identificados através de busca nas bases de dados (n = ${recordsIdentified})</strong>
+                <strong>Registros identificados através de busca nas bases de dados (n = ${project.stats?.total || project.articles?.length || 0})</strong>
               </div>
             </div>
 
@@ -907,7 +1418,7 @@ const UI = (() => {
             <div class="prisma-phase" style="border-left:4px solid var(--amber);padding-left:16px;">
               <span style="font-size:0.75rem;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:0.05em">2. Remoção de Duplicatas</span>
               <div class="prisma-box" style="margin-top:8px;padding:16px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md)">
-                <strong>Registros duplicados removidos antes da triagem (n = ${duplicatesRemoved})</strong>
+                <strong>Registros duplicados removidos antes da triagem (n = ${project.stats?.duplicates || (project.articles || []).filter(a => a.is_duplicate).length})</strong>
               </div>
             </div>
 
@@ -917,11 +1428,10 @@ const UI = (() => {
               <span style="font-size:0.75rem;font-weight:700;color:var(--cyan);text-transform:uppercase;letter-spacing:0.05em">3. Triagem (Título & Resumo)</span>
               <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(100%, 240px), 1fr));gap:16px;margin-top:8px;">
                 <div class="prisma-box" style="padding:16px;background:var(--bg-card2);border:1px solid var(--border);border-radius:var(--radius-md)">
-                  <strong>Registros únicos avaliados (n = ${recordsScreened})</strong>
+                  <strong>Registros únicos avaliados (n = ${Math.max(0, (project.stats?.total || project.articles?.length || 0) - (project.stats?.duplicates || (project.articles || []).filter(a => a.is_duplicate).length))})</strong>
                 </div>
                 <div class="prisma-box" style="padding:16px;background:var(--red-bg);border:1px solid rgba(239,68,68,0.4);border-radius:var(--radius-md);color:var(--red)">
-                  <strong style="display:block;margin-bottom:8px">Registros excluídos na triagem (n = ${recordsExcluded})</strong>
-                  ${reasonsListHtml ? `<ul style="margin:0;font-size:0.8rem;padding-left:16px;line-height:1.6">${reasonsListHtml}</ul>` : '<span style="font-size:0.8rem;opacity:0.8">Nenhum artigo excluído na triagem ainda.</span>'}
+                  <strong>Registros excluídos na triagem (n = ${(project.articles || []).filter(a => a.decision === 'exclude' && !a.is_duplicate).length})</strong>
                 </div>
               </div>
             </div>
@@ -931,7 +1441,7 @@ const UI = (() => {
             <div class="prisma-phase" style="border-left:4px solid var(--green);padding-left:16px;">
               <span style="font-size:0.75rem;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.05em">4. Elegibilidade (Texto Completo)</span>
               <div class="prisma-box" style="margin-top:8px;padding:16px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);border-radius:var(--radius-md);color:var(--green)">
-                <h3 style="font-size:1.05rem;font-weight:800;margin-bottom:4px">Artigos avaliados para elegibilidade integral (n = ${recordsIncluded})</h3>
+                <h3 style="font-size:1.05rem;font-weight:800;margin-bottom:4px">Artigos avaliados para elegibilidade integral (n = ${(project.articles || []).filter(a => a.decision === 'include' && !a.is_duplicate).length})</h3>
                 <p style="font-size:0.82rem;margin:0;opacity:0.9">Estudos com potencial de inclusão que passaram para leitura do texto completo.</p>
               </div>
             </div>
@@ -941,13 +1451,13 @@ const UI = (() => {
             <div class="prisma-phase" style="border-left:4px solid #f59e0b;padding-left:16px;">
               <span style="font-size:0.75rem;font-weight:700;color:#fbbf24;text-transform:uppercase;letter-spacing:0.05em">5. Síntese Definitiva</span>
               <div class="prisma-box" style="margin-top:8px;padding:20px;background:linear-gradient(135deg,rgba(245,158,11,0.16),rgba(217,119,6,0.24));border:1px solid rgba(245,158,11,0.5);border-radius:var(--radius-md);color:#fbbf24;box-shadow:0 4px 16px rgba(245,158,11,0.15)">
-                <h3 style="font-size:1.15rem;font-weight:800;margin-bottom:4px">⭐ Estudos incluídos na revisão sistemática e síntese (n = ${finalSelectedCount})</h3>
+                <h3 style="font-size:1.15rem;font-weight:800;margin-bottom:4px">⭐ Estudos incluídos na revisão sistemática e síntese (n = ${(project.articles || []).filter(a => a.decision === 'include' && !a.is_duplicate && a.final_selection === true).length})</h3>
                 <p style="font-size:0.84rem;margin:0;color:var(--text-secondary)">Estudos que cumpriram todos os critérios de qualidade e compõem a discussão científica final.</p>
               </div>
             </div>
-
           </div>
-        `}
+        ` : ''}
+
       </div>
     `;
   }
@@ -2624,6 +3134,7 @@ const UI = (() => {
   return {
     el, toast, modal, renderProjectCard, renderArticleCard, renderDupPair, renderDonut,
     emptyState, loadingState, scoreBar, decisionLabel, showExclusionReasonModal, renderPRISMA,
+    renderPrismaOfficialSvg, renderPrismaOfficialTemplate,
     renderLabelChips, showLabelPicker, renderHotkeysPanel, renderLabelsManager, showAIAnalysisModal,
     highlightKeywords, renderFacetSidebar, renderAbstractInspector, showHotkeysModal,
     showSupabaseModal, updateCloudStatusUI, showAutoResolverModal, showPdfViewerModal,
