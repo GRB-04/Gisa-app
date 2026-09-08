@@ -3740,17 +3740,17 @@ input, textarea, [contenteditable="true"] {
     padding: 32px 16px;
   }
   .features-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
-  gap: clamp(8px, 1.2vw, 14px);
-  padding: clamp(14px, 2vw, 24px);
-  margin-bottom: clamp(24px, 4vw, 40px);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  max-width: 100%;
-  box-shadow: var(--shadow-sm);
-}
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    padding: 14px;
+    margin-bottom: 24px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    max-width: 100%;
+    box-shadow: var(--shadow-sm);
+  }
 }
 
 /* ─── NEW PROJECT WIZARD (Compact Viewport Fit) ──── */
@@ -4101,30 +4101,31 @@ input, textarea, [contenteditable="true"] {
   transform: translateY(0);
 }
 
-/* ── Features Strip (6 Pillars) ── */
+/* ── Features Strip (6 Pillars em 1 Linha Única Contínua) ── */
 .features-strip {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 12px;
-  max-width: 1100px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  max-width: 1200px;
   margin: 0 auto;
   width: 100%;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 16px;
+  padding: 14px 16px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
 .feature-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
+  gap: 8px;
+  padding: 10px 10px;
   background: var(--bg-card2);
   border: 1px solid rgba(168, 85, 247, 0.15);
   border-radius: var(--radius-md);
   transition: all 0.2s ease;
+  min-width: 0;
 }
 
 .feature-item:hover {
@@ -4133,21 +4134,32 @@ input, textarea, [contenteditable="true"] {
 }
 
 .feature-item span {
-  font-size: 1.4rem;
+  font-size: 1.3rem;
   flex-shrink: 0;
 }
 
 .feature-item p {
-  font-size: 0.8rem;
+  font-size: 0.74rem;
   color: var(--text-secondary);
-  line-height: 1.35;
+  line-height: 1.3;
   margin: 0;
+  min-width: 0;
 }
 
 .feature-item strong {
   color: var(--text-primary);
-  font-size: 0.86rem;
+  font-size: 0.82rem;
   display: block;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 1024px) {
+  .features-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 /* ── Padronized Navbar Buttons (42px Thick Squircle Glass) ── */
