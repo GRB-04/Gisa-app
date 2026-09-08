@@ -81,6 +81,9 @@ const App = (() => {
     }
 
     render();
+    if (pushHistory) {
+      window.scrollTo(0, 0);
+    }
   }
 
   // ─── Main Render ──────────────────────────────────────
@@ -103,7 +106,6 @@ const App = (() => {
       else if (state.view === 'project') renderProject();
       else if (state.view === 'wizard') renderWizard();
     }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   // ─────────────────────────────────────────────────────
@@ -975,8 +977,9 @@ const App = (() => {
 
     renderProjectTab(project);
 
-    // Auto-check project integrity from IndexedDB (self-healing)
-    if (Storage.restoreProjectArticlesFromIDB) {
+    // Auto-check project integrity from IndexedDB (self-healing, runs once per project session)
+    if (!project._integrityChecked && Storage.restoreProjectArticlesFromIDB) {
+      project._integrityChecked = true;
       Storage.restoreProjectArticlesFromIDB(project.id).then(res => {
         if (res && res.recovered) {
           console.log(`[Gisa] Auto-recuperados ${res.total} artigos para ${project.name}!`);
@@ -985,7 +988,9 @@ const App = (() => {
             state.dedupScanId = (state.dedupScanId || 0) + 1;
             state.isDeduplicating = false;
           }
-          renderProject();
+          const fresh = Storage.getProject(project.id) || project;
+          renderProjectTab(fresh);
+          updateProjectNavHeader(fresh);
         }
       });
     }
@@ -5219,8 +5224,13 @@ Gerado automaticamente por Gisa · ${date}
     }
   }
 
+  let isAppInitialized = false;
+
   // ─── Init ─────────────────────────────────────────────
   async function init() {
+    if (isAppInitialized) return;
+    isAppInitialized = true;
+
     // FIRST: Wait for IndexedDB to fully load settings & profile before anything
     await Storage.initAsync();
 
@@ -5292,6 +5302,7 @@ Gerado automaticamente por Gisa · ${date}
     }
 
     render();
+    window.__gisaInitiallyRendered = true;
     UI.updateUserProfileNavbarUI();
     UI.updateCloudStatusUI();
 
@@ -5344,7 +5355,8 @@ Gerado automaticamente por Gisa · ${date}
 
     // Listen for IndexedDB asynchronous hydration
     Storage.onHydrated(() => {
-      if (state.view !== 'auth') {
+      if (!window.__gisaInitiallyRendered && state.view !== 'auth') {
+        window.__gisaInitiallyRendered = true;
         render();
       }
       UI.updateCloudStatusUI();

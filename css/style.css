@@ -2767,7 +2767,6 @@ textarea.input { resize: vertical; min-height: 100px; }
   display: flex;
   flex-direction: column;
   gap: 0;
-  animation: fadeIn 0.25s ease;
 }
 
 .tab-content {
@@ -3195,6 +3194,8 @@ textarea.input { resize: vertical; min-height: 100px; }
   min-height: 0;
   height: 100%;
   overflow: hidden;
+  transform: translateZ(0);
+  contain: layout style;
 }
 
 @media (max-width: 1200px) {
@@ -3383,6 +3384,8 @@ textarea.input { resize: vertical; min-height: 100px; }
   scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  transform: translateZ(0);
+  will-change: scroll-position;
 }
 .articles-scroll-list::-webkit-scrollbar { 
   width: 5px; 
@@ -3403,34 +3406,33 @@ textarea.input { resize: vertical; min-height: 100px; }
   flex-shrink: 0;
 }
 
-/* Apple iOS 26 Liquid Glass Article Card */
+/* Apple iOS 26 Liquid Glass Article Card (High-Performance GPU Rendering) */
 .gisa-article-row {
-  background: rgba(255, 255, 255, 0.035) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
+  background: rgba(26, 17, 50, 0.75) !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   border-radius: 20px !important;
   padding: 14px 18px !important;
   cursor: pointer;
-  transition: all 0.35s var(--ios26-spring-snappy);
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
   position: relative;
   overflow: visible !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 8px !important;
   height: auto !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.14) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.12) !important;
   flex-shrink: 0;
+  transform: translateZ(0);
 }
 .gisa-article-row:hover {
   border-color: rgba(168, 85, 247, 0.4) !important;
-  background: rgba(255, 255, 255, 0.055) !important;
+  background: rgba(35, 23, 66, 0.85) !important;
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.22) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.18) !important;
 }
 .gisa-article-row.selected {
   border: 1.5px solid var(--purple) !important;
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.18), rgba(99, 102, 241, 0.12)) !important;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(99, 102, 241, 0.18)) !important;
   box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.6), 
               0 8px 24px rgba(124, 58, 237, 0.32), 
               inset 0 1px 1.5px rgba(255, 255, 255, 0.35) !important;
