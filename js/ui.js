@@ -1920,15 +1920,8 @@ const UI = (() => {
           ` : ''}
         </div>
 
-        <!-- Clean Decisions Toolbar -->
-        <div class="inspector-actions" style="margin:0;">
-          <button class="btn btn-include" id="insp-btn-include">Incluir (I)</button>
-          <button class="btn btn-exclude" id="insp-btn-exclude">Excluir (E)</button>
-          <button class="btn btn-maybe"   id="insp-btn-maybe">Talvez (M)</button>
-        </div>
-
         <!-- Abstract Area (Spacious & Clean) -->
-        <div class="inspector-abstract-wrap" style="margin-top:4px;">
+        <div class="inspector-abstract-wrap" style="margin-top:2px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
             <div style="display:flex;align-items:center;gap:8px;">
               <span style="font-size:0.75rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;">Resumo (Abstract)</span>
@@ -1945,9 +1938,6 @@ const UI = (() => {
         </div>
       </div>`;
 
-    container.querySelector('#insp-btn-include')?.addEventListener('click', () => callbacks.onInclude && callbacks.onInclude());
-    container.querySelector('#insp-btn-exclude')?.addEventListener('click', () => callbacks.onExclude && callbacks.onExclude());
-    container.querySelector('#insp-btn-maybe')?.addEventListener('click', () => callbacks.onMaybe && callbacks.onMaybe());
     container.querySelector('#insp-btn-ai-analysis')?.addEventListener('click', () => showAIAnalysisModal(article, callbacks));
     
     // PDF Actions
