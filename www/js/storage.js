@@ -433,6 +433,8 @@ const Storage = (() => {
   function getProject(id) {
     const p = memoryProjects.find(p => p.id === id) || null;
     if (p) {
+      if (!p.keywords) p.keywords = [];
+      if (!p.excludeKeywords) p.excludeKeywords = [];
       if (Array.isArray(p.articles) && p.articles.length > 0) {
         p.stats = recalcStats(p.articles);
       }

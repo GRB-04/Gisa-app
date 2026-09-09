@@ -2074,6 +2074,10 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
     const facetsSlot = $('gisa-facets-slot');
     if (facetsSlot) {
       facetsSlot.replaceWith(UI.renderFacetSidebar(project, state.filter, (type, val) => {
+        if (type === 'open_keywords_modal') {
+          showManageKeywordsModal(project, val);
+          return;
+        }
         if (type === 'decision') state.filter.decision = val;
         else if (type === 'inc_kw' || type === 'exc_kw') state.filter.kw = state.filter.kw === val ? null : val;
         else if (type === 'reason') state.filter.reason = state.filter.reason === val ? null : val;
@@ -2316,7 +2320,7 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
     inspectorSlot.replaceWith(UI.renderAbstractInspector(article, kwObject, state.blindMode, callbacks));
   }
 
-  function showManageKeywordsModal(project) {
+  function showManageKeywordsModal(project, initialFocus = 'include') {
     const currentProject = Storage.getProject(project.id) || project;
     let incKws = [...(currentProject.keywords || [])];
     let excKws = [...(currentProject.excludeKeywords || [])];
@@ -2373,12 +2377,22 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
           cb: () => {
             if (hasChanges) {
               rescoreInBackground(project.id, incKws);
-              renderScreenTab(Storage.getProject(project.id));
+              if (state.tab === 'screen') renderScreenTab(Storage.getProject(project.id));
+              else if (state.tab === 'articles' || state.tab === 'final') renderArticlesTab(Storage.getProject(project.id), state.tab === 'final');
               UI.toast('Palavras-chave atualizadas com sucesso!', 'success');
             }
           }
         }
-      ]
+      ],
+      {
+        onClose: () => {
+          if (hasChanges) {
+            rescoreInBackground(project.id, incKws);
+            if (state.tab === 'screen') renderScreenTab(Storage.getProject(project.id));
+            else if (state.tab === 'articles' || state.tab === 'final') renderArticlesTab(Storage.getProject(project.id), state.tab === 'final');
+          }
+        }
+      }
     );
 
     // Setup interactive chips and handlers
@@ -2515,8 +2529,12 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
         }
       });
 
-      // Autofocus inclusion input initially
-      incInput?.focus();
+      // Autofocus appropriate input based on initialFocus
+      if (initialFocus === 'exclude' && excInput) {
+        excInput.focus();
+      } else if (incInput) {
+        incInput.focus();
+      }
     }, 40);
   }
 

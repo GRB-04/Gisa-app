@@ -58,16 +58,26 @@ const UI = (() => {
   }
 
   /* ── Modal ───────────────────────────────────────────── */
-  function modal(title, bodyHtml, actions = []) {
+  function modal(title, bodyHtml, actions = [], options = {}) {
     // Clean up any existing modal overlay from DOM first
     document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
 
     if (!Array.isArray(actions)) actions = [];
 
+    let closed = false;
+    const closeModal = () => {
+      if (closed) return;
+      closed = true;
+      document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+      if (typeof options.onClose === 'function') {
+        try { options.onClose(); } catch (err) { console.error('Error in modal onClose:', err); }
+      }
+    };
+
     const overlay = el('div', { class: 'modal-overlay' });
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) {
-        document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+        closeModal();
       }
     });
 
@@ -80,7 +90,7 @@ const UI = (() => {
         onclick: (e) => {
           e.preventDefault();
           e.stopPropagation();
-          document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+          closeModal();
         }
       }, '×')
     );
@@ -93,7 +103,7 @@ const UI = (() => {
           onclick: (e) => {
             e.preventDefault();
             e.stopPropagation();
-            document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+            closeModal();
             if (cb) cb();
           }
         }, label);
@@ -1802,31 +1812,47 @@ const UI = (() => {
         `).join('')}
       </div>
 
-      ${incCounts.length > 0 ? `
-        <div class="facet-group">
-          <div class="facet-group-title">Termos de Inclusão</div>
-          ${incCounts.map(i => `
-            <button class="facet-item ${currentFilter.kw === i.kw ? 'active' : ''}" data-facet-type="inc_kw" data-val="${escapeHtml(i.kw)}" title="Filtrar por ${escapeHtml(i.kw)}">
-              <span class="facet-dot" style="background:var(--green)"></span>
-              <span class="facet-label">${escapeHtml(i.kw)}</span>
-              <span class="facet-count">${i.count}</span>
-            </button>
-          `).join('')}
+      <div class="facet-group">
+        <div class="facet-group-title" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>🟢 Termos de Inclusão</span>
+          <button type="button" class="btn-facet-manage-kw" data-kw-type="include" style="background:none;border:none;color:var(--green);font-size:0.75rem;cursor:pointer;padding:0;font-weight:700;display:inline-flex;align-items:center;gap:3px;" title="Adicionar ou gerenciar termos de inclusão">
+            <span>+</span> Adicionar
+          </button>
         </div>
-      ` : ''}
+        ${incCounts.length > 0 ? incCounts.map(i => `
+          <button class="facet-item ${currentFilter.kw === i.kw ? 'active' : ''}" data-facet-type="inc_kw" data-val="${escapeHtml(i.kw)}" title="Filtrar por ${escapeHtml(i.kw)}">
+            <span class="facet-dot" style="background:var(--green)"></span>
+            <span class="facet-label">${escapeHtml(i.kw)}</span>
+            <span class="facet-count">${i.count}</span>
+          </button>
+        `).join('') : `
+          <div style="font-size:0.76rem;color:var(--text-muted);padding:4px 8px;font-style:italic;display:flex;align-items:center;justify-content:space-between;">
+            <span>Nenhum termo cadastrado</span>
+            <button type="button" class="btn-facet-manage-kw" data-kw-type="include" style="background:none;border:none;color:var(--green);font-size:0.75rem;cursor:pointer;padding:0;text-decoration:underline;">Definir</button>
+          </div>
+        `}
+      </div>
 
-      ${excCounts.length > 0 ? `
-        <div class="facet-group">
-          <div class="facet-group-title">Termos de Exclusão</div>
-          ${excCounts.map(i => `
-            <button class="facet-item ${currentFilter.kw === i.kw ? 'active' : ''}" data-facet-type="exc_kw" data-val="${escapeHtml(i.kw)}" title="Filtrar por ${escapeHtml(i.kw)}">
-              <span class="facet-dot" style="background:var(--red)"></span>
-              <span class="facet-label">${escapeHtml(i.kw)}</span>
-              <span class="facet-count">${i.count}</span>
-            </button>
-          `).join('')}
+      <div class="facet-group">
+        <div class="facet-group-title" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>🔴 Termos de Exclusão</span>
+          <button type="button" class="btn-facet-manage-kw" data-kw-type="exclude" style="background:none;border:none;color:var(--red);font-size:0.75rem;cursor:pointer;padding:0;font-weight:700;display:inline-flex;align-items:center;gap:3px;" title="Adicionar ou gerenciar termos de exclusão">
+            <span>+</span> Adicionar
+          </button>
         </div>
-      ` : ''}
+        ${excCounts.length > 0 ? excCounts.map(i => `
+          <button class="facet-item ${currentFilter.kw === i.kw ? 'active' : ''}" data-facet-type="exc_kw" data-val="${escapeHtml(i.kw)}" title="Filtrar artigos que contêm ${escapeHtml(i.kw)}">
+            <span class="facet-dot" style="background:var(--red)"></span>
+            <span class="facet-label">${escapeHtml(i.kw)}</span>
+            <span class="facet-count">${i.count}</span>
+          </button>
+        `).join('') : `
+          <div style="font-size:0.76rem;color:var(--text-muted);padding:4px 8px;font-style:italic;display:flex;align-items:center;justify-content:space-between;">
+            <span>Nenhum termo cadastrado</span>
+            <button type="button" class="btn-facet-manage-kw" data-kw-type="exclude" style="background:none;border:none;color:var(--red);font-size:0.75rem;cursor:pointer;padding:0;text-decoration:underline;">Definir</button>
+          </div>
+        `}
+      </div>
 
       ${years.length > 0 ? `
         <div class="facet-group">
@@ -1846,6 +1872,14 @@ const UI = (() => {
         const type = btn.dataset.facetType;
         const val = btn.dataset.val;
         if (onSelectFacet) onSelectFacet(type, val);
+      };
+    });
+
+    container.querySelectorAll('.btn-facet-manage-kw').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const type = btn.dataset.kwType;
+        if (onSelectFacet) onSelectFacet('open_keywords_modal', type);
       };
     });
 
