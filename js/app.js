@@ -2062,38 +2062,8 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
     $('mode-list-btn').onclick = () => { state.screenMode = 'list'; renderScreenTab(Storage.getProject(state.projectId)); };
     $('mode-serial-btn').onclick = () => { state.screenMode = 'serial'; renderScreenTab(Storage.getProject(state.projectId)); };
 
-    // Manage keywords modal
-    $('manage-keywords-btn').onclick = () => {
-      UI.modal(
-        '🏷️ Palavras-chave do Tema (Destaque Gisa)',
-        `<div style="display:flex;flex-direction:column;gap:14px">
-          <div>
-            <h4 style="color:var(--green);font-size:0.88rem;margin-bottom:6px">🟢 Termos de Inclusão (Destaque Verde)</h4>
-            <div class="kw-tags" id="modal-kw-inc">
-              ${incKws.map((k, i) => `<span class="kw-chip inc">${k}<button class="kw-remove-inc" data-idx="${i}" style="background:none;border:none;color:var(--green);cursor:pointer;margin-left:4px">×</button></span>`).join('')}
-            </div>
-            <div class="kw-add-row" style="margin-top:8px">
-              <input id="modal-inc-input" class="input input-sm" placeholder="Adicionar palavra de inclusão..."/>
-              <button class="btn btn-sm btn-include" id="modal-inc-add">+ Inclusão</button>
-            </div>
-          </div>
-          <hr style="border:none;border-top:1px solid var(--border)"/>
-          <div>
-            <h4 style="color:var(--red);font-size:0.88rem;margin-bottom:6px">🔴 Termos de Exclusão (Destaque Vermelho)</h4>
-            <div class="kw-tags" id="modal-kw-exc">
-              ${excKws.map((k, i) => `<span class="kw-chip exc">${k}<button class="kw-remove-exc" data-idx="${i}" style="background:none;border:none;color:var(--red);cursor:pointer;margin-left:4px">×</button></span>`).join('')}
-            </div>
-            <div class="kw-add-row" style="margin-top:8px">
-              <input id="modal-exc-input" class="input input-sm" placeholder="Adicionar palavra de exclusão..."/>
-              <button class="btn btn-sm btn-exclude" id="modal-exc-add">+ Exclusão</button>
-            </div>
-          </div>
-        </div>`,
-        [{ label: 'Concluído', style: 'btn-primary', cb: () => renderScreenTab(Storage.getProject(state.projectId)) }]
-      );
-
-      setTimeout(() => setupKeywordsEditor(project), 50);
-    };
+    // Manage keywords modal (Destaque Gisa)
+    $('manage-keywords-btn').onclick = () => showManageKeywordsModal(project);
 
     if (state.screenMode === 'serial') {
       renderSerialMode(Storage.getProject(state.projectId));
@@ -2143,10 +2113,16 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
       if (state.filter.decision === 'pending' && (a.decision !== null || a.is_duplicate)) return false;
       if (state.filter.decision === 'duplicate' && !a.is_duplicate) return false;
 
-      // 2. Facet Keyword filter
+      // 2. Facet Keyword filter (com matching fuzzy bilingue e tolerante a plurais/acentos)
       if (state.filter.kw) {
-        const txt = (a.title + ' ' + a.abstract).toLowerCase();
-        if (!txt.includes(state.filter.kw.toLowerCase())) return false;
+        const re = typeof Similarity !== 'undefined' && Similarity.buildFuzzyRegex ? Similarity.buildFuzzyRegex(state.filter.kw) : null;
+        const txt = ((a.title || '') + ' ' + (a.abstract || '') + ' ' + (Array.isArray(a.keywords) ? a.keywords.join(' ') : ''));
+        if (re) {
+          re.lastIndex = 0;
+          if (!re.test(txt)) return false;
+        } else {
+          if (!txt.toLowerCase().includes(state.filter.kw.toLowerCase())) return false;
+        }
       }
 
       // 3. Facet Reason filter
@@ -2340,67 +2316,254 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
     inspectorSlot.replaceWith(UI.renderAbstractInspector(article, kwObject, state.blindMode, callbacks));
   }
 
-  function setupKeywordsEditor(project) {
-    // NOTE: IDs must match the modal HTML generated in renderScreenTab → manage-keywords-btn
-    // Modal uses: #modal-kw-inc, #modal-kw-exc, #modal-inc-input, #modal-exc-input,
-    //             #modal-inc-add, #modal-exc-add, .kw-remove-inc, .kw-remove-exc
-    let incKws = Storage.getProject(project.id)?.keywords || [];
-    let excKws = Storage.getProject(project.id)?.excludeKeywords || [];
+  function showManageKeywordsModal(project) {
+    const currentProject = Storage.getProject(project.id) || project;
+    let incKws = [...(currentProject.keywords || [])];
+    let excKws = [...(currentProject.excludeKeywords || [])];
+    let hasChanges = false;
 
-    // Remove inclusion keyword
-    document.getElementById('modal-kw-inc')?.addEventListener('click', e => {
-      const btn = e.target.closest('.kw-remove-inc');
-      if (!btn) return;
-      const idx = parseInt(btn.dataset.idx);
-      incKws = incKws.filter((_, i) => i !== idx);
-      Storage.updateProject(project.id, { keywords: incKws });
-      rescoreAndRefresh(project.id, incKws);
-    });
+    const modalBody = `
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div style="background:rgba(168,85,247,0.08);border:1px solid rgba(168,85,247,0.25);padding:12px 14px;border-radius:12px;font-size:0.82rem;color:var(--text-secondary);line-height:1.45;">
+          💡 <strong>Destaque Gisa & Relevância Automatizada:</strong><br/>
+          Termos de <strong style="color:var(--green);">Inclusão</strong> são realçados em verde e aumentam a pontuação IA de relevância.
+          Termos de <strong style="color:var(--red);">Exclusão</strong> são realçados em vermelho para identificação imediata de descarte.
+          Você pode digitar um ou vários termos separados por vírgula (ex: <em>adolescentes, jovens, estudantes</em>).
+        </div>
 
-    // Remove exclusion keyword
-    document.getElementById('modal-kw-exc')?.addEventListener('click', e => {
-      const btn = e.target.closest('.kw-remove-exc');
-      if (!btn) return;
-      const idx = parseInt(btn.dataset.idx);
-      excKws = excKws.filter((_, i) => i !== idx);
-      Storage.updateProject(project.id, { excludeKeywords: excKws });
-      renderScreenTab(Storage.getProject(project.id));
-    });
+        <!-- Inclusion Keywords Group -->
+        <div style="background:var(--bg-card);border:1px solid rgba(34,197,94,0.3);border-radius:12px;padding:14px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <h4 style="color:var(--green);font-size:0.88rem;font-weight:800;margin:0;display:flex;align-items:center;gap:6px;">
+              <span>🟢</span> Termos de Inclusão <span id="modal-inc-count" style="font-size:0.75rem;opacity:0.85;font-weight:600;">(${incKws.length})</span>
+            </h4>
+          </div>
+          <div class="kw-tags" id="modal-kw-inc" style="display:flex;flex-wrap:wrap;gap:6px;min-height:38px;padding:8px;background:rgba(0,0,0,0.25);border-radius:8px;border:1px dashed rgba(34,197,94,0.25);align-items:center;">
+          </div>
+          <div class="kw-add-row" style="display:flex;gap:8px;margin-top:10px;">
+            <input id="modal-inc-input" class="input input-sm" style="flex:1;" placeholder="Ex: adolescentes, jovens (separe por vírgula)..."/>
+            <button type="button" class="btn btn-sm btn-include" id="modal-inc-add" style="white-space:nowrap;font-weight:700;">+ Adicionar Inclusão</button>
+          </div>
+        </div>
 
-    // Add inclusion keyword
-    const addInc = () => {
-      const input = document.getElementById('modal-inc-input');
-      const val = input ? input.value.trim() : '';
-      if (!val) return;
-      incKws = [...incKws, ...val.split(',').map(k => k.trim()).filter(Boolean)];
-      Storage.updateProject(project.id, { keywords: incKws });
-      if (input) input.value = '';
-      rescoreAndRefresh(project.id, incKws);
-    };
-    const incAddBtn = document.getElementById('modal-inc-add');
-    if (incAddBtn) incAddBtn.onclick = addInc;
-    document.getElementById('modal-inc-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') addInc(); });
+        <!-- Exclusion Keywords Group -->
+        <div style="background:var(--bg-card);border:1px solid rgba(239,68,68,0.3);border-radius:12px;padding:14px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <h4 style="color:var(--red);font-size:0.88rem;font-weight:800;margin:0;display:flex;align-items:center;gap:6px;">
+              <span>🔴</span> Termos de Exclusão <span id="modal-exc-count" style="font-size:0.75rem;opacity:0.85;font-weight:600;">(${excKws.length})</span>
+            </h4>
+          </div>
+          <div class="kw-tags" id="modal-kw-exc" style="display:flex;flex-wrap:wrap;gap:6px;min-height:38px;padding:8px;background:rgba(0,0,0,0.25);border-radius:8px;border:1px dashed rgba(239,68,68,0.25);align-items:center;">
+          </div>
+          <div class="kw-add-row" style="display:flex;gap:8px;margin-top:10px;">
+            <input id="modal-exc-input" class="input input-sm" style="flex:1;" placeholder="Ex: adultos, animais, idosos..."/>
+            <button type="button" class="btn btn-sm btn-exclude" id="modal-exc-add" style="white-space:nowrap;font-weight:700;">+ Adicionar Exclusão</button>
+          </div>
+        </div>
+      </div>
+    `;
 
-    // Add exclusion keyword
-    const addExc = () => {
-      const input = document.getElementById('modal-exc-input');
-      const val = input ? input.value.trim() : '';
-      if (!val) return;
-      excKws = [...excKws, ...val.split(',').map(k => k.trim()).filter(Boolean)];
-      Storage.updateProject(project.id, { excludeKeywords: excKws });
-      if (input) input.value = '';
-      renderScreenTab(Storage.getProject(project.id));
-    };
-    const excAddBtn = document.getElementById('modal-exc-add');
-    if (excAddBtn) excAddBtn.onclick = addExc;
-    document.getElementById('modal-exc-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') addExc(); });
+    UI.modal(
+      '🏷️ Palavras-chave do Tema (Destaque Gisa)',
+      modalBody,
+      [
+        {
+          label: 'Concluído & Aplicar',
+          style: 'btn-primary',
+          cb: () => {
+            if (hasChanges) {
+              rescoreInBackground(project.id, incKws);
+              renderScreenTab(Storage.getProject(project.id));
+              UI.toast('Palavras-chave atualizadas com sucesso!', 'success');
+            }
+          }
+        }
+      ]
+    );
+
+    // Setup interactive chips and handlers
+    setTimeout(() => {
+      const incContainer = document.getElementById('modal-kw-inc');
+      const excContainer = document.getElementById('modal-kw-exc');
+      const incInput = document.getElementById('modal-inc-input');
+      const excInput = document.getElementById('modal-exc-input');
+      const incAddBtn = document.getElementById('modal-inc-add');
+      const excAddBtn = document.getElementById('modal-exc-add');
+      const incCountEl = document.getElementById('modal-inc-count');
+      const excCountEl = document.getElementById('modal-exc-count');
+
+      const renderChips = () => {
+        if (incContainer) {
+          if (incKws.length === 0) {
+            incContainer.innerHTML = '<span style="font-size:0.78rem;color:var(--text-muted);font-style:italic;margin:auto;">Nenhum termo de inclusão cadastrado.</span>';
+          } else {
+            incContainer.innerHTML = incKws.map((k, i) => `
+              <span class="kw-chip inc" style="display:inline-flex;align-items:center;background:rgba(34,197,94,0.18);color:#4ade80;border:1px solid rgba(34,197,94,0.4);padding:4px 11px;border-radius:9999px;font-size:0.8rem;font-weight:600;gap:6px;">
+                ${UI.escapeHtml ? UI.escapeHtml(k) : k}
+                <button type="button" class="kw-remove-inc" data-idx="${i}" style="background:none;border:none;color:#4ade80;cursor:pointer;font-size:1.15rem;line-height:1;padding:0 2px;display:inline-flex;align-items:center;opacity:0.8;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.8" title="Remover termo">×</button>
+              </span>
+            `).join('');
+          }
+        }
+        if (excContainer) {
+          if (excKws.length === 0) {
+            excContainer.innerHTML = '<span style="font-size:0.78rem;color:var(--text-muted);font-style:italic;margin:auto;">Nenhum termo de exclusão cadastrado.</span>';
+          } else {
+            excContainer.innerHTML = excKws.map((k, i) => `
+              <span class="kw-chip exc" style="display:inline-flex;align-items:center;background:rgba(239,68,68,0.18);color:#f87171;border:1px solid rgba(239,68,68,0.4);padding:4px 11px;border-radius:9999px;font-size:0.8rem;font-weight:600;gap:6px;">
+                ${UI.escapeHtml ? UI.escapeHtml(k) : k}
+                <button type="button" class="kw-remove-exc" data-idx="${i}" style="background:none;border:none;color:#f87171;cursor:pointer;font-size:1.15rem;line-height:1;padding:0 2px;display:inline-flex;align-items:center;opacity:0.8;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.8" title="Remover termo">×</button>
+              </span>
+            `).join('');
+          }
+        }
+        if (incCountEl) incCountEl.textContent = `(${incKws.length})`;
+        if (excCountEl) excCountEl.textContent = `(${excKws.length})`;
+      };
+
+      // Initial chip render
+      renderChips();
+
+      // Add inclusion
+      const addInc = () => {
+        const val = incInput ? incInput.value.trim() : '';
+        if (!val) return;
+        const newTerms = val.split(/[,;\n]+/).map(t => t.trim()).filter(Boolean);
+        let addedCount = 0;
+        newTerms.forEach(term => {
+          if (!incKws.some(k => k.toLowerCase() === term.toLowerCase())) {
+            incKws.push(term);
+            addedCount++;
+          }
+        });
+        if (addedCount > 0) {
+          hasChanges = true;
+          Storage.updateProject(project.id, { keywords: incKws });
+          project.keywords = incKws;
+          renderChips();
+        }
+        if (incInput) {
+          incInput.value = '';
+          incInput.focus();
+        }
+      };
+
+      // Add exclusion
+      const addExc = () => {
+        const val = excInput ? excInput.value.trim() : '';
+        if (!val) return;
+        const newTerms = val.split(/[,;\n]+/).map(t => t.trim()).filter(Boolean);
+        let addedCount = 0;
+        newTerms.forEach(term => {
+          if (!excKws.some(k => k.toLowerCase() === term.toLowerCase())) {
+            excKws.push(term);
+            addedCount++;
+          }
+        });
+        if (addedCount > 0) {
+          hasChanges = true;
+          Storage.updateProject(project.id, { excludeKeywords: excKws });
+          project.excludeKeywords = excKws;
+          renderChips();
+        }
+        if (excInput) {
+          excInput.value = '';
+          excInput.focus();
+        }
+      };
+
+      if (incAddBtn) incAddBtn.onclick = addInc;
+      if (excAddBtn) excAddBtn.onclick = addExc;
+
+      incInput?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          addInc();
+        }
+      });
+      excInput?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          addExc();
+        }
+      });
+
+      // Delegation for remove buttons
+      incContainer?.addEventListener('click', e => {
+        const btn = e.target.closest('.kw-remove-inc');
+        if (!btn) return;
+        const idx = parseInt(btn.dataset.idx, 10);
+        if (!isNaN(idx) && idx >= 0 && idx < incKws.length) {
+          incKws.splice(idx, 1);
+          hasChanges = true;
+          Storage.updateProject(project.id, { keywords: incKws });
+          project.keywords = incKws;
+          renderChips();
+        }
+      });
+
+      excContainer?.addEventListener('click', e => {
+        const btn = e.target.closest('.kw-remove-exc');
+        if (!btn) return;
+        const idx = parseInt(btn.dataset.idx, 10);
+        if (!isNaN(idx) && idx >= 0 && idx < excKws.length) {
+          excKws.splice(idx, 1);
+          hasChanges = true;
+          Storage.updateProject(project.id, { excludeKeywords: excKws });
+          project.excludeKeywords = excKws;
+          renderChips();
+        }
+      });
+
+      // Autofocus inclusion input initially
+      incInput?.focus();
+    }, 40);
   }
 
-  function rescoreAndRefresh(projectId, keywords) {
+  function rescoreInBackground(projectId, keywords) {
     const p = Storage.getProject(projectId);
-    const updated = p.articles.map(a => ({ id: a.id, relevance_score: Similarity.relevanceScore(a, keywords) }));
-    Storage.bulkUpdateArticles(projectId, updated);
-    renderScreenTab(Storage.getProject(projectId));
+    if (!p || !p.articles || p.articles.length === 0) return;
+
+    const articles = p.articles;
+    const total = articles.length;
+    const CHUNK_SIZE = 1500;
+    let index = 0;
+
+    const processNextChunk = () => {
+      const end = Math.min(index + CHUNK_SIZE, total);
+      const updates = [];
+      for (let i = index; i < end; i++) {
+        const art = articles[i];
+        const score = Similarity.relevanceScore(art, keywords);
+        art.relevance_score = score;
+        updates.push({ id: art.id, relevance_score: score });
+      }
+
+      index = end;
+
+      if (index < total) {
+        setTimeout(processNextChunk, 16);
+      } else {
+        Storage.bulkUpdateArticles(projectId, updates);
+        if (state.tab === 'screen' && state.projectId === projectId) {
+          renderGisaArticlesListOnly(Storage.getProject(projectId));
+        }
+      }
+    };
+
+    if (total <= CHUNK_SIZE) {
+      const updates = articles.map(a => {
+        const score = Similarity.relevanceScore(a, keywords);
+        a.relevance_score = score;
+        return { id: a.id, relevance_score: score };
+      });
+      Storage.bulkUpdateArticles(projectId, updates);
+      if (state.tab === 'screen' && state.projectId === projectId) {
+        renderGisaArticlesListOnly(Storage.getProject(projectId));
+      }
+    } else {
+      setTimeout(processNextChunk, 20);
+    }
   }
 
   function setupScreenFilters() {}  // handled inline
@@ -3344,6 +3507,8 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
     if (!content) return;
 
     state.thematicViewMode = state.thematicViewMode || 'trays';
+    state.thematicDimension = state.thematicDimension || 'theme'; // 'theme' | 'population'
+    const isPopDim = state.thematicDimension === 'population';
 
     if (isFinalTab) {
       state.filter.decision = 'final_selected';
@@ -3361,14 +3526,15 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
     let includedArticles = allArticles.filter(a => a.decision === 'include' && !a.is_duplicate);
 
     // Automatic Categorization (Zero-Prompt):
-    // Automatically classify any included articles that don't have categories yet
-    const uncatArticles = includedArticles.filter(a => !(a.categories && a.categories.length > 0));
+    // Automatically classify any included articles that don't have categories or populations yet
+    const uncatArticles = includedArticles.filter(a => !(a.categories && a.categories.length > 0) || !(a.populations && a.populations.length > 0));
     if (uncatArticles.length > 0) {
       const catResult = SemanticCategorizer.classifyArticles(uncatArticles, project);
       if (catResult && catResult.updates && catResult.updates.length > 0) {
         Storage.bulkUpdateArticles(project.id, catResult.updates);
         const newCats = Array.from(new Set([...(project.categories || []), ...catResult.categories])).filter(Boolean);
-        Storage.updateProject(project.id, { categories: newCats });
+        const newPops = Array.from(new Set([...(project.populations || []), ...(catResult.populations || [])])).filter(Boolean);
+        Storage.updateProject(project.id, { categories: newCats, populations: newPops });
         project = Storage.getProject(project.id);
         const refreshedAll = project.articles || [];
         includedArticles = refreshedAll.filter(a => a.decision === 'include' && !a.is_duplicate);
@@ -3377,20 +3543,29 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
 
     const finalSelectedArticles = includedArticles.filter(a => a.final_selection);
     const pendingFinalArticles = includedArticles.filter(a => !a.final_selection);
-
-    // Collect active categories strictly from included articles and project settings
-    const projectCategories = Array.from(new Set([
-      ...(project.categories || []),
-      ...includedArticles.flatMap(a => a.categories || [])
-    ])).filter(Boolean);
-
     const currentContextArticles = isFinalTab ? finalSelectedArticles : includedArticles;
-    const uncatCount = currentContextArticles.filter(a => !(a.categories && a.categories.length > 0)).length;
 
-    // Filter active categories for display: only show those that have at least 1 study in current context
-    const activeCategoriesWithCount = projectCategories.map(cat => {
-      const count = currentContextArticles.filter(a => (a.categories || []).includes(cat)).length;
-      return { name: cat, count };
+    // Active items for selected dimension (Theme or Population)
+    const projectItems = isPopDim
+      ? Array.from(new Set([
+          ...(project.populations || []),
+          ...includedArticles.flatMap(a => a.populations || ['População Geral / Não informada'])
+        ])).filter(Boolean)
+      : Array.from(new Set([
+          ...(project.categories || []),
+          ...includedArticles.flatMap(a => a.categories || [])
+        ])).filter(Boolean);
+
+    const uncatCount = isPopDim
+      ? 0
+      : currentContextArticles.filter(a => !(a.categories && a.categories.length > 0)).length;
+
+    const activeItemsWithCount = projectItems.map(item => {
+      const count = currentContextArticles.filter(a => {
+        const arr = isPopDim ? (a.populations || ['População Geral / Não informada']) : (a.categories || []);
+        return arr.includes(item);
+      }).length;
+      return { name: item, count };
     }).filter(c => c.count > 0);
 
     content.innerHTML = `
@@ -3446,8 +3621,8 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
               </div>
               <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(168,85,247,0.25);border-radius:9999px;padding:4px 14px;font-size:0.76rem;">
                 <span>🏷️</span>
-                <span style="font-weight:800;color:#c084fc;">${activeCategoriesWithCount.length}</span>
-                <span style="color:var(--text-muted);">Temas Representados</span>
+                <span style="font-weight:800;color:#c084fc;">${activeItemsWithCount.length}</span>
+                <span style="color:var(--text-muted);">${isPopDim ? 'Grupos Populacionais' : 'Temas Representados'}</span>
               </div>
             ` : `
               <div class="stage-metric-pill ${state.filter.decision === 'include' ? 'active' : ''}" data-metric-decision="include" style="${state.filter.decision === 'include' ? 'background:rgba(34,197,94,0.18);border-color:#22c55e;' : ''}">
@@ -3466,22 +3641,37 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
                 <span style="color:${state.filter.decision === 'final_selected' ? '#fff' : 'var(--text-muted)'};">Já na Seleção Final</span>
               </div>
               <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,0.04);border:1px solid rgba(168,85,247,0.25);border-radius:9999px;padding:4px 14px;font-size:0.76rem;">
-                <span>🏷️</span>
-                <span style="font-weight:800;color:#c084fc;">${activeCategoriesWithCount.length}</span>
-                <span style="color:var(--text-muted);">Temas de Pesquisa</span>
+                <span>${isPopDim ? '👥' : '🏷️'}</span>
+                <span style="font-weight:800;color:${isPopDim ? '#60a5fa' : '#c084fc'};">${activeItemsWithCount.length}</span>
+                <span style="color:var(--text-muted);">${isPopDim ? 'Grupos Populacionais' : 'Temas de Pesquisa'}</span>
               </div>
             `}
           </div>
         </div>
 
-        <!-- Thematic Chips Rail (Single Horizontal Row, Smooth Scroll) -->
+        <!-- Dimension Switcher (Eixo Temático vs. População) -->
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:2px 4px;">
+          <div style="display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:9999px;padding:3px;">
+            <button type="button" class="btn btn-sm ${!isPopDim ? 'active' : ''}" id="dim-theme-btn" style="border-radius:9999px;font-size:0.75rem;font-weight:700;padding:5px 14px;border:none;background:${!isPopDim ? 'linear-gradient(135deg,#a855f7,#6366f1)' : 'transparent'};color:${!isPopDim ? '#fff' : 'var(--text-muted)'};cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all 0.2s;">
+              <span>🏷️</span> Eixos Temáticos
+            </button>
+            <button type="button" class="btn btn-sm ${isPopDim ? 'active' : ''}" id="dim-pop-btn" style="border-radius:9999px;font-size:0.75rem;font-weight:700;padding:5px 14px;border:none;background:${isPopDim ? 'linear-gradient(135deg,#3b82f6,#6366f1)' : 'transparent'};color:${isPopDim ? '#fff' : 'var(--text-muted)'};cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:all 0.2s;">
+              <span>👥</span> População & Público
+            </button>
+          </div>
+          <span style="font-size:0.76rem;color:var(--text-muted);">
+            ${isPopDim ? 'Estudos agrupados por perfil demográfico e faixa etária' : 'Estudos agrupados por tópicos e eixos temáticos de pesquisa'}
+          </span>
+        </div>
+
+        <!-- Thematic / Population Chips Rail (Single Horizontal Row, Smooth Scroll) -->
         <div class="thematic-chip-bar">
           <button type="button" class="thematic-chip-item ${state.filter.category === 'all' ? 'active' : ''}" data-chip-cat="all">
-            🌟 Todos <span class="chip-counter">${currentContextArticles.length}</span>
+            🌟 ${isPopDim ? 'Todas as Populações' : 'Todos os Temas'} <span class="chip-counter">${currentContextArticles.length}</span>
           </button>
-          ${activeCategoriesWithCount.map(c => `
+          ${activeItemsWithCount.map(c => `
             <button type="button" class="thematic-chip-item ${state.filter.category === c.name ? 'active' : ''}" data-chip-cat="${escapeHtml(c.name)}">
-              🏷️ ${escapeHtml(c.name)} <span class="chip-counter">${c.count}</span>
+              ${isPopDim ? '👥' : '🏷️'} ${escapeHtml(c.name)} <span class="chip-counter">${c.count}</span>
             </button>
           `).join('')}
           ${uncatCount > 0 ? `
@@ -3491,14 +3681,16 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
           ` : ''}
           <button type="button" class="thematic-chip-item" id="art-chip-auto-cat-btn"
             style="background:linear-gradient(135deg,rgba(168,85,247,0.2),rgba(99,102,241,0.2));border:1px solid rgba(168,85,247,0.4);color:#d8b4fe;"
-            title="Classificar estudos automaticamente por inteligência semântica e temas de pesquisa">
-            ✨ ${activeCategoriesWithCount.length === 0 ? 'Auto-Categorizar' : 'Re-Categorizar'}
+            title="Classificar estudos automaticamente por inteligência semântica em temas e populações">
+            ✨ ${activeItemsWithCount.length === 0 ? 'Auto-Categorizar' : 'Re-Categorizar'}
           </button>
-          <button type="button" class="thematic-chip-item" id="art-chip-add-cat-btn"
-            style="border-style:dashed;color:var(--text-muted);"
-            title="Adicionar categoria temática manualmente">
-            + Novo Tema
-          </button>
+          ${!isPopDim ? `
+            <button type="button" class="thematic-chip-item" id="art-chip-add-cat-btn"
+              style="border-style:dashed;color:var(--text-muted);"
+              title="Adicionar categoria temática manualmente">
+              + Novo Tema
+            </button>
+          ` : ''}
         </div>
 
         <!-- Filter & View Controls Bar (Single Unified Liquid Glass Capsule) -->
@@ -3508,7 +3700,7 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
           <div class="thematic-view-switcher" style="display:inline-flex;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.12);border-radius:9999px;padding:2px;gap:2px;flex-shrink:0;">
             <button type="button" class="thematic-view-btn ${state.thematicViewMode !== 'list' ? 'active' : ''}" id="view-trays-btn"
               style="background:${state.thematicViewMode !== 'list' ? 'linear-gradient(135deg,rgba(168,85,247,0.35),rgba(99,102,241,0.35))' : 'transparent'};border:none;color:${state.thematicViewMode !== 'list' ? '#fff' : 'var(--text-muted)'};font-size:0.75rem;font-weight:700;padding:5px 12px;border-radius:9999px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;">
-              <span>🗂️</span> Temas
+              <span>🗂️</span> Bandejas (${isPopDim ? 'População' : 'Temas'})
             </button>
             <button type="button" class="thematic-view-btn ${state.thematicViewMode === 'list' ? 'active' : ''}" id="view-list-btn"
               style="background:${state.thematicViewMode === 'list' ? 'linear-gradient(135deg,rgba(168,85,247,0.35),rgba(99,102,241,0.35))' : 'transparent'};border:none;color:${state.thematicViewMode === 'list' ? '#fff' : 'var(--text-muted)'};font-size:0.75rem;font-weight:700;padding:5px 12px;border-radius:9999px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;">
@@ -3545,6 +3737,21 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
         <div id="articles-pagination" class="pagination"></div>
       </div>
     `;
+
+    // Dimension Switcher event listeners
+    $('dim-theme-btn')?.addEventListener('click', () => {
+      state.thematicDimension = 'theme';
+      state.filter.category = 'all';
+      state.articleOffset = 0;
+      renderArticlesTab(project, isFinalTab);
+    });
+
+    $('dim-pop-btn')?.addEventListener('click', () => {
+      state.thematicDimension = 'population';
+      state.filter.category = 'all';
+      state.articleOffset = 0;
+      renderArticlesTab(project, isFinalTab);
+    });
 
     // Bind event handlers
     $('art-go-screen-btn')?.addEventListener('click', () => {
@@ -3689,16 +3896,29 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
         (a.title || '').toLowerCase().includes(q) ||
         (a.abstract || '').toLowerCase().includes(q) ||
         (a.authors || []).some(auth => auth.toLowerCase().includes(q)) ||
-        (a.categories || []).some(cat => cat.toLowerCase().includes(q))
+        (a.categories || []).some(cat => cat.toLowerCase().includes(q)) ||
+        (a.populations || []).some(pop => pop.toLowerCase().includes(q))
       );
     }
 
-    // Category filter
+    // Category / Population filter
+    const isPopDim = state.thematicDimension === 'population';
     if (state.filter.category && state.filter.category !== 'all') {
       if (state.filter.category === '__uncat__') {
-        articles = articles.filter(a => !(a.categories && a.categories.length > 0));
+        if (isPopDim) {
+          articles = articles.filter(a => !(a.populations && a.populations.length > 0));
+        } else {
+          articles = articles.filter(a => !(a.categories && a.categories.length > 0));
+        }
       } else {
-        articles = articles.filter(a => (a.categories || []).includes(state.filter.category));
+        if (isPopDim) {
+          articles = articles.filter(a => {
+            const arr = (a.populations && a.populations.length) ? a.populations : ['População Geral / Não informada'];
+            return arr.includes(state.filter.category);
+          });
+        } else {
+          articles = articles.filter(a => (a.categories || []).includes(state.filter.category));
+        }
       }
     }
 
@@ -3721,48 +3941,74 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
       return;
     }
 
-    // ─── THEMATIC TRAYS VIEW (AGRUPADO POR TEMAS) ───────────
+    // ─── THEMATIC TRAYS VIEW (AGRUPADO POR TEMAS OU POPULAÇÕES) ───────────
     if (state.thematicViewMode !== 'list') {
       if (pag) pag.innerHTML = '';
       list.innerHTML = '';
 
-      // Only trays for categories that have matching articles in current filtered set
-      const projectCategories = Array.from(new Set([
-        ...(project.categories || []),
-        ...articles.flatMap(a => a.categories || [])
-      ])).filter(Boolean);
+      // Only trays for categories/populations that have matching articles in current filtered set
+      const defaultPopList = [
+        'Adolescentes & Jovens',
+        'Crianças & Primeira Infância',
+        'Mulheres & Meninas',
+        'Idosos & Terceira Idade',
+        'Estudantes & Universitários',
+        'Comunidade LGBTQIA+',
+        'População Negra & Quilombola',
+        'Povos Indígenas & Tradicionais',
+        'Trabalhadores & Profissionais',
+        'População Geral / Não informada'
+      ];
 
-      const catsToShow = (state.filter.category && state.filter.category !== 'all' && state.filter.category !== '__uncat__')
+      const projectGroups = isPopDim
+        ? Array.from(new Set([
+            ...defaultPopList,
+            ...articles.flatMap(a => (a.populations && a.populations.length) ? a.populations : ['População Geral / Não informada'])
+          ])).filter(Boolean)
+        : Array.from(new Set([
+            ...(project.categories || []),
+            ...articles.flatMap(a => a.categories || [])
+          ])).filter(Boolean);
+
+      const groupsToShow = (state.filter.category && state.filter.category !== 'all' && state.filter.category !== '__uncat__')
         ? [state.filter.category]
-        : projectCategories;
+        : projectGroups;
 
       let renderedTrays = 0;
 
-      catsToShow.forEach(cat => {
-        const catArticles = articles.filter(a => (a.categories || []).includes(cat));
-        if (!catArticles.length) return;
+      groupsToShow.forEach(groupName => {
+        const groupArticles = articles.filter(a => {
+          if (isPopDim) {
+            const arr = (a.populations && a.populations.length) ? a.populations : ['População Geral / Não informada'];
+            return arr.includes(groupName);
+          } else {
+            return (a.categories || []).includes(groupName);
+          }
+        });
+        if (!groupArticles.length) return;
 
         renderedTrays++;
-        const finalCount = catArticles.filter(a => a.final_selection).length;
+        const finalCount = groupArticles.filter(a => a.final_selection).length;
         const tray = document.createElement('div');
         tray.className = 'thematic-category-tray';
-        tray.id = `tray-${escapeHtml(cat).replace(/\s+/g, '-').toLowerCase()}`;
+        tray.id = `tray-${escapeHtml(groupName).replace(/\s+/g, '-').toLowerCase()}`;
 
+        const trayIcon = isPopDim ? '👥' : '🏷️';
         tray.innerHTML = `
           <div class="tray-header">
             <div class="tray-title-wrap">
-              <span style="font-size:1.35rem;">🏷️</span>
-              <span class="tray-title">${escapeHtml(cat)}</span>
-              <span class="tray-badge-count">${catArticles.length} estudo${catArticles.length !== 1 ? 's' : ''}</span>
+              <span style="font-size:1.35rem;">${trayIcon}</span>
+              <span class="tray-title">${escapeHtml(groupName)}</span>
+              <span class="tray-badge-count">${groupArticles.length} estudo${groupArticles.length !== 1 ? 's' : ''}</span>
               <span class="tray-badge-final">⭐ ${finalCount} final</span>
             </div>
             <div class="tray-actions">
-              ${!isFinalTab && finalCount < catArticles.length ? `
-                <button type="button" class="btn btn-sm btn-ghost select-all-theme-btn" data-theme="${escapeHtml(cat)}" style="border-radius:9999px;font-size:0.75rem;font-weight:700;color:#f59e0b;border:1px solid rgba(245,158,11,0.4);background:rgba(245,158,11,0.06);" title="Selecionar todos os estudos deste tema para a síntese final">
+              ${!isFinalTab && finalCount < groupArticles.length ? `
+                <button type="button" class="btn btn-sm btn-ghost select-all-theme-btn" data-theme="${escapeHtml(groupName)}" style="border-radius:9999px;font-size:0.75rem;font-weight:700;color:#f59e0b;border:1px solid rgba(245,158,11,0.4);background:rgba(245,158,11,0.06);" title="Selecionar todos os estudos deste grupo para a síntese final">
                   ⭐ Selecionar Todos
                 </button>
               ` : ''}
-              <button type="button" class="btn btn-sm btn-ghost toggle-tray-btn" title="Expandir ou recolher este tema">
+              <button type="button" class="btn btn-sm btn-ghost toggle-tray-btn" title="Expandir ou recolher este grupo">
                 <span class="tray-chevron" style="font-size:0.8rem;transition:transform 0.2s;">▼</span>
               </button>
             </div>
@@ -3775,7 +4021,7 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
         let renderedCount = 0;
 
         function appendCards(limit) {
-          const slice = catArticles.slice(renderedCount, renderedCount + limit);
+          const slice = groupArticles.slice(renderedCount, renderedCount + limit);
           slice.forEach(article => {
             const card = UI.renderArticleCard(article, project.keywords, {
               isIncludedTab: true,
@@ -3796,12 +4042,12 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
           const oldBtn = tray.querySelector('.expand-more-tray-btn');
           if (oldBtn) oldBtn.remove();
 
-          if (renderedCount < catArticles.length) {
-            const remaining = catArticles.length - renderedCount;
+          if (renderedCount < groupArticles.length) {
+            const remaining = groupArticles.length - renderedCount;
             const moreBtn = document.createElement('button');
             moreBtn.className = 'btn btn-sm btn-ghost expand-more-tray-btn';
             moreBtn.style.cssText = 'align-self:center;margin:12px auto 6px;border-radius:9999px;border:1px solid rgba(168,85,247,0.35);color:#c084fc;font-size:0.78rem;font-weight:700;padding:6px 18px;background:rgba(168,85,247,0.08);cursor:pointer;';
-            moreBtn.textContent = `Mostrar mais estudos (+${Math.min(25, remaining)}) · ${renderedCount} de ${catArticles.length}`;
+            moreBtn.textContent = `Mostrar mais estudos (+${Math.min(25, remaining)}) · ${renderedCount} de ${groupArticles.length}`;
             moreBtn.addEventListener('click', (e) => {
               e.stopPropagation();
               appendCards(25);
@@ -3826,15 +4072,15 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
         if (selAllBtn) {
           selAllBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            selectAllInTheme(project, cat);
+            selectAllInTheme(project, groupName);
           });
         }
 
         list.appendChild(tray);
       });
 
-      // Tray for Uncategorized Articles
-      if (state.filter.category === 'all' || state.filter.category === '__uncat__') {
+      // Tray for Uncategorized Articles (only if Theme dimension, because population has fallback 'População Geral / Não informada')
+      if (!isPopDim && (state.filter.category === 'all' || state.filter.category === '__uncat__')) {
         const uncatArticles = articles.filter(a => !(a.categories && a.categories.length > 0));
         if (uncatArticles.length > 0) {
           renderedTrays++;
@@ -3926,7 +4172,7 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
       }
 
       if (renderedTrays === 0) {
-        list.innerHTML = UI.emptyState('🏷️', 'Nenhum artigo nesta categoria', 'Selecione outra categoria ou clique em "Todos".');
+        list.innerHTML = UI.emptyState(isPopDim ? '👥' : '🏷️', isPopDim ? 'Nenhum artigo nesta população' : 'Nenhum artigo nesta categoria', 'Selecione outra opção ou clique em "Todas".');
       }
       return;
     }
@@ -3974,9 +4220,16 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
   }
 
   function selectAllInTheme(project, categoryName) {
-    const articles = (project.articles || []).filter(a =>
-      a.decision === 'include' && !a.is_duplicate && (a.categories || []).includes(categoryName)
-    );
+    const isPopDim = state.thematicDimension === 'population';
+    const articles = (project.articles || []).filter(a => {
+      if (a.decision !== 'include' || a.is_duplicate) return false;
+      if (isPopDim) {
+        const pops = (a.populations && a.populations.length) ? a.populations : ['População Geral / Não informada'];
+        return pops.includes(categoryName);
+      } else {
+        return (a.categories || []).includes(categoryName);
+      }
+    });
     if (!articles.length) return;
 
     const updates = [];
@@ -4172,6 +4425,71 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
       }
     ],
 
+    POPULATIONS: [
+      {
+        name: 'Adolescentes & Jovens',
+        keywords: [
+          'adolescente', 'adolescentes', 'adolescencia', 'adolescência', 'jovem', 'jovens',
+          'juventude', 'estudantes do ensino medio', 'estudante secundarista', 'escolares',
+          'adolescent', 'adolescents', 'adolescence', 'youth', 'teen', 'teens', 'teenager', 'teenagers', 'young'
+        ]
+      },
+      {
+        name: 'Crianças & Primeira Infância',
+        keywords: [
+          'crianca', 'criancas', 'criança', 'crianças', 'infantil', 'infancia', 'infância',
+          'primeira infancia', 'primeira infância', 'bebe', 'bebê', 'bebes', 'bebês',
+          'lactente', 'lactentes', 'pre-escolar', 'pré-escolar', 'child', 'children', 'childhood', 'infant', 'infants', 'pediatric'
+        ]
+      },
+      {
+        name: 'Mulheres & Gênero Feminino',
+        keywords: [
+          'mulher', 'mulheres', 'feminino', 'meninas', 'gestante', 'gestantes', 'gravida', 'grávida',
+          'puerpera', 'puérpera', 'maes', 'mães', 'feminina', 'woman', 'women', 'female', 'females', 'pregnant', 'mothers'
+        ]
+      },
+      {
+        name: 'Homens & Gênero Masculino',
+        keywords: [
+          'homem', 'homens', 'masculino', 'meninos', 'pais', 'paterno', 'paterna', 'masculina',
+          'man', 'men', 'male', 'males', 'fathers'
+        ]
+      },
+      {
+        name: 'Idosos & Terceira Idade',
+        keywords: [
+          'idoso', 'idosos', 'idosa', 'idosas', 'terceira idade', 'pessoa idosa', 'pessoas idosas',
+          'envelhecimento', 'geriatria', 'gerontologia', 'elderly', 'older adults', 'aged', 'aging', 'seniors', 'geriatric'
+        ]
+      },
+      {
+        name: 'População LGBTQIA+',
+        keywords: [
+          'lgbt', 'lgbtq', 'lgbtqia', 'lgbtqia+', 'transgenero', 'transgênero', 'travesti', 'travestis',
+          'homossexual', 'homossexuais', 'lesbicas', 'lésbicas', 'gays', 'bissexual', 'bissexuais',
+          'sexual minorities', 'gender minorities', 'transgender'
+        ]
+      },
+      {
+        name: 'Trabalhadores & População Ocupacional',
+        keywords: [
+          'trabalhador', 'trabalhadores', 'trabalhadora', 'trabalhadoras', 'profissionais de saude',
+          'profissionais de saúde', 'enfermeiro', 'enfermeiros', 'enfermeira', 'enfermeiras',
+          'medico', 'médicos', 'medica', 'médicas', 'professor', 'professores', 'professora', 'professoras',
+          'policial', 'policiais', 'trabalho', 'ocupacional', 'workers', 'healthcare workers', 'nurses', 'teachers', 'police'
+        ]
+      },
+      {
+        name: 'Estudantes Universitários',
+        keywords: [
+          'universitario', 'universitário', 'universitarios', 'universitários', 'estudantes universitarios',
+          'estudantes universitários', 'graduacao', 'graduação', 'ensino superior', 'faculdade',
+          'college students', 'university students', 'undergraduate'
+        ]
+      }
+    ],
+
     normalize(txt) {
       if (!txt) return '';
       return String(txt)
@@ -4191,6 +4509,11 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
         });
       });
 
+      const allPops = this.POPULATIONS.map(p => ({
+        name: p.name,
+        keywords: p.keywords.map(k => this.normalize(k))
+      }));
+
       if (project && Array.isArray(project.categories)) {
         project.categories.forEach(catName => {
           if (!allCats.some(c => c.name.toLowerCase() === catName.toLowerCase())) {
@@ -4204,34 +4527,69 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
         });
       }
 
+      if (project && Array.isArray(project.populations)) {
+        project.populations.forEach(popName => {
+          if (!allPops.some(p => p.name.toLowerCase() === popName.toLowerCase())) {
+            const normName = this.normalize(popName);
+            const tokens = normName.split(/\s+/).filter(w => w.length > 3);
+            allPops.push({
+              name: popName,
+              keywords: [normName, ...tokens]
+            });
+          }
+        });
+      }
+
       const updates = [];
       const matchedCategoriesSet = new Set();
+      const matchedPopulationsSet = new Set();
       let categorizedCount = 0;
 
       articles.forEach(art => {
         const fullText = this.normalize(
           `${art.title || ''} ${art.abstract || ''} ${(art.keywords || []).join(' ')}`
         );
-        const assigned = [];
-
+        const assignedCats = [];
         allCats.forEach(cat => {
           const matched = cat.keywords.some(kw => fullText.includes(kw));
           if (matched) {
-            assigned.push(cat.name);
+            assignedCats.push(cat.name);
             matchedCategoriesSet.add(cat.name);
           }
         });
 
-        // Preserve any custom manual categories the user may have explicitly added
+        // Match Population
+        const assignedPops = [];
+        allPops.forEach(pop => {
+          const matched = pop.keywords.some(kw => fullText.includes(kw));
+          if (matched) {
+            assignedPops.push(pop.name);
+            matchedPopulationsSet.add(pop.name);
+          }
+        });
+
+        // Fallback to "População Geral / Não informada" if no population was identified
+        if (assignedPops.length === 0) {
+          const fallbackPop = 'População Geral / Não informada';
+          assignedPops.push(fallbackPop);
+          matchedPopulationsSet.add(fallbackPop);
+        }
+
+        // Preserve any custom manual categories & populations
         const manualCats = (art.categories || []).filter(c => !allCats.some(ac => ac.name === c));
-        const finalCats = Array.from(new Set([...manualCats, ...assigned]));
+        const finalCats = Array.from(new Set([...manualCats, ...assignedCats]));
+
+        const manualPops = (art.populations || []).filter(p => !allPops.some(ap => ap.name === p) && p !== 'População Geral / Não informada');
+        const finalPops = Array.from(new Set([...manualPops, ...assignedPops]));
 
         updates.push({
           id: art.id,
-          categories: finalCats
+          categories: finalCats,
+          populations: finalPops
         });
         art.categories = finalCats;
-        if (assigned.length > 0) categorizedCount++;
+        art.populations = finalPops;
+        if (assignedCats.length > 0 || assignedPops.length > 0) categorizedCount++;
       });
 
       // If absolutely no categories matched across any article, extract high-frequency terms
@@ -4249,6 +4607,7 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
       return {
         updates,
         categories: Array.from(matchedCategoriesSet),
+        populations: Array.from(matchedPopulationsSet),
         categorizedCount
       };
     }
@@ -4344,6 +4703,8 @@ Responda APENAS com JSON válido:
         }
       }
 
+      let popNames = [];
+
       // If AI was not configured or produced no categories, use built-in SemanticCategorizer
       if (!catNames.length || !updates.length) {
         setMsg('Aplicando ontologia semântica especializada nos estudos…');
@@ -4351,22 +4712,28 @@ Responda APENAS com JSON válido:
 
         const res = SemanticCategorizer.classifyArticles(included, project);
         catNames = res.categories;
+        popNames = res.populations || [];
         updates = res.updates;
         categorizedCount = res.categorizedCount;
       }
 
-      // Save categories to project
+      // Save categories & populations to project
       const allActiveCats = Array.from(new Set([
         ...(project.categories || []),
         ...catNames
       ])).filter(Boolean);
 
-      Storage.updateProject(project.id, { categories: allActiveCats });
+      const allActivePops = Array.from(new Set([
+        ...(project.populations || []),
+        ...popNames
+      ])).filter(Boolean);
+
+      Storage.updateProject(project.id, { categories: allActiveCats, populations: allActivePops });
       if (updates.length) Storage.bulkUpdateArticles(project.id, updates);
 
       overlay.remove();
       UI.toast(
-        `✨ ${catNames.length} temas identificados e ${categorizedCount} de ${included.length} artigos classificados!`,
+        `✨ ${catNames.length} temas e ${allActivePops.length} grupos populacionais identificados para ${included.length} artigos!`,
         'success'
       );
       renderArticlesTab(Storage.getProject(project.id), state.tab === 'final');

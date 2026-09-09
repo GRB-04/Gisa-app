@@ -442,20 +442,6 @@ const Similarity = (() => {
     if (!kw || !kw.trim()) return null;
     const cleanKw = kw.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     
-    // Derived root stem for cross-language matching (e.g., "educação"/"education" -> "educa")
-    let stem = cleanKw;
-    if (cleanKw.startsWith('educa')) {
-      stem = 'educa';
-    } else if (cleanKw.startsWith('violen')) {
-      stem = 'violen';
-    } else if (cleanKw.startsWith('feminicid')) {
-      stem = 'feminicid';
-    } else if (cleanKw.length >= 5) {
-      // Remove common Portuguese and English suffixes
-      const stripped = cleanKw.replace(/(ção|cao|ções|coes|tion|tional|cional|tivo|ativa|ativo|ation|ment)$/i, '');
-      stem = stripped.length >= 4 ? stripped : cleanKw.substring(0, 4);
-    }
-
     const mapChar = (ch) => {
       if (/[aáàãâ]/.test(ch)) return '[aáàãâAÁÀÃÂ]';
       if (/[eéèê]/.test(ch)) return '[eéèêEÉÈÊ]';
@@ -463,13 +449,84 @@ const Similarity = (() => {
       if (/[oóòõô]/.test(ch)) return '[oóòõôOÓÒÕÔ]';
       if (/[uúùû]/.test(ch)) return '[uúùûUÚÙÛ]';
       if (/[cç]/.test(ch)) return '[cçCÇ]';
+      if (/\s/.test(ch)) return '\\s+';
       return ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     };
 
     const isWordChar = '[a-zA-Z0-9\\u00C0-\\u024F_-]';
-    if (stem.length >= 4) {
+
+    // Stem individual words if multi-word phrase
+    const words = cleanKw.split(/\s+/).filter(Boolean);
+    if (words.length > 1) {
+      const wordPatterns = words.map(w => {
+        let wStem = w;
+        if (w.startsWith('adolescen')) {
+          wStem = 'adolescen';
+        } else if (w.startsWith('crian')) {
+          wStem = 'crian';
+        } else if (w.startsWith('violen')) {
+          wStem = 'violen';
+        } else if (w.startsWith('educa')) {
+          wStem = 'educa';
+        } else if (w.startsWith('feminicid')) {
+          wStem = 'feminicid';
+        } else if (w.startsWith('jove')) {
+          wStem = 'jov';
+        } else if (w.endsWith('ns') && w.length >= 4) {
+          wStem = w.slice(0, -2);
+        } else if (w.endsWith('m') && w.length >= 4) {
+          wStem = w.slice(0, -1);
+        } else if (w.endsWith('is') && w.length >= 4) {
+          wStem = w.slice(0, -2);
+        } else if (w.endsWith('l') && w.length >= 4) {
+          wStem = w.slice(0, -1);
+        } else if (w.length >= 5) {
+          let stripped = w.replace(/(ção|cao|ções|coes|tion|tional|cional|tivo|ativa|ativo|ation|ment|mente|idades|idade|ismo|ismos)$/i, '');
+          stripped = stripped.replace(/(es|s)$/i, '');
+          wStem = stripped.length >= 3 ? stripped : w.substring(0, Math.min(4, w.length));
+        } else if (w.length === 4 && w.endsWith('s')) {
+          wStem = w.slice(0, -1);
+        }
+        const mapped = [...wStem].map(mapChar).join('');
+        return `(?:${mapped}${isWordChar}*)`;
+      });
+      return new RegExp(`(?<!${isWordChar})(${wordPatterns.join('\\s+')})(?!${isWordChar})`, 'gi');
+    }
+
+    // Single word
+    let stem = cleanKw;
+    if (cleanKw.startsWith('educa')) {
+      stem = 'educa';
+    } else if (cleanKw.startsWith('violen')) {
+      stem = 'violen';
+    } else if (cleanKw.startsWith('feminicid')) {
+      stem = 'feminicid';
+    } else if (cleanKw.startsWith('adolescen')) {
+      stem = 'adolescen';
+    } else if (cleanKw.startsWith('crian')) {
+      stem = 'crian';
+    } else if (cleanKw.startsWith('jove')) {
+      stem = 'jov';
+    } else if (cleanKw.endsWith('ns') && cleanKw.length >= 4) {
+      stem = cleanKw.slice(0, -2);
+    } else if (cleanKw.endsWith('m') && cleanKw.length >= 4) {
+      stem = cleanKw.slice(0, -1);
+    } else if (cleanKw.endsWith('is') && cleanKw.length >= 4) {
+      stem = cleanKw.slice(0, -2);
+    } else if (cleanKw.endsWith('l') && cleanKw.length >= 4) {
+      stem = cleanKw.slice(0, -1);
+    } else if (cleanKw.length >= 5) {
+      // Remove common Portuguese and English suffixes and plurals
+      let stripped = cleanKw.replace(/(ção|cao|ções|coes|tion|tional|cional|tivo|ativa|ativo|ation|ment|mente|idades|idade|ismo|ismos)$/i, '');
+      stripped = stripped.replace(/(es|s)$/i, '');
+      stem = stripped.length >= 3 ? stripped : cleanKw.substring(0, Math.min(4, cleanKw.length));
+    } else if (cleanKw.length === 4 && cleanKw.endsWith('s')) {
+      stem = cleanKw.slice(0, -1);
+    }
+
+    if (stem.length >= 3) {
       const stemPattern = [...stem].map(mapChar).join('');
-      return new RegExp(`(?<!${isWordChar})(${isWordChar}*${stemPattern}${isWordChar}*)(?!${isWordChar})`, 'gi');
+      return new RegExp(`(?<!${isWordChar})(${stemPattern}${isWordChar}*)(?!${isWordChar})`, 'gi');
     } else {
       const fullPattern = [...cleanKw].map(mapChar).join('');
       return new RegExp(`(?<!${isWordChar})(${fullPattern})(?!${isWordChar})`, 'gi');
@@ -604,6 +661,10 @@ const Similarity = (() => {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  return { compareArticles, findDuplicates, findDuplicatesAsync, markDuplicates, relevanceScore, highlightKeywords, getBilingualSynonyms, tokenize, jaccard };
+  return { compareArticles, findDuplicates, findDuplicatesAsync, markDuplicates, relevanceScore, highlightKeywords, getBilingualSynonyms, tokenize, jaccard, buildFuzzyRegex };
 })();
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = Similarity;
+}
 

@@ -2,20 +2,20 @@
  * Gisa — Service Worker (Offline-First Cache Engine)
  */
 
-const CACHE_NAME = 'gisa-app-v88';
+const CACHE_NAME = 'gisa-app-v89';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './manifest.json',
-  './css/style.css?v=88',
-  './js/storage.js?v=88',
-  './js/supabase_client.js?v=88',
-  './js/similarity.js?v=88',
+  './css/style.css?v=89',
+  './js/storage.js?v=89',
+  './js/supabase_client.js?v=89',
+  './js/similarity.js?v=89',
   './js/jszip.min.js',
-  './js/parsers.js?v=88',
-  './js/ai_assistant.js?v=88',
-  './js/ui.js?v=88',
-  './js/app.js?v=88',
+  './js/parsers.js?v=89',
+  './js/ai_assistant.js?v=89',
+  './js/ui.js?v=89',
+  './js/app.js?v=89',
   './icons/icon.svg',
   './icons/icon-192.png',
   './icons/icon-512.png'

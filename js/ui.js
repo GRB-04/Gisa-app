@@ -194,6 +194,17 @@ const UI = (() => {
       }
     }
 
+    const pops = article.populations || [];
+    let popBadges = '';
+    if (pops.length > 0) {
+      popBadges = pops.slice(0, 2).map(pop =>
+        `<span class="badge" style="background:rgba(59,130,246,0.14);border:1px solid rgba(59,130,246,0.3);color:#93c5fd;padding:2px 8px;border-radius:9999px;font-size:0.73rem;font-weight:600;">👥 ${escapeHtml(pop)}</span>`
+      ).join(' ');
+      if (pops.length > 2) {
+        popBadges += ` <span class="badge" style="background:rgba(59,130,246,0.08);border:1px dashed rgba(59,130,246,0.35);color:#60a5fa;padding:2px 7px;border-radius:9999px;font-size:0.72rem;font-weight:700;" title="${escapeHtml(pops.slice(2).join(', '))}">+${pops.length - 2} pop.</span>`;
+      }
+    }
+
     const scholarUrl = `https://scholar.google.com/scholar?q=${encodeURIComponent(article.title)}`;
     const doiUrl = article.doi ? `https://doi.org/${article.doi}` : scholarUrl;
 
@@ -212,7 +223,7 @@ const UI = (() => {
       <div class="article-card-inner">
         <div class="article-card-top" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
           <div class="article-badges" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-            ${relevBadge}${dupBadge}${pdfBadge}${statusBadges}${catBadges}${exReasonBadge}
+            ${relevBadge}${dupBadge}${pdfBadge}${statusBadges}${catBadges}${popBadges}${exReasonBadge}
           </div>
           <div class="article-card-top-actions" style="display:flex;align-items:center;gap:6px;margin-left:auto;">
             ${!(isIncludedTab || isFinalTab) ? `
@@ -1709,26 +1720,10 @@ const UI = (() => {
   /** Realce de palavras-chave no resumo (Verde para Inclusão, Vermelho para Exclusão) */
   function highlightKeywords(text, incKeywords = [], excKeywords = []) {
     if (!text) return '<em>Sem resumo cadastrado.</em>';
+    if (typeof Similarity !== 'undefined' && Similarity.highlightKeywords) {
+      return Similarity.highlightKeywords(text, incKeywords, excKeywords);
+    }
     let html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-    // Highlighting Exclusion terms (Red)
-    if (excKeywords.length > 0) {
-      const excPattern = excKeywords.map(k => k.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).filter(Boolean).join('|');
-      if (excPattern) {
-        const regexExc = new RegExp(`\\b(${excPattern})\\b`, 'gi');
-        html = html.replace(regexExc, '<mark class="kw-highlight-exc">$1</mark>');
-      }
-    }
-
-    // Highlighting Inclusion terms (Green)
-    if (incKeywords.length > 0) {
-      const incPattern = incKeywords.map(k => k.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).filter(Boolean).join('|');
-      if (incPattern) {
-        const regexInc = new RegExp(`\\b(${incPattern})\\b`, 'gi');
-        html = html.replace(regexInc, '<mark class="kw-highlight-inc">$1</mark>');
-      }
-    }
-
     return html;
   }
 
@@ -1755,14 +1750,30 @@ const UI = (() => {
     // 2. Palavras de Inclusão com contagem de ocorrências
     const incKws = project.keywords || [];
     const incCounts = incKws.map(kw => {
-      const count = articles.filter(a => {
-        const txt = (a.title + ' ' + a.abstract).toLowerCase();
-        return txt.includes(kw.toLowerCase());
+      const re = typeof Similarity !== 'undefined' && Similarity.buildFuzzyRegex ? Similarity.buildFuzzyRegex(kw) : null;
+      const kwLower = kw.toLowerCase();
+      const count = uniqueArticles.filter(a => {
+        const txt = ((a.title || '') + ' ' + (a.abstract || '')).toLowerCase();
+        if (re) { re.lastIndex = 0; return re.test(txt); }
+        return txt.includes(kwLower);
       }).length;
       return { kw, count };
     });
 
-    // 3. Anos de publicação ordenados
+    // 3. Palavras de Exclusão com contagem de ocorrências
+    const excKws = project.excludeKeywords || [];
+    const excCounts = excKws.map(kw => {
+      const re = typeof Similarity !== 'undefined' && Similarity.buildFuzzyRegex ? Similarity.buildFuzzyRegex(kw) : null;
+      const kwLower = kw.toLowerCase();
+      const count = uniqueArticles.filter(a => {
+        const txt = ((a.title || '') + ' ' + (a.abstract || '')).toLowerCase();
+        if (re) { re.lastIndex = 0; return re.test(txt); }
+        return txt.includes(kwLower);
+      }).length;
+      return { kw, count };
+    });
+
+    // 4. Anos de publicação ordenados
     const yearsMap = {};
     articles.forEach(a => {
       if (a.year) {
@@ -1793,10 +1804,23 @@ const UI = (() => {
 
       ${incCounts.length > 0 ? `
         <div class="facet-group">
-          <div class="facet-group-title">Inclusão</div>
+          <div class="facet-group-title">Termos de Inclusão</div>
           ${incCounts.map(i => `
-            <button class="facet-item ${currentFilter.kw === i.kw ? 'active' : ''}" data-facet-type="inc_kw" data-val="${escapeHtml(i.kw)}">
+            <button class="facet-item ${currentFilter.kw === i.kw ? 'active' : ''}" data-facet-type="inc_kw" data-val="${escapeHtml(i.kw)}" title="Filtrar por ${escapeHtml(i.kw)}">
               <span class="facet-dot" style="background:var(--green)"></span>
+              <span class="facet-label">${escapeHtml(i.kw)}</span>
+              <span class="facet-count">${i.count}</span>
+            </button>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      ${excCounts.length > 0 ? `
+        <div class="facet-group">
+          <div class="facet-group-title">Termos de Exclusão</div>
+          ${excCounts.map(i => `
+            <button class="facet-item ${currentFilter.kw === i.kw ? 'active' : ''}" data-facet-type="exc_kw" data-val="${escapeHtml(i.kw)}" title="Filtrar por ${escapeHtml(i.kw)}">
+              <span class="facet-dot" style="background:var(--red)"></span>
               <span class="facet-label">${escapeHtml(i.kw)}</span>
               <span class="facet-count">${i.count}</span>
             </button>
@@ -1903,13 +1927,15 @@ const UI = (() => {
       </div>
 
       <div class="inspector-content" style="padding-top:12px;display:flex;flex-direction:column;gap:12px;">
-        <h2 class="inspector-title" id="inspector-title" style="margin:0;line-height:1.45;">${escapeHtml(article.title)}</h2>
+        <h2 class="inspector-title" id="inspector-title" style="margin:0;line-height:1.45;">${highlightKeywords(article.title, incKws, excKws)}</h2>
 
         <div class="inspector-meta-box">
           <div><strong>Autores:</strong> ${article.authors?.length ? escapeHtml(article.authors.join('; ')) : 'Não informado'}</div>
           <div><strong>Revista/Fonte:</strong> ${escapeHtml(article.journal || article.source_file || '—')} ${article.year ? `(${article.year})` : ''}</div>
           ${article.doi ? `<div><strong>DOI:</strong> <a href="https://doi.org/${article.doi}" target="_blank" rel="noopener">${article.doi} ↗</a></div>` : ''}
           ${hasPdf ? `<div><strong>Arquivo PDF:</strong> <span style="color:var(--purple);font-weight:600;">${escapeHtml(article.pdf_name || 'Documento PDF')}</span></div>` : ''}
+          ${article.categories && article.categories.length ? `<div><strong>Temas:</strong> <span style="color:#d8b4fe;font-weight:600;">🏷️ ${escapeHtml(article.categories.join(', '))}</span></div>` : ''}
+          ${article.populations && article.populations.length ? `<div><strong>População:</strong> <span style="color:#93c5fd;font-weight:600;">👥 ${escapeHtml(article.populations.join(', '))}</span></div>` : ''}
           ${article.relevance_score !== undefined && article.relevance_score !== null ? `
             <div style="margin-top:4px;">
               <strong>Relevância IA:</strong>
@@ -1995,7 +2021,7 @@ const UI = (() => {
         if (isTranslated) {
           // Revert to English
           isTranslated = false;
-          if (titleEl) titleEl.textContent = article.title;
+          if (titleEl) titleEl.innerHTML = highlightKeywords(article.title, incKws, excKws);
           if (abstractEl) {
             abstractEl.innerHTML = highlightKeywords(article.abstract, incKws, excKws) || '<p style="color:var(--text-muted);font-style:italic">Resumo não disponível.</p>';
           }
@@ -2024,7 +2050,7 @@ const UI = (() => {
 
           isTranslated = true;
           if (titleEl && article._pt_title) {
-            titleEl.textContent = article._pt_title;
+            titleEl.innerHTML = highlightKeywords(article._pt_title, incKws, excKws);
           }
           if (abstractEl && article._pt_abstract) {
             abstractEl.innerHTML = highlightKeywords(article._pt_abstract, incKws, excKws);
