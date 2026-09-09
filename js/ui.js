@@ -2523,7 +2523,7 @@ const UI = (() => {
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
               <button class="btn btn-sm btn-primary ar-preset-btn" data-val="97" style="border-radius:9999px;padding:4px 12px;font-size:0.75rem;font-weight:600;">97% (Estrito)</button>
               <button class="btn btn-sm btn-ghost ar-preset-btn" data-val="85" style="border-radius:9999px;padding:4px 12px;font-size:0.75rem;font-weight:600;border:1px solid rgba(255,255,255,0.12);">85% (Moderado)</button>
-              <button class="btn btn-sm btn-ghost ar-preset-btn" data-val="65" style="border-radius:9999px;padding:4px 12px;font-size:0.75rem;font-weight:600;border:1px solid rgba(255,255,255,0.12);">65% (Amplo)</button>
+              <button class="btn btn-sm btn-ghost ar-preset-btn" data-val="60" style="border-radius:9999px;padding:4px 12px;font-size:0.75rem;font-weight:600;border:1px solid rgba(255,255,255,0.12);">60% (Amplo)</button>
               <button class="btn btn-sm btn-ghost ar-preset-btn" data-val="55" style="border-radius:9999px;padding:4px 12px;font-size:0.75rem;font-weight:600;border:1px solid rgba(255,255,255,0.12);">55% (Todos)</button>
             </div>
           </div>

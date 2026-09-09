@@ -2646,7 +2646,7 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
             <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;">
               <button type="button" class="btn btn-sm ${state.dupThreshold === 97 ? 'btn-primary' : 'btn-ghost'} dup-preset-quick" data-val="97" style="font-size:0.75rem;padding:3px 12px;border-radius:9999px;">97% (Estrito)</button>
               <button type="button" class="btn btn-sm ${state.dupThreshold === 85 ? 'btn-primary' : 'btn-ghost'} dup-preset-quick" data-val="85" style="font-size:0.75rem;padding:3px 12px;border-radius:9999px;">85% (Moderado)</button>
-              <button type="button" class="btn btn-sm ${state.dupThreshold === 65 ? 'btn-primary' : 'btn-ghost'} dup-preset-quick" data-val="65" style="font-size:0.75rem;padding:3px 12px;border-radius:9999px;">65% (Amplo)</button>
+              <button type="button" class="btn btn-sm ${state.dupThreshold === 60 ? 'btn-primary' : 'btn-ghost'} dup-preset-quick" data-val="60" style="font-size:0.75rem;padding:3px 12px;border-radius:9999px;">60% (Amplo)</button>
               <button type="button" class="btn btn-sm ${state.dupThreshold === 55 ? 'btn-primary' : 'btn-ghost'} dup-preset-quick" data-val="55" style="font-size:0.75rem;padding:3px 12px;border-radius:9999px;">55% (Todos)</button>
             </div>
           </div>
@@ -2945,7 +2945,7 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
         state.dupOffset = 0;
         if (f === 'pending_high') state.dupThreshold = 97;
         else if (f === 'pending_med') state.dupThreshold = 85;
-        else if (f === 'pending_manual') state.dupThreshold = 65;
+        else if (f === 'pending_manual') state.dupThreshold = 60;
         
         const r = $('dup-threshold');
         const d = $('threshold-display');
@@ -2984,20 +2984,22 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
     if (!filteredPairs.length) {
       if (state.dupFilter === 'pending_all') {
         list.innerHTML = `
-          <div style="text-align:center;padding:40px 20px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-xl);margin:20px 0;">
-            <div style="font-size:2.4rem;margin-bottom:12px;">✅</div>
-            <h3 style="color:var(--text-primary);margin-bottom:8px;">Nenhum par pendente com similaridade ≥ ${currentThresh}%</h3>
-            <p style="color:var(--text-muted);font-size:0.9rem;max-width:580px;margin:0 auto 18px;line-height:1.5;">
+          <div style="text-align:center;padding:18px 20px;background:rgba(26,17,50,0.6);border:1px solid rgba(168,85,247,0.25);border-radius:var(--radius-lg);margin:10px 0;">
+            <div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:6px;">
+              <span style="font-size:1.4rem;">✅</span>
+              <h3 style="color:var(--text-primary);margin:0;font-size:1.05rem;">Nenhum par pendente com similaridade ≥ ${currentThresh}%</h3>
+            </div>
+            <p style="color:var(--text-muted);font-size:0.85rem;max-width:620px;margin:0 auto 12px;line-height:1.4;">
               ${pendingPairs.length > 0 
                 ? `Todas as duplicatas com similaridade acima de <strong>${currentThresh}%</strong> já foram resolvidas! Restam <strong>${pendingPairs.length} pares com menor similaridade (&lt; 85%)</strong> que requerem verificação humana.` 
                 : 'Todas as duplicatas encontradas já foram descartadas e a base está 100% limpa.'}
             </p>
             ${pendingPairs.length > 0 ? `
               <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-                <button class="btn btn-secondary btn-sm" id="btn-show-manual-pairs" style="border-radius:9999px;">
-                  🔍 Ver os ${pendingPairs.length} Pares para Verificação Manual (&lt; 85%)
+                <button class="btn btn-primary btn-sm" id="btn-show-manual-pairs" style="border-radius:9999px;font-size:0.8rem;padding:5px 16px;">
+                  🔍 Ver os ${pendingPairs.length} Pares para Verificação Manual (< 85%)
                 </button>
-                <button class="btn btn-ghost btn-sm" id="btn-lower-threshold-55" style="border-radius:9999px;border:1px solid rgba(255,255,255,0.15);">
+                <button class="btn btn-ghost btn-sm" id="btn-lower-threshold-55" style="border-radius:9999px;border:1px solid rgba(255,255,255,0.18);font-size:0.8rem;padding:5px 16px;">
                   Exibir Todos os Pares (55%)
                 </button>
               </div>
