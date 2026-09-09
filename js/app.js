@@ -3950,13 +3950,12 @@ total_reports_ma,NA,box17,Reports of total included studies in meta-analysis,Rep
       const defaultPopList = [
         'Adolescentes & Jovens',
         'Crianças & Primeira Infância',
-        'Mulheres & Meninas',
+        'Mulheres & Gênero Feminino',
+        'Homens & Gênero Masculino',
         'Idosos & Terceira Idade',
-        'Estudantes & Universitários',
-        'Comunidade LGBTQIA+',
-        'População Negra & Quilombola',
-        'Povos Indígenas & Tradicionais',
-        'Trabalhadores & Profissionais',
+        'Estudantes Universitários',
+        'População LGBTQIA+',
+        'Trabalhadores & População Ocupacional',
         'População Geral / Não informada'
       ];
 
